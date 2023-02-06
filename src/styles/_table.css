@@ -26,8 +26,6 @@ table {
 	border-radius: 10%;
 }
  .ending {
-	border: solid 4px tomato;
-	background-color: mediumaquamarine;
 	background-color: #ffd000;
 	background-image: url("../Images/duck.png");
 	background-size: contain;

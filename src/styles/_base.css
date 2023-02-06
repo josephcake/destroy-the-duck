@@ -26,7 +26,6 @@ html {
   height: 100vh;
   width: 100vw;
   background-color: whitesmoke;
-  border: solid 1px black;
 }
 @media only screen and (max-width: 500px) {
   .App {
@@ -39,5 +38,4 @@ html {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  border-top: solid 1px gray;  
 }

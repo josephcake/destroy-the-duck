@@ -1,6 +1,6 @@
 const BIDIRECTIONAL_SEARCH = 'bidirectionalSearch'
 const CHECKER = 'checker'
-const VISITED = VISITED
+const VISITED = "visited"
 const STAIR = 'stair'
 const SPIRAL = 'spiral'
 const BASIC = 'basic'

@@ -7,7 +7,6 @@ import Intro from "./Popup/Intro";
 import { Legend } from "./Legend/Legend";
 import { TableContext } from "./Context/TableContext";
 
-
 function App() {
   const [intro, setIntro] = useState(true);
   const toggleIntro = () => {
@@ -27,7 +26,12 @@ function App() {
               running={running}
             />
             <Legend />
+            <div className="spacer"/>
+            <div className="spacer"/>
+            <div className="spacer"/>
             <Main />
+            <div className="spacer"/>
+            <div className="spacer"/>
             <Footer />
             {intro && <Intro setIntro={toggleIntro} />}
           </div>

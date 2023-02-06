@@ -1,103 +1,104 @@
 .legend {
-	 display: flex;
-	 flex-wrap: wrap;
-	 flex-direction: row;
-	 justify-content: space-evenly;
-	 align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	flex-direction: row;
+	justify-content: space-evenly;
+	align-items: center;
+  border-bottom: solid 1px gray;
+
 }
  .legend__section {
-	 display: flex;
-	 flex-direction: row;
-	 justify-content: space-evenly;
-	 align-items: center;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-evenly;
+	align-items: center;
 }
  .legend__item {
-	 display: flex;
-	 flex-direction: row;
-	 justify-content: space-evenly;
-	 align-items: center;
-	 margin: 0 10px;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-evenly;
+	align-items: center;
+	margin: 0 10px;
 }
  .legend__item-label {
-	 font-size: 20px;
-	 word-spacing: 5px;
-	 font-family: "Bree serif";
+	font-size: 20px;
+	word-spacing: 5px;
+	font-family: "Bree serif";
 }
  .legend__item-icon {
-	 margin: 0 5px;
-	 width: 25px;
-	 height: 25px;
+	margin: 0 5px;
+	width: 25px;
+	height: 25px;
 }
  .duck {
-	 background-color: #ffd000;
+	background-color: #ffd000;
 }
  .bullet {
-	 transform: rotate(90deg);
-	 background-color: #e94c0e;
+	transform: rotate(90deg);
+	background-color: #e94c0e;
 }
  img {
-	 width: 20px;
-	 height: 20px;
+	width: 20px;
+	height: 20px;
 }
  .unvisited-legend {
-	 background-color: lightgray;
+	background-color: lightgray;
 }
  .visited-legend {
-	 background-color: #724d9c;
+	background-color: #724d9c;
 }
  .wall-legend {
-	 background-color: rgba(4, 4, 44, 0.8);
+	background-color: rgba(4, 4, 44, 0.8);
 }
  @media only screen and (max-height: 850px) {
-	 .legend__item-label {
-		 font-size: 15px;
-		 word-spacing: 3px;
+	.legend__item-label {
+		font-size: 15px;
+		word-spacing: 3px;
 	}
-	 .legend__item-icon {
-		 width: 16px;
-		 height: 16px;
+	.legend__item-icon {
+		width: 16px;
+		height: 16px;
 	}
 }
  @media only screen and (max-width: 768px) {
-	 .legend {
-		 justify-content: space-evenly;
+	.legend {
+		justify-content: space-evenly;
 	}
-	 .legend__section {
-		 justify-content: space-evenly;
+	.legend__section {
+		justify-content: space-evenly;
 	}
-	 .legend__item {
-		 justify-content: space-evenly;
-		 margin: 0 5px;
+	.legend__item {
+		justify-content: space-evenly;
+		margin: 0 5px;
 	}
-	 .legend__item-label {
-		 font-size: 15px;
-		 word-spacing: 2px;
+	.legend__item-label {
+		font-size: 15px;
+		word-spacing: 2px;
 	}
-	 .legend__item-icon {
-		 margin: 0 3px;
-		 width: 18px;
-		 height: 18px;
+	.legend__item-icon {
+		margin: 0 3px;
+		width: 18px;
+		height: 18px;
 	}
 }
  @media only screen and (max-width: 500px) {
-	 .legend {
-		 margin: 0;
+	.legend {
+		margin: 0;
 	}
-	 .legend__item {
-		 margin: 0 5px;
+	.legend__item {
+		margin: 0 5px;
 	}
-	 .legend__item-label {
-		 font-size: 8px;
-		 word-spacing: 0px;
+	.legend__item-label {
+		font-size: 8px;
+		word-spacing: 0px;
 	}
-	 .legend__item-icon {
-		 margin: 0;
-		 width: 10px;
-		 height: 10px;
+	.legend__item-icon {
+		margin: 0;
+		width: 10px;
+		height: 10px;
 	}
-	 img {
-		 width: 15px;
-		 height: 15px;
+	img {
+		width: 15px;
+		height: 15px;
 	}
 }
- 
