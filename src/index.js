@@ -1,7 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom";
 
-import "./styles/_base.scss";
+import "./styles/_base.css";
+import "./styles/_nav.css";
+import "./styles/_table.css";
+import "./styles/_footer.css";
+import "./styles/_legend.css";
+import "./styles/_intro.css";
 import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import { TableContextProvider } from "./Context/TableContext";

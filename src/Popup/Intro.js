@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Page_1 from "./Page_1";
 import Page_2 from "./Page_2";
 import Page_3 from "./Page_3";
@@ -9,8 +9,17 @@ import Page_6 from "./Page_6";
 import Page_7 from "./Page_7";
 
 const Intro = ({ setIntro }) => {
+  const [showIntro, setShowIntro] = useState(false);
   const [count, setCount] = useState(0);
   const [censored, setCensorship] = useState(false);
+
+  useEffect(()=>{
+    const dtdToken = localStorage.getItem('dtdIntro')
+    if(!dtdToken){
+      localStorage.setItem('dtdIntro', 'true')
+      setShowIntro(prev => !prev)
+    }
+  },[])
   const pages = [
     <Page_1 censored={censored} />,
     <Page_2 censored={censored} />,
@@ -32,23 +41,12 @@ const Intro = ({ setIntro }) => {
       setCount(count - 1);
     }
   };
-  return (
-    <div className={"intro"}>
-      <div className={"intro-censorship-switch"}>
-        <h5>Censorship</h5>
-        <label className={"switch"}>
-          <input
-            type={"checkbox"}
-            checked={censored}
-            onChange={() => setCensorship(!censored)}
-          />
-          <span className="slider round"></span>
-        </label>
-      </div>
-      <div className={"intro-current"}>
-        {/* <p>You clicked {count} times</p> */}
-        {currentPage}
 
+  return (
+    showIntro &&
+    <div className={"intro"}>
+      <div className={"intro-current"}>
+        {currentPage}
         <div className={"intro-button-container"}>
           <div>
             <button className={"intro-button"} onClick={() => setIntro(false)}>
@@ -56,12 +54,16 @@ const Intro = ({ setIntro }) => {
             </button>
           </div>
           <div>
+            {count !== 0 &&
             <button className={"intro-button"} onClick={() => decrement()}>
               Previous
             </button>
+            }
+            {count !== 6 &&
             <button className={"intro-button"} onClick={() => increment()}>
               Next
             </button>
+            }
           </div>
         </div>
       </div>

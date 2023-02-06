@@ -7,20 +7,17 @@
   align-items: center;
   color: white;
   font-family: "Bree serif";
-  &__item {
-    cursor: pointer;
-    font-weight: 800;
-    letter-spacing: 1px;
-  }
 }
+.footer__item {
+  cursor: pointer;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
 .link-tag {
   text-decoration: none;
   text-transform: none;
   color: white;
-
-  // &:hover {
-  //   text-decoration: underline;
-  // }
 }
 
 @media only screen and (max-height: 850px) {

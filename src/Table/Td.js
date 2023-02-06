@@ -1,17 +1,6 @@
 import React from "react";
-// import { TableContext } from "../Context/TableContext";
-
 class Td extends React.Component {
-  // shouldComponentUpdate(nextProp, nextState) {
-  // const { r, c, current, ending } = this.props;
 
-  // const cell = `${r}-${c}`;
-  // debugger;
-  // if (nextProp.current !== cell) {
-  // return false;
-  // }
-  // return true;
-  // }
   render() {
     const {
       r,
@@ -20,10 +9,9 @@ class Td extends React.Component {
       ending,
       current,
       wallConstructorOn,
-      // wallConstructorOff,
       wallBuilding
     } = this.props;
-    // console.log(current);
+
     const cell = `${r}-${c}`;
     let classN =
       cell === ending
@@ -39,11 +27,8 @@ class Td extends React.Component {
         id={cell}
         draggable={false}
         onMouseDown={wallConstructorOn}
-        // onMouseUp={wallConstructorOff}
         onMouseMove={wallBuilding}
-      >
-        0
-      </td>
+      />
     );
   }
 }

@@ -5,6 +5,8 @@ import Nav from "./Nav/Nav";
 import Footer from "./Footer/Footer";
 import Intro from "./Popup/Intro";
 import { Legend } from "./Legend/Legend";
+import { TableContext } from "./Context/TableContext";
+
 
 function App() {
   const [intro, setIntro] = useState(true);
@@ -12,13 +14,26 @@ function App() {
     setIntro(!intro);
   };
   return (
-    <div className="App">
-      <Nav setIntro={toggleIntro} />
-      <Legend />
-      <Main />
-      <Footer />
-      {intro && <Intro setIntro={toggleIntro} />}
-    </div>
+    <TableContext.Consumer>
+      {({  clearBoard, buildMaze, selectAlgorithm, go, running }) => {
+        return (
+          <div className="App">
+            <Nav
+              setIntro={toggleIntro}
+              clearBoard={clearBoard}
+              buildMaze={buildMaze}
+              selectAlgorithm={selectAlgorithm}
+              go={go}
+              running={running}
+            />
+            <Legend />
+            <Main />
+            <Footer />
+            {intro && <Intro setIntro={toggleIntro} />}
+          </div>
+        )
+      }}
+      </TableContext.Consumer>
   );
 }
 

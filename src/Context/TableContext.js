@@ -1,6 +1,4 @@
 import React, { Component, createContext } from "react";
-// import * as _ from "underscore";
-// import { withRouter } from "react-router"
 import { BASIC_WALL } from "../Wall/BasicWall";
 import { SPIRAL_WALL } from "../Wall/SpiralWall";
 import { STAIR_WALL } from "../Wall/StairWall";
@@ -19,8 +17,6 @@ export class TableContextProvider extends Component {
     current: "17-15",
     running: false,
     refresh: false,
-    // wallOn: false,
-    // building: false,
     block: ""
   };
   componentDidMount() {
@@ -29,7 +25,9 @@ export class TableContextProvider extends Component {
     const mutation = nodeList => {
       if (nodeList[0].target.className === "ending-acquired") {
         node.className = "ending";
-        this.setState({ running: false });
+        let newState = this.state
+        newState.running = false
+        this.setState(newState);
       }
     };
     const observer = new MutationObserver(mutation);
@@ -49,36 +47,15 @@ export class TableContextProvider extends Component {
     return false;
   }
 
-  // toggleWall = () => {
-  //   this.setState(
-  //     {
-  //       wallOn: !this.state.wallOn,
-  //       running: false
-  //     },
-  //     () => {
-  //       let main = document.getElementById("main");
-  //       if (this.state.wallOn === true) {
-  //         main.style.cursor = "pointer";
-  //       } else {
-  //         main.style.cursor = "auto";
-  //       }
-  //     }
-  //   );
-  // };
-
   wallConstructorOn = () => {
-    // if (this.state.wallOn) {
-    this.setState({
-      building: true
-    });
-    // }
+    let newState = this.state
+    newState.building = true
+    this.setState(newState);
   };
   wallConstructorOff = () => {
-    // if (this.state.wallOn) {
-    this.setState({
-      building: false
-    });
-    // }
+    let newState = this.state
+    newState.building = false
+    this.setState(newState);
   };
 
   wallBuilding = e => {
@@ -98,19 +75,20 @@ export class TableContextProvider extends Component {
               cell.className = "unvisited";
             }
           }
-          this.setState({ block: id });
+          let newState = this.state
+          newState.block = id
+          this.setState(newState);
         }
-        // if (cell.id !== "15-59") cell.className = "unvisited";
       }
     }
   };
 
-  buildMaze = e => {
+  buildMaze = name => {
     this.returnToUnvisited();
-
-    const name = e.target.value;
     if (name === "maze") {
-      this.setState({ running: false });
+      let newState = this.state
+      newState.running = false
+      this.setState(newState);
       return;
     }
     const mazeType = [
@@ -126,7 +104,6 @@ export class TableContextProvider extends Component {
     } else if (name === "vertical") {
       this.directionalGeneratedMaze(
         this.state.cols,
-
         this.state.rows,
         "vertical",
         true
@@ -138,7 +115,6 @@ export class TableContextProvider extends Component {
         "horizontal",
         true
       );
-      // this.horizontalGeneratedMaze();
     } else if (name === "verticalNarrow") {
       this.directionalGeneratedMaze(
         this.state.cols,
@@ -171,7 +147,6 @@ export class TableContextProvider extends Component {
       }
     }
 
-    this.setState({ running: false });
   };
 
   directionalGeneratedMaze = (outerNum, innerNum, direction, wide) => {
@@ -202,10 +177,9 @@ export class TableContextProvider extends Component {
         }, 20 * k);
       }
     }
-
-    this.setState({
-      running: false
-    });
+    let newState = this.state
+    newState.running = true
+    this.setState(newState);
   };
   horizontalExtension = wallsToBeBuild => {
     for (let i = 0; i < wallsToBeBuild.length; i++) {
@@ -290,7 +264,6 @@ export class TableContextProvider extends Component {
 
     const unvisited = document.getElementsByClassName("unvisited");
     const unvisitedArr = Array.from(unvisited);
-    // debugger;
     for (let i = 0; i < unvisitedArr.length; i++) {
       const skip = Math.floor(Math.random() * 9);
       const walls = Math.floor(Math.random() * 4);
@@ -311,21 +284,21 @@ export class TableContextProvider extends Component {
         cell.className = "wall";
       }, 20 * k);
     }
-    this.setState({
-      running: false
-    });
+    let newState = this.state
+    newState.running = true
+    this.setState(newState);
+
   };
 
   clearBoard = e => {
     this.returnToUnvisited(e);
-    this.setState({
-      running: false,
-      current: this.state.starting
-    });
+    let newState = this.state
+    newState.running = false
+    newState.current = this.state.starting
+    this.setState(newState);
   };
 
   returnToUnvisited = e => {
-    // debugger;
     if (e) {
       let name = e.target ? e.target.name : e;
 
@@ -352,31 +325,22 @@ export class TableContextProvider extends Component {
     }
   };
 
-  checkRunningFunc = (func, e) => {
-    // debugger;
-    // console.log(this.state.running);
-    if (this.state.running) {
-      return;
-    } else {
-      this.setState({ running: true });
-      func(e);
-    }
-  };
-
   selectAlgorithm = e => {
     let algorithm = e.target.value;
-    // this.setState({ running: false, algorithm });
-    this.setState({ algorithm });
+    let newState = this.state
+    newState.algorithm = algorithm
+    this.setState(newState);
   };
 
   go = () => {
     this.returnToUnvisited("visited");
     const name = this.state.algorithm;
     if (name === "algorithm") {
-      this.setState({ running: false });
+      let newState = this.state
+      newState.running = false
+      this.setState(newState);
       return;
     }
-    // debugger;
     const algorithmNames = [
       "knownEndPointSearch",
       "linearSearch",
@@ -394,14 +358,9 @@ export class TableContextProvider extends Component {
       this.randomSearch
     ];
     const selected = algorithmNames.indexOf(name);
-    // console.log(selected);
-
     algorithms[selected]();
   };
 
-  // shortestPath = () =>{
-
-  // }
   bidirectionalSearch = () => {
     let startingQueue = [this.state.current];
     let endingQueue = [this.state.ending];
@@ -429,14 +388,12 @@ export class TableContextProvider extends Component {
         this.spreadHelper(cR2, cC2, endingPath, endingQueue, startingPath);
         counter++;
       } catch (err) {
-        console.log(err);
         break;
       }
     }
 
     let max = Math.max(startingQueue.length, endingQueue.length);
     for (let i = 1; i < max; i++) {
-      //don't color the starting
       let k = i;
       if (
         startingQueue[k] &&
@@ -462,14 +419,10 @@ export class TableContextProvider extends Component {
           }
         }, 15 * k);
       }
-      // if (queue[k] === this.state.ending) {
-      //   setTimeout(function() {
-      //     let cell = document.getElementById(queue[k]);
-      //     cell.className = "ending-acquired";
-      //   }, 10 * k);
-      // }
     }
-    this.setState({ running: false });
+    let newState = this.state
+    newState.running = false
+    this.setState(newState);
   };
 
   randomSearch = () => {
@@ -590,7 +543,6 @@ export class TableContextProvider extends Component {
       }, 15);
     };
     randomHelper();
-    // this.setState({ running: false });
   };
 
   linearSearch = () => {
@@ -600,8 +552,6 @@ export class TableContextProvider extends Component {
     const linearHelper = () => {
       let cR = Number(current[0]);
       let cC = Number(current[1]);
-      // console.log(`${cR}-${cC}`);
-      // debugger;
 
       let upNext = `${cR - 1}-${cC}`;
       let downNext = `${cR + 1}-${cC}`;
@@ -645,7 +595,6 @@ export class TableContextProvider extends Component {
           leftCell.className === "starting" ||
           path[leftNext]
         ) {
-          // debugger;
           if (upCell && upCell.className === "unvisited" && !path[upNext]) {
             current = upNext.split("-");
             path[upNext] = true;
@@ -735,12 +684,10 @@ export class TableContextProvider extends Component {
           break;
         }
       } catch (err) {
-        // console.log(err);
         break;
       }
     }
     for (let i = 1; i < queue.length; i++) {
-      //don't color the starting
       let k = i;
       if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
         setTimeout(function() {
@@ -772,12 +719,10 @@ export class TableContextProvider extends Component {
           break;
         }
       } catch (err) {
-        // console.log(err);
         break;
       }
     }
     for (let i = 1; i < queue.length; i++) {
-      //don't color the starting
       let k = i;
       if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
         setTimeout(function() {
@@ -854,8 +799,6 @@ export class TableContextProvider extends Component {
     const knownHelper = () => {
       let cR = Number(current[0]);
       let cC = Number(current[1]);
-      // console.log(`${cR}-${cC}`);
-      // debugger;
       if (`${cR}-${cC}` === this.state.ending) {
         return;
       }
@@ -891,7 +834,6 @@ export class TableContextProvider extends Component {
           return;
         }
         if (cC < eC) {
-          // debugger;
 
           if (
             rightCell &&
@@ -903,30 +845,6 @@ export class TableContextProvider extends Component {
             return knownHelper();
           } else {
             const potentialPaths = Object.keys(path);
-            // if (!potentialPaths.length || potentialPaths.length < 5) {
-            //   if (upCell && upCell.className === "unvisited" && !path[upNext]) {
-            //     current = upNext.split("-");
-            //     path[upNext] = true;
-            //     return knownHelper();
-            //   } else if (
-            //     downCell &&
-            //     downCell.className === "unvisited" &&
-            //     !path[downNext]
-            //   ) {
-            //     current = downNext.split("-");
-            //     path[downNext] = true;
-            //     return knownHelper();
-            //   } else if (
-            //     leftCell &&
-            //     leftCell.className === "unvisited" &&
-            //     !path[leftNext]
-            //   ) {
-            //     current = leftNext.split("-");
-            //     path[leftNext] = true;
-            //     return knownHelper();
-            //   }
-            // }
-            // debugger;
             for (let i = potentialPaths.length - 1; i >= 0; i--) {
               current = potentialPaths[i].split("-");
               cR = Number(current[0]);
@@ -1201,32 +1119,11 @@ export class TableContextProvider extends Component {
     knownHelper();
   };
 
-  // changeEndpoint = e => {
-  //   // debugger;
-  //   let value = e.target.id;
-  //   if (!value) {
-  //     return;
-  //   }
-  //   if (value === this.state.starting || value === this.state.ending) {
-  //     return;
-  //   }
-  //   let nextEnding = document.getElementById(value);
-  //   // let ending = document.querySelector(`[data="${this.state.ending}"]`);
-  //   nextEnding.className = "ending";
-  //   // ending.className = "";
-
-  //   this.setState({
-  //     ending: value,
-  //     running: false
-  //   });
-  // };
-
   render() {
     return (
       <TableContext.Provider
         value={{
           ...this.state,
-          checkRunningFunc: this.checkRunningFunc,
           changeEndpoint: this.changeEndpoint,
           clearBoard: this.clearBoard,
           wallConstructorOn: this.wallConstructorOn,
@@ -1243,5 +1140,3 @@ export class TableContextProvider extends Component {
     );
   }
 }
-
-// export const TableContextProvider = withRouter(TableContextProviderWithRouter);
