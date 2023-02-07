@@ -13,7 +13,7 @@
 .nav-image {
 	height: 40px;
 	width: 40px;
-	filter: brightness(10);
+	filter: invert(1);
 	cursor: pointer;
 }
 .nav__items {
@@ -85,6 +85,24 @@
 	align-items: center;
 	padding: 0 3px;
 	margin: 0 3px;
+}
+.nav__setting{
+	border: 1px solid #a9a9a9;
+	height: 40px;
+	width: 40px;
+	cursor: pointer;
+	border-radius: 8px;
+}
+.nav__setting_theme{
+	background-size: contain;
+	background-image: url("https://cdn2.iconfinder.com/data/icons/images-and-photography-2/24/light-mode-dark-light-512.png");
+	margin-right: 3px;
+	filter: invert(1);
+}
+.nav__setting_speed{
+	background-size: contain;
+	background-image: url('https://cdn3.iconfinder.com/data/icons/elearning-2/128/Elearning-13-512.png');
+	filter: invert(1);
 }
  @media only screen and (max-height: 850px) {
 	.nav {

@@ -27,10 +27,7 @@ function App() {
             />
             <Legend />
             <div className="spacer"/>
-            <div className="spacer"/>
-            <div className="spacer"/>
             <Main />
-            <div className="spacer"/>
             <div className="spacer"/>
             <Footer />
             {intro && <Intro setIntro={toggleIntro} />}

@@ -299,6 +299,7 @@ export class TableContextProvider extends Component {
   };
 
   returnToUnvisited = e => {
+
     if (e) {
       let name = e.target ? e.target.name : e;
 

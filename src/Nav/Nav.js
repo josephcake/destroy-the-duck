@@ -1,6 +1,8 @@
 import React, {useState} from "react";
 import { isWallFinishedRendering } from "./helper/isWallFinishedRendering";
 import { isDuckFound } from "./helper/isDuckFound";
+import {algorithmOptions,mazeOptions,clearButtons,settingsToggle} from './constants'
+import {NavButtons, NavOptions, NavSettingsToggle} from './NavItems'
 
 const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go}) => {
   const [isRunning, setIsRunning] = useState(false)
@@ -44,46 +46,9 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go}) => {
           disabled={isRunning}
           onChange={e => handleSelectAlgorithm(e)}
         >
-          <option className={"nav__select_option"} value={"algorithm"}>
-            Algorithm
-          </option>
-
-          <option
-            className={"nav__select_option"}
-            value={"knownEndPointSearch"}
-          >
-            Known Direction
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"linearSearch"}
-          >
-            Linear Search
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"breadthFirstSearch"}
-          >
-            Breadth First Search
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"depthFirstSearch"}
-          >
-            Depth First Search
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"bidirectionalSearch"}
-          >
-            Bidirectional Search
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"randomSearch"}
-          >
-            Random Search
-          </option>
+          {algorithmOptions.map(algo => (
+            <NavOptions key={algo.value} value={algo.value} text={algo.text}/>
+          ))}
         </select>
       </div>
       <div className={"nav__wall nav__items"}>
@@ -93,48 +58,9 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go}) => {
           id="maze"
           onChange={e => shouldUpdateMazeSelection(buildMaze, e)}
         >
-          <option className={"nav__select_option"} value={"maze"}>
-            Maze
-          </option>
-          <option className={"nav__select_option"} value={"basic"}>
-            Basic
-          </option>
-          <option className={"nav__select_option"} value={"spiral"}>
-            Spiral
-          </option>
-          <option className={"nav__select_option"} value={"target"}>
-            Target
-          </option>
-          <option className={"nav__select_option"} value={"stair"}>
-            Stair
-          </option>
-          <option className={"nav__select_option"} value={"checker"}>
-            Checker
-          </option>
-          <option className={"nav__select_option"} value={"forest"}>
-            Forest
-          </option>
-          <option className={"nav__select_option"} value={"horizontal"}>
-            Horizontal Wide
-          </option>
-          <option className={"nav__select_option"} value={"vertical"}>
-            Vertical Wide
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"horizontalNarrow"}
-          >
-            Horizontal Narrow
-          </option>
-          <option
-            className={"nav__select_option"}
-            value={"verticalNarrow"}
-          >
-            Vertical Narrow
-          </option>
-          <option className={"nav__select_option"} value={"random"}>
-            Random
-          </option>
+          {mazeOptions.map(maze => (
+            <NavOptions key={maze.value} value={maze.value} text={maze.text}/>
+          ))}
         </select>
       </div>
       <div className={"nav__action nav__items"}>
@@ -148,32 +74,15 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go}) => {
       </div>
 
       <div className={"nav__board nav__items"}>
-        <button
-          className={"nav__button"}
-          onClick={()=>clearBoard()}
-          disabled={isRunning}
-        >
-          Clear Board
-        </button>
-
-        <button
-          name={"wall"}
-          disabled={isRunning}
-          className={"nav__button"}
-          onClick={e => clearBoard(e)}
-        >
-          Clear Wall
-        </button>
-
-        <button
-          name={"visited"}
-          disabled={isRunning}
-          className={"nav__button"}
-          onClick={e => clearBoard(e)}
-        >
-          Clear Path
-        </button>
+        {clearButtons.map(btn=> (
+          <NavButtons key={btn.text} name={btn.name} text={btn.text} isRunning={isRunning} clearBoard={clearBoard}/>
+        ))}
       </div>
+      <div className={"nav__algo nav__items"}>
+            <NavSettingsToggle className={"nav__algo nav__items nav__setting nav__setting_theme"} name={"theme"}/>
+            <NavSettingsToggle className={"nav__algo nav__items nav__setting nav__setting_speed"} name={"speed"}/>
+      </div>
+
     </div>
   );
 }
