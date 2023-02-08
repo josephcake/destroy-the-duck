@@ -100,8 +100,13 @@
 	filter: invert(1);
 }
 .nav__setting_speed{
-	background-size: contain;
-	background-image: url('https://cdn3.iconfinder.com/data/icons/elearning-2/128/Elearning-13-512.png');
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 100%;
+	font-weight: 900;
+	font-family: system-ui;
 	filter: invert(1);
 }
  @media only screen and (max-height: 850px) {

@@ -14,7 +14,7 @@ function App() {
   };
   return (
     <TableContext.Consumer>
-      {({  clearBoard, buildMaze, selectAlgorithm, go, running }) => {
+      {({  clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed }) => {
         return (
           <div className="App">
             <Nav
@@ -23,7 +23,7 @@ function App() {
               buildMaze={buildMaze}
               selectAlgorithm={selectAlgorithm}
               go={go}
-              running={running}
+              toggleSpeed={toggleSpeed}
             />
             <Legend />
             <div className="spacer"/>

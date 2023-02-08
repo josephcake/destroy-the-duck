@@ -27,10 +27,11 @@ export const NavButtons = ({name, text, isRunning, clearBoard}) => {
   )
 }
 
-export const NavSettingsToggle = ({name,className, text}) => {
+export const NavSettingsToggle = ({name,className, text, isRunning,handleClick=()=>{}}) => {
   return (
     <div
-      onClick={()=>({})}
+      disabled={isRunning}
+      onClick={handleClick}
       className={className}
       name={name}
     >

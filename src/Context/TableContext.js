@@ -17,7 +17,10 @@ export class TableContextProvider extends Component {
     current: "17-15",
     running: false,
     refresh: false,
-    block: ""
+    block: "",
+    speed: 20,
+    theme:'light'
+
   };
   componentDidMount() {
     window.addEventListener("mouseup", this.wallConstructorOff);
@@ -82,6 +85,18 @@ export class TableContextProvider extends Component {
       }
     }
   };
+  toggleSpeed = () => {
+    let newState = this.state
+    if(this.state.speed === 20){
+      newState.speed = 4
+    }else if (this.state.speed === 4){
+      newState.speed = 40
+    }else if (this.state.speed === 40){
+      newState.speed = 20
+    }
+    this.setState(newState);
+    return;
+  }
 
   buildMaze = name => {
     this.returnToUnvisited();
@@ -143,7 +158,7 @@ export class TableContextProvider extends Component {
         let cell = document.getElementById(mazes[idx][k]);
         setTimeout(function() {
           cell.className = "wall";
-        }, 10 * k);
+        }, this.state.speed * k);
       }
     }
 
@@ -174,7 +189,7 @@ export class TableContextProvider extends Component {
         setTimeout(() => {
           let cell = document.getElementById(wallsToBeBuild[k]);
           cell.className = "wall";
-        }, 20 * k);
+        }, this.state.speed * k);
       }
     }
     let newState = this.state
@@ -216,7 +231,7 @@ export class TableContextProvider extends Component {
         }
 
         cell.className = "wall";
-      }, 20 * k);
+      }, this.state.speed * k);
     }
   };
   verticalExtension = wallsToBeBuild => {
@@ -254,7 +269,7 @@ export class TableContextProvider extends Component {
         }
 
         cell.className = "wall";
-      }, 20 * k);
+      }, this.state.speed * k);
     }
   };
 
@@ -282,7 +297,7 @@ export class TableContextProvider extends Component {
       setTimeout(() => {
         let cell = document.getElementById(wallsToBeBuild[k]);
         cell.className = "wall";
-      }, 20 * k);
+      }, this.state.speed * k);
     }
     let newState = this.state
     newState.running = true
@@ -406,7 +421,7 @@ export class TableContextProvider extends Component {
           if (cell) {
             cell.className = "visited";
           }
-        }, 15 * k);
+        }, this.state.speed * k);
       }
       if (
         endingQueue[k] &&
@@ -418,7 +433,7 @@ export class TableContextProvider extends Component {
           if (cell) {
             cell.className = "visited";
           }
-        }, 15 * k);
+        }, this.state.speed * k);
       }
     }
     let newState = this.state
@@ -541,7 +556,7 @@ export class TableContextProvider extends Component {
             }
           }
         }
-      }, 15);
+      }, this.state.speed);
     };
     randomHelper();
   };
@@ -665,7 +680,7 @@ export class TableContextProvider extends Component {
             }
           }
         }
-      }, 15);
+      }, this.state.speed);
     };
     linearHelper();
   };
@@ -694,13 +709,13 @@ export class TableContextProvider extends Component {
         setTimeout(function() {
           let cell = document.getElementById(queue[k]);
           cell.className = "visited";
-        }, 15 * k);
+        }, this.state.speed * k);
       }
       if (queue[k] === this.state.ending) {
         setTimeout(function() {
           let cell = document.getElementById(queue[k]);
           cell.className = "ending-acquired";
-        }, 15 * k);
+        }, 1 * k);
       }
     }
   };
@@ -729,7 +744,7 @@ export class TableContextProvider extends Component {
         setTimeout(function() {
           let cell = document.getElementById(queue[k]);
           cell.className = "visited";
-        }, 15 * k);
+        }, this.state.speed * k);
       }
       if (queue[k] === this.state.ending) {
         setTimeout(function() {
@@ -1114,7 +1129,7 @@ export class TableContextProvider extends Component {
             }
           }
         }
-      }, 15);
+      }, this.state.speed);
     };
 
     knownHelper();
@@ -1133,7 +1148,8 @@ export class TableContextProvider extends Component {
           buildMaze: this.buildMaze,
           randomlyGeneratedMaze: this.randomlyGeneratedMaze,
           selectAlgorithm: this.selectAlgorithm,
-          go: this.go
+          go: this.go,
+          toggleSpeed:this.toggleSpeed
         }}
       >
         {this.props.children}
