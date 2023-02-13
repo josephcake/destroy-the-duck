@@ -22,24 +22,24 @@ const mazes = [
   FOREST_WALL
 ];
 
-export const isWallFinishedRendering = (name,setIsRunning) =>{
+export const isWallFinishedRendering = (name,setRunning, theme) =>{
   const idx = mazeType.indexOf(name);
   if(idx === -1){
     let checkWall = setInterval(()=>{
-      let lastR = 31
-      let lastC = 75
+      let lastR = 33
+      let lastC = 71
       let endR = 34
-      let endC = 78
+      let endC = 79
       while(lastC < endC || lastR < endR){
         if(lastC <= endC){
           let lastCellID = `${lastR}-${lastC}`
           let lastCell = document.getElementById(lastCellID);
-          if(lastCell.className === 'wall'){
+          if(lastCell.className === `${theme}_wall`){
             clearInterval(checkWall)
-            return setIsRunning(false)
+            return setRunning(false)
           }else{
             if(lastC === endC){
-              lastC = 75
+              lastC = 71
               lastR ++
             }else{
               lastC ++
@@ -54,9 +54,9 @@ export const isWallFinishedRendering = (name,setIsRunning) =>{
     let lastCell = document.getElementById(lastCellID);
 
     let checkWall = setInterval(()=>{
-      if(lastCell && lastCell.className === 'wall'){
+      if(lastCell && lastCell.className === `${theme}_wall`){
         clearInterval(checkWall)
-        return setIsRunning(false)
+        return setRunning(false)
       }
     }, 2000)
   }

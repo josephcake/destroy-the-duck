@@ -1,6 +1,14 @@
 import React from "react";
 class Td extends React.Component {
-
+  // shouldComponentUpdate(nextProps, nextState) {
+  //   const nextCellID = `${nextProps.r}-${nextProps.c}`;
+  //   const nextCell = document.getElementById(nextCellID)
+  //   console.log({nextCellID}, nextCell.className)
+  //   if(nextCell.className.includes('_visited')){
+  //     return false
+  //   }
+  //   return true
+  // }
   render() {
     const {
       r,
@@ -9,21 +17,22 @@ class Td extends React.Component {
       ending,
       current,
       wallConstructorOn,
-      wallBuilding
+      wallBuilding,
+      theme,
     } = this.props;
-
     const cell = `${r}-${c}`;
     let classN =
-      cell === ending
-        ? "ending"
-        : cell === starting
-        ? "starting"
-        : cell === current
-        ? "visited"
-        : "unvisited";
+    cell === ending
+    ? `${theme}_ending`
+    : cell === starting
+    ? `${theme}_starting`
+    : cell === current
+    ? `${theme}_visited`
+    : `${theme}_unvisited`;
+
     return (
       <td
-        className={classN}
+        className={`${classN}`}
         id={cell}
         draggable={false}
         onMouseDown={wallConstructorOn}

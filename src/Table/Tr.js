@@ -2,10 +2,6 @@ import React from "react";
 import Td from "./Td";
 
 class Tr extends React.Component {
-  //   shouldComponentUpdate(nextProp, nextState) {
-  //     // debugger;
-  //     return false;
-  //   }
 
   render() {
     const {
@@ -16,7 +12,8 @@ class Tr extends React.Component {
       ending,
       wallConstructorOn,
       wallConstructorOff,
-      wallBuilding
+      wallBuilding,
+      theme
     } = this.props;
     const tds = [];
     for (let i = 0; i < cols; i++) {
@@ -24,14 +21,15 @@ class Tr extends React.Component {
         <Td
           r={r}
           c={i}
+          theme={theme}
+          ending={ending}
           key={`${r}-${i}`}
+          draggable={false}
           current={current}
           starting={starting}
-          ending={ending}
-          draggable={false}
+          wallBuilding={wallBuilding}
           wallConstructorOn={wallConstructorOn}
           wallConstructorOff={wallConstructorOff}
-          wallBuilding={wallBuilding}
         />
       );
     }

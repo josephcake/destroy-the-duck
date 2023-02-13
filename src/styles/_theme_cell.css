@@ -1,0 +1,230 @@
+/* light */
+.light_starting {
+  border: solid 1px rgb(246, 246, 246);
+	background-color: #977d97;
+	background-color: #e94c0e;
+	transform: rotate(90deg);
+	background-image: url("../Images/feathered-arrow.png");
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+}
+.light_ending {
+  border: solid 1px rgb(246, 246, 246);
+	background-color: #ffd000;
+	background-image: url("../Images/duck.png");
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+}
+.light_ending-acquired {
+  border: solid 1px rgb(246, 246, 246);
+	background-color: mediumaquamarine;
+}
+.light_path {
+  border: solid 1px rgb(246, 246, 246);
+	background-color: tomato;
+	transition: background 10ms linear;
+}
+.light_wall {
+	border: none;
+	animation-name: light_wallAnimation;
+	animation-duration: 1s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.light_unvisitedAnimated {
+  border: solid 1px rgb(246, 246, 246);
+	animation-name: light_unvisitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.light_unvisited {
+  border: solid 1px rgb(246, 246, 246);
+	background-color: lightgray;
+	transition: all ease-in-out;
+}
+.light_visited {
+  border: solid 1px rgb(246, 246, 246);
+	border: purple solid 1px;
+	animation-name: light_visitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-in;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+	animation-play-state: running;
+}
+
+ @keyframes light_wallAnimation {
+	0% {
+		transform: scale(1);
+		background-color: rgba(0, 0, 66, 0.75);
+	}
+	50% {
+		transform: scale(0.8);
+	}
+	100% {
+		background-color: rgba(4, 4, 44, 0.8);
+	}
+}
+ @keyframes light_unvisitedAnimation {
+	0% {
+		transform: scale(1);
+		background-color: rgba(0, 0, 66, 0.75);
+	}
+	50% {
+		transform: scale(0.8);
+		background-color: rgba(250, 24, 67, 0.75);
+	}
+	75% {
+		transform: scale(0.5);
+		background-color: rgba(184, 121, 129, 0.75);
+	}
+	100% {
+		background-color: lightgray;
+	}
+}
+ @keyframes light_visitedAnimation {
+	0% {
+		transform: scale(0.3);
+		background-color: rgba(0, 0, 66, 0.75);
+	}
+	50% {
+		background-color: rgba(250, 24, 67, 0.75);
+	}
+	75% {
+		transform: scale(1.2);
+		background-color: rgba(200, 37, 59, 0.75);
+	}
+	100% {
+		transform: scale(1);
+		background-color: #724d9c;
+	}
+}
+
+
+/* dark */
+.dark_td{
+  border: solid 1px rgb(0, 8, 32);
+}
+.dark_starting {
+  border: solid 1px rgb(0, 8, 32);
+	background-color: #977d97;
+	background-color: #e94c0e;
+	transform: rotate(90deg);
+	background-image: url("../Images/feathered-arrow.png");
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+}
+.dark_ending {
+  border: solid 1px rgb(0, 8, 32);
+	background-color: #ffd000;
+	background-image: url("../Images/duck.png");
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+}
+.dark_ending-acquired {
+  border: solid 1px rgb(0, 8, 32);
+	background-color: mediumaquamarine;
+}
+.dark_path {
+  border: solid 1px rgb(0, 8, 32);
+	background-color: tomato;
+	transition: background 10ms linear;
+}
+.dark_wall {
+	border: none;
+	animation-name: dark_wallAnimation;
+	animation-duration: 1s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.dark_unvisitedAnimated {
+  border: solid 1px rgb(0, 8, 32);
+	animation-name: dark_unvisitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.dark_unvisited {
+  border: solid 1px rgb(0, 8, 32);
+	background-color: rgb(20, 23, 26);
+	transition: all ease-in-out;
+}
+.dark_visited {
+  border: solid 1px rgb(0, 8, 32);
+	border: rgb(28, 13, 51) solid 1px;
+	animation-name: dark_visitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-in;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+	animation-play-state: running;
+}
+
+ @keyframes dark_wallAnimation {
+	0% {
+		transform: scale(1);
+		background-color: rgba(169, 169, 192, 0.75);
+	}
+	50% {
+		transform: scale(0.8);
+	}
+	100% {
+		background-color: rgba(39, 39, 55, 0.8);
+	}
+}
+
+ @keyframes dark_unvisitedAnimation {
+	0% {
+		transform: scale(1);
+		background-color: rgba(0, 0, 66, 0.75);
+	}
+	50% {
+		transform: scale(0.8);
+		background-color: rgba(250, 24, 67, 0.75);
+	}
+	75% {
+		transform: scale(0.5);
+		background-color: rgba(184, 121, 129, 0.75);
+	}
+	100% {
+		background-color: darkgray;
+	}
+}
+ @keyframes dark_visitedAnimation {
+	0% {
+		transform: scale(0.3);
+		background-color: rgba(0, 0, 66, 0.75);
+	}
+	50% {
+		background-color: rgba(250, 24, 67, 0.75);
+	}
+	75% {
+		transform: scale(1.2);
+		background-color: rgba(200, 37, 59, 0.75);
+	}
+	100% {
+		transform: scale(1);
+		background-color: #724d9c;
+	}
+}

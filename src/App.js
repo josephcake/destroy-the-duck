@@ -7,30 +7,52 @@ import Intro from "./Popup/Intro";
 import { Legend } from "./Legend/Legend";
 import { TableContext } from "./Context/TableContext";
 
-function App() {
+const App = () => {
   const [intro, setIntro] = useState(true);
   const toggleIntro = () => {
     setIntro(!intro);
   };
   return (
     <TableContext.Consumer>
-      {({  clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed }) => {
+      {({
+        go,
+        maze,
+        theme,
+        speed,
+        running,
+        setTheme,
+        setSpeed,
+        algorithm,
+        speedText,
+        buildMaze,
+        setRunning,
+        clearBoard,
+        selectAlgorithm,
+      }) => {
         return (
-          <div className="App">
+          <div className={theme === 'dark' ? 'app dark_bg': "app light_bg"}>
             <Nav
+              go={go}
+              maze={maze}
+              speed={speed}
+              theme={theme}
+              running={running}
+              setSpeed={setSpeed}
+              setTheme={setTheme}
+              algorithm={algorithm}
+              speedText={speedText}
+              buildMaze={buildMaze}
               setIntro={toggleIntro}
               clearBoard={clearBoard}
-              buildMaze={buildMaze}
+              setRunning={setRunning}
               selectAlgorithm={selectAlgorithm}
-              go={go}
-              toggleSpeed={toggleSpeed}
             />
-            <Legend />
+            <Legend theme={theme}/>
             <div className="spacer"/>
             <Main />
             <div className="spacer"/>
-            <Footer />
-            {intro && <Intro setIntro={toggleIntro} />}
+            <Footer theme={theme}/>
+            {intro && <Intro theme={theme} setIntro={toggleIntro} />}
           </div>
         )
       }}

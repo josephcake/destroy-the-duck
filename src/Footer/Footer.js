@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import Credits from "./Credits";
 
-const Footer = () => {
+const Footer = ({theme}) => {
   const [credit, setCredit] = useState(false);
   const toggleCredit = () => {
     setCredit(!credit);
   };
   return (
-    <div className={"footer"}>
+    <div className={`footer ${theme}_bg_secondary`}>
       <div className={"footer__item"}>Joseph Cake</div>
       <div className={"footer__item"}>
         <a

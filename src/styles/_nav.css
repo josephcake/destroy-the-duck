@@ -1,5 +1,4 @@
 .nav {
-	border: solid 1px black;
 	padding: 10px;
 	height: 60px;
 	display: flex;
@@ -7,7 +6,6 @@
 	flex-direction: row;
 	justify-content: space-around;
 	align-items: space-between;
-	background-color: darkslateblue;
 	font-family: "Bree Serif";
 }
 .nav-image {
@@ -21,9 +19,6 @@
 	flex-direction: row;
 }
 .nav__button {
-	background-color: darkslateblue;
-	border: 1px solid #a9a9a9;
-	border-radius: 8px;
 	color: white;
 	font-weight: 800;
 	outline: none;
@@ -36,15 +31,13 @@
 	cursor:not-allowed;
 }
 .nav__button:hover {
-	background-color: rgb(92, 82, 159);
+	filter: contrast(1.4);
 }
 .nav__button.go {
 	width: 80px;
 	font-size: 2rem;
 	padding: 0 10px;
 	color: mediumspringgreen;
-	border-radius: 8px;
-	background-color: #18b176;
 	border: 1px solid mediumspringgreen;
 	border: 1px solid white;
 }
@@ -52,11 +45,9 @@
 	opacity: 0.5;
 }
 .nav__button.go:hover {
-	background-color: rgb(25, 203, 144);
+	filter: contrast(1.4);
 }
 .nav__select {
-	background-color: darkslateblue;
-	border-radius: 8px;
 	color: white;
 	font-weight: 800;
 	text-align-last: center;
@@ -70,7 +61,7 @@
 	cursor:not-allowed;
 }
 .nav__select:hover {
-	background-color: rgb(92, 82, 159);
+	filter: contrast(1.4);
  }
 .nav__select_option {
 	background: #191141;
@@ -87,18 +78,17 @@
 	margin: 0 3px;
 }
 .nav__setting{
-	border: 1px solid #a9a9a9;
-	height: 40px;
-	width: 40px;
 	cursor: pointer;
-	border-radius: 8px;
+	text-transform: capitalize;
 }
 .nav__setting_theme{
-	background-size: contain;
+	background-size: cover;
 	background-image: url("https://cdn2.iconfinder.com/data/icons/images-and-photography-2/24/light-mode-dark-light-512.png");
-	margin-right: 3px;
 	filter: invert(1);
+	height:40px;
+	width: 40px;
 }
+
 .nav__setting_speed{
 	text-align: center;
 	display: flex;
@@ -107,7 +97,41 @@
 	font-size: 100%;
 	font-weight: 900;
 	font-family: system-ui;
-	filter: invert(1);
+	width: 100%;
+}
+.nav__items__container{
+	position: relative;
+	margin: 0 2px;
+}
+
+.nav__items__container__speed{
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 100%;
+	font-weight: 900;
+	font-family: system-ui;
+	width: 100%;
+}
+.tooltip{
+	padding: 10px;
+}
+.tooltip__container{
+	display: none;
+	position: absolute;
+	border-radius: 5px;
+	top: 100%;
+	right: 0;
+	overflow: hidden;
+	z-index: 9999999;
+}
+.tooltip:hover{
+	filter: contrast(1.4);
+}
+.nav__items__container:hover > .tooltip__container{
+	display: flex;
+	flex-direction: column;
 }
  @media only screen and (max-height: 850px) {
 	.nav {

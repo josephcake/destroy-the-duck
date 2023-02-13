@@ -1,53 +1,43 @@
-import React, {useState} from "react";
+import React from "react";
 import { isWallFinishedRendering } from "./helper/isWallFinishedRendering";
 import { isDuckFound } from "./helper/isDuckFound";
-import {algorithmOptions,mazeOptions,clearButtons,settingsToggle} from './constants'
-import {NavButtons, NavOptions, NavSettingsToggle} from './NavItems'
+import {algorithmOptions,mazeOptions,clearButtons} from './constants'
+import {NavButtons, NavOptions, NavSettings} from './NavItems'
 
-const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed}) => {
-  const [isRunning, setIsRunning] = useState(false)
-  const [selectedAlgo, setSelectedAlgo] = useState(null)
-  const [selectedMaze, setSelectedMaze] = useState(null)
-  const [selectedSpeed, setSelectedSpeed] = useState(1)
-
+const Nav = ({
+  go,
+  maze,
+  theme,
+  running,
+  setSpeed,
+  setTheme,
+  setIntro,
+  algorithm,
+  speedText,
+  buildMaze,
+  setRunning,
+  clearBoard,
+  selectAlgorithm,
+}) => {
   const handleGo = (go) =>{
     go()
-    setIsRunning(true)
-    isDuckFound(selectedAlgo,selectedMaze,setIsRunning)
+    setRunning(true)
+    isDuckFound(algorithm,maze,setRunning,theme)
   }
 
-  const shouldUpdateMazeSelection = (buildMaze, e) => {
-    if(!isRunning){
-      const name = e.target.value
-      setSelectedMaze(name)
+  const shouldUpdateMazeSelection = (e) => {
+    const name = e.target.value
+    if(!running){
       buildMaze(name)
       if(name !== 'maze'){
-        setIsRunning(true)
-        isWallFinishedRendering(name, setIsRunning)
+        setRunning(true)
+        isWallFinishedRendering(name, setRunning, theme)
       }
-    }else{
     }
-  }
-  const handleSelectAlgorithm = (e) =>{
-    let algorithm = e.target.value;
-    setSelectedAlgo(algorithm)
-    selectAlgorithm(e)
-  }
-
-  const handleSelectSpeed = () => {
-    //flip it to reflect the speed
-    if(selectedSpeed === 1){
-      setSelectedSpeed(2)
-    }else if (selectedSpeed === 0.5){
-      setSelectedSpeed(1)
-    }else if (selectedSpeed === 2){
-      setSelectedSpeed(0.5)
-    }
-    toggleSpeed()
   }
 
   return (
-    <div className={"nav"}>
+    <div className={`nav ${theme}_bg_secondary`}>
       <div className={"nav__algo nav__items"}>
         <img
           onClick={setIntro}
@@ -56,11 +46,11 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed}
           alt={"Duck"}
         />
       </div>
-      <div className={"nav__algo nav__items"}>
+      <div className={`nav__algo nav__items`}>
         <select
-          className={"nav__select"}
-          disabled={isRunning}
-          onChange={e => handleSelectAlgorithm(e)}
+          className={`nav__select ${theme}_border ${theme}_bg_secondary`}
+          disabled={running}
+          onChange={e => selectAlgorithm(e)}
         >
           {algorithmOptions.map(algo => (
             <NavOptions key={algo.value} value={algo.value} text={algo.text}/>
@@ -69,10 +59,10 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed}
       </div>
       <div className={"nav__wall nav__items"}>
         <select
-          className={"nav__select"}
-          disabled={isRunning}
+          className={`nav__select ${theme}_border ${theme}_bg_secondary`}
+          disabled={running}
           id="maze"
-          onChange={e => shouldUpdateMazeSelection(buildMaze, e)}
+          onChange={e => shouldUpdateMazeSelection(e)}
         >
           {mazeOptions.map(maze => (
             <NavOptions key={maze.value} value={maze.value} text={maze.text}/>
@@ -82,27 +72,70 @@ const Nav = ({setIntro, clearBoard, buildMaze, selectAlgorithm, go, toggleSpeed}
       <div className={"nav__action nav__items"}>
         <button
           onClick={()=>handleGo(go)}
-          className={"nav__button go"}
-          disabled={isRunning || !selectedAlgo || selectedAlgo === "algorithm"}
+          className={`nav__button go ${theme}_border`}
+          disabled={running || algorithm === 'algorithm'}
         >
           Go!
         </button>
       </div>
 
-      <div className={"nav__board nav__items"}>
+      <div className={`nav__board nav__items`}>
         {clearButtons.map(btn=> (
-          <NavButtons key={btn.text} name={btn.name} text={btn.text} isRunning={isRunning} clearBoard={clearBoard}/>
+          <NavButtons
+            key={btn.text}
+            name={btn.name}
+            text={btn.text}
+            isRunning={running}
+            clearBoard={clearBoard}
+            theme={theme}
+          />
         ))}
       </div>
-      <div className={"nav__algo nav__items"}>
-            <NavSettingsToggle className={"nav__algo nav__items nav__setting nav__setting_theme"} name={"theme"}/>
-            <NavSettingsToggle
-              className={"nav__algo nav__items nav__setting nav__setting_speed"}
-              name={"speed"}
-              isRunning={isRunning}
-              handleClick={handleSelectSpeed}
-              text={`${selectedSpeed}x`}
-            />
+      <div className={"nav__setting nav__items"}>
+        <div className={`nav__button nav__items__container ${theme}_border ${running && 'disabled'}`}>
+          <NavSettings
+            className={"nav__setting_theme"}
+            name={"theme"}
+          />
+          <div className={`tooltip__container tooltip__theme ${theme}_border`}>
+            <div className={`tooltip tooltip__theme ${theme}_bg_secondary`} onClick={setTheme} name={"light"}>
+              Light
+            </div>
+            <div className={`tooltip tooltip__theme ${theme}_bg_secondary`} onClick={setTheme} name={"light"}>
+              Dark
+            </div>
+            <div className={`tooltip tooltip__theme ${theme}_bg_secondary`} onClick={setTheme} name={"light"}>
+              Neon
+            </div>
+            <div className={`tooltip tooltip__theme ${theme}_bg_secondary`} onClick={setTheme} name={"light"}>
+              Glass
+            </div>
+          </div>
+        </div>
+        <div className={`nav__button nav__items__container nav__items__container__speed ${theme}_border`}>
+          <NavSettings
+            className={`nav__setting_speed ${theme}_bg_secondary`}
+            name={"speed"}
+            text={speedText}
+          />
+          <div className={`tooltip__container tooltip__speed ${theme}_border`}>
+            <div className={`tooltip tooltip__speed ${theme}_bg_secondary`} onClick={setSpeed} name={"sloth"}>
+              Sloth
+            </div>
+            <div className={`tooltip tooltip__speed ${theme}_bg_secondary`} onClick={setSpeed} name={"slow"}>
+              Slow
+            </div>
+            <div className={`tooltip tooltip__speed ${theme}_bg_secondary`} onClick={setSpeed} name={"norm"}>
+              Normal
+            </div>
+            <div className={`tooltip tooltip__speed ${theme}_bg_secondary`} onClick={setSpeed} name={"fast"}>
+              Fast
+            </div>
+            <div className={`tooltip tooltip__speed ${theme}_bg_secondary`} onClick={setSpeed} name={"light"}>
+              Light
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>

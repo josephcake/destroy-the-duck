@@ -3,7 +3,10 @@ import Tr from "./Tr";
 
 class Table extends React.Component {
   shouldComponentUpdate(nextProp, nextState) {
-    if (this.props.ending !== nextProp.ending) {
+    if (
+      this.props.ending !== nextProp.ending ||
+      this.props.theme !== nextProp.theme
+    ) {
       return true;
     }
     return false;
@@ -18,7 +21,8 @@ class Table extends React.Component {
       ending,
       wallBuilding,
       wallConstructorOn,
-      wallConstructorOff
+      wallConstructorOff,
+      theme,
     } = this.props;
 
     for (let i = 0; i < rows; i++) {
@@ -27,13 +31,14 @@ class Table extends React.Component {
           r={i}
           key={i}
           cols={cols}
+          theme={theme}
+          ending={ending}
+          draggable={false}
           current={current}
           starting={starting}
-          ending={ending}
+          wallBuilding={wallBuilding}
           wallConstructorOn={wallConstructorOn}
           wallConstructorOff={wallConstructorOff}
-          wallBuilding={wallBuilding}
-          draggable={false}
         />
       );
     }

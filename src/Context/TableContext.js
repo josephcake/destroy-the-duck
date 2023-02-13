@@ -19,44 +19,61 @@ export class TableContextProvider extends Component {
     refresh: false,
     block: "",
     speed: 20,
-    theme:'light'
-
+    speedText:'norm',
+    theme:'light',
+    maze:"maze"
   };
   componentDidMount() {
     window.addEventListener("mouseup", this.wallConstructorOff);
-    const node = document.getElementById(this.state.ending); //some animations takes a while to execute
-    const mutation = nodeList => {
-      if (nodeList[0].target.className === "ending-acquired") {
-        node.className = "ending";
-        let newState = this.state
-        newState.running = false
-        this.setState(newState);
-      }
-    };
-    const observer = new MutationObserver(mutation);
-    observer.observe(node, {
-      attributes: true,
-      attributeFilter: ["class"]
-    });
+  // const node = document.getElementById(this.state.ending); //some animations takes a while to execute
+  //   const mutation = nodeList => {
+  //     if (nodeList[0].target.className === "ending-acquired") {
+  //       const theme = this.state.theme
+  //       node.className = `${theme}_ending`;
+  //       let newState = this.state
+  //       newState.running = false
+  //       this.setState(newState);
+  //     }
+  //   };
+  //   const observer = new MutationObserver(mutation);
+  //   observer.observe(node, {
+  //     attributes: true,
+  //     attributeFilter: ["class"]
+  //   });
   }
 
   shouldComponentUpdate(nextProps, nextState) {
     if (
+      nextState.algorithm !== this.state.algorithm ||
       nextState.ending !== this.state.ending ||
-      this.state.wallOn !== nextState.wallOn
+      nextState.wallOn !== this.state.wallOn||
+      nextState.theme !== this.state.theme ||
+      nextState.speed !== this.state.speed ||
+      nextState.speedText !== this.state.speedText ||
+      nextState.maze !== this.state.maze ||
+      nextState.running !== this.state.running
+
     ) {
       return true;
     }
     return false;
   }
+  setRunning = (running) =>{
+    this.setState({
+      ...this.state,
+      running
+    });
+
+    return;
+  }
 
   wallConstructorOn = () => {
-    let newState = this.state
+    let newState = {...this.state}
     newState.building = true
     this.setState(newState);
   };
   wallConstructorOff = () => {
-    let newState = this.state
+    let newState = {...this.state}
     newState.building = false
     this.setState(newState);
   };
@@ -69,30 +86,48 @@ export class TableContextProvider extends Component {
         String(id) === this.state.ending
       ) {
       } else {
+        const theme = this.state.theme
         let cell = document.getElementById(id);
         if (this.state.block !== id) {
           if (cell.id !== "17-79") {
-            if (cell.className === "unvisited") {
-              cell.className = "wall";
-            } else if (cell.className === "wall") {
-              cell.className = "unvisited";
+            if (cell.className === `${theme}_unvisited`) {
+              cell.className = `${theme}_wall`;
+            } else if (cell.className === `${theme}_wall`) {
+              cell.className = `${theme}_unvisited`;
             }
           }
-          let newState = this.state
+          let newState = {...this.state}
           newState.block = id
           this.setState(newState);
         }
       }
     }
   };
-  toggleSpeed = () => {
-    let newState = this.state
-    if(this.state.speed === 20){
-      newState.speed = 4
-    }else if (this.state.speed === 4){
-      newState.speed = 40
-    }else if (this.state.speed === 40){
-      newState.speed = 20
+  setTheme = () => {
+    this.setState({
+      ...this.state,
+      theme : this.state.theme === 'dark' ? 'light' : 'dark'
+    });
+    return;
+  }
+  setSpeed = (e) => {
+    let name = e.currentTarget.attributes.name.value
+    let newState = {...this.state}
+    if(name === 'light'){
+      newState.speed = 0
+      newState.speedText = 'light'
+    }else if(name === 'fast'){
+      newState.speed = 10
+      newState.speedText = 'fast'
+    }else if (name === 'norm'){
+      newState.speed = 30
+      newState.speedText = 'norm'
+    }else if (name === 'slow'){
+      newState.speed = 150
+      newState.speedText = 'slow'
+    }else if (name === 'sloth'){
+      newState.speed = 1500
+      newState.speedText = 'sloth'
     }
     this.setState(newState);
     return;
@@ -100,12 +135,15 @@ export class TableContextProvider extends Component {
 
   buildMaze = name => {
     this.returnToUnvisited();
-    if (name === "maze") {
-      let newState = this.state
-      newState.running = false
-      this.setState(newState);
-      return;
-    }
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        maze : name,
+        // running : name === "maze" ? false : true
+      }
+    });
+    if(name === "maze") return
+
     const mazeType = [
       "basic",
       "spiral",
@@ -152,12 +190,13 @@ export class TableContextProvider extends Component {
         FOREST_WALL
       ];
       const idx = mazeType.indexOf(name);
+      const theme = this.state.theme
 
       for (let i = 0; i < mazes[idx].length; i++) {
         let k = i;
         let cell = document.getElementById(mazes[idx][k]);
         setTimeout(function() {
-          cell.className = "wall";
+          cell.className = `${theme}_wall`;
         }, this.state.speed * k);
       }
     }
@@ -184,19 +223,22 @@ export class TableContextProvider extends Component {
     } else if (wide && direction === "vertical") {
       this.verticalExtension(wallsToBeBuild);
     } else {
+      const theme = this.state.theme
+
       for (let i = 0; i < wallsToBeBuild.length; i++) {
         let k = i;
         setTimeout(() => {
           let cell = document.getElementById(wallsToBeBuild[k]);
-          cell.className = "wall";
+          cell.className = `${theme}_wall`;
         }, this.state.speed * k);
       }
     }
-    let newState = this.state
+    let newState = {...this.state}
     newState.running = true
     this.setState(newState);
   };
   horizontalExtension = wallsToBeBuild => {
+    const theme = this.state.theme
     for (let i = 0; i < wallsToBeBuild.length; i++) {
       let k = i;
       let extra = Math.ceil(Math.random() * 2);
@@ -211,30 +253,32 @@ export class TableContextProvider extends Component {
             let tempCell = document.getElementById(`${cR - 1}-${cC}`);
             if (
               tempCell &&
-              tempCell.className !== "starting" &&
-              tempCell.className !== "ending"
+              tempCell.className !== `${theme}_starting` &&
+              tempCell.className !== `${theme}_ending`
             ) {
-              tempCell.className = "wall";
+              tempCell.className = `${theme}_wall`;
               cR--;
             }
           } else {
             let tempCell = document.getElementById(`${cR + 1}-${cC}`);
             if (
               tempCell &&
-              tempCell.className !== "starting" &&
-              tempCell.className !== "ending"
+              tempCell.className !== `${theme}_starting` &&
+              tempCell.className !== `${theme}_ending`
             ) {
-              tempCell.className = "wall";
+              tempCell.className = `${theme}_wall`;
               cR++;
             }
           }
         }
 
-        cell.className = "wall";
+        cell.className = `${theme}_wall`;
       }, this.state.speed * k);
     }
   };
   verticalExtension = wallsToBeBuild => {
+    const theme = this.state.theme
+
     for (let i = 0; i < wallsToBeBuild.length; i++) {
       let k = i;
       let extra = Math.ceil(Math.random() * 2);
@@ -249,35 +293,36 @@ export class TableContextProvider extends Component {
             let tempCell = document.getElementById(`${cR}-${cC - 1}`);
             if (
               tempCell &&
-              tempCell.className !== "starting" &&
-              tempCell.className !== "ending"
+              tempCell.className !== `${theme}_starting` &&
+              tempCell.className !== `${theme}_ending`
             ) {
-              tempCell.className = "wall";
+              tempCell.className = `${theme}_wall`;
               cC--;
             }
           } else {
             let tempCell = document.getElementById(`${cR}-${cC + 1}`);
             if (
               tempCell &&
-              tempCell.className !== "starting" &&
-              tempCell.className !== "ending"
+              tempCell.className !== `${theme}_starting` &&
+              tempCell.className !== `${theme}_ending`
             ) {
-              tempCell.className = "wall";
+              tempCell.className = `${theme}_wall`;
               cC++;
             }
           }
         }
 
-        cell.className = "wall";
+        cell.className = `${theme}_wall`;
       }, this.state.speed * k);
     }
   };
 
   randomlyGeneratedMaze = () => {
     this.returnToUnvisited();
+    const theme = this.state.theme
     let wallsToBeBuild = [];
 
-    const unvisited = document.getElementsByClassName("unvisited");
+    const unvisited = document.getElementsByClassName(`${theme}_unvisited`);
     const unvisitedArr = Array.from(unvisited);
     for (let i = 0; i < unvisitedArr.length; i++) {
       const skip = Math.floor(Math.random() * 9);
@@ -288,7 +333,6 @@ export class TableContextProvider extends Component {
           wallsToBeBuild.push(cell.id);
         }
       }
-
       i += skip;
     }
 
@@ -296,10 +340,10 @@ export class TableContextProvider extends Component {
       let k = i;
       setTimeout(() => {
         let cell = document.getElementById(wallsToBeBuild[k]);
-        cell.className = "wall";
+        cell.className = `${theme}_wall`;
       }, this.state.speed * k);
     }
-    let newState = this.state
+    let newState = {...this.state}
     newState.running = true
     this.setState(newState);
 
@@ -307,52 +351,52 @@ export class TableContextProvider extends Component {
 
   clearBoard = e => {
     this.returnToUnvisited(e);
-    let newState = this.state
+    let newState = {...this.state}
     newState.running = false
     newState.current = this.state.starting
     this.setState(newState);
   };
 
   returnToUnvisited = e => {
-
+    const theme = this.state.theme
     if (e) {
       let name = e.target ? e.target.name : e;
-
       const cellsHTML = document.getElementsByClassName(name);
       const cellsArr = Array.from(cellsHTML);
       for (let i = 0; i < cellsArr.length; i++) {
         let k = i;
-        cellsArr[k].className = "unvisited";
+        cellsArr[k].className = `${theme}_unvisited`;
       }
     } else {
-      const unvisitedAnimated = document.getElementsByClassName("visited");
-      const cellsHTML = document.getElementsByClassName("wall");
+      const unvisitedAnimated = document.getElementsByClassName(`${theme}_visited`);
+      const cellsHTML = document.getElementsByClassName(`${theme}_wall`);
       const cellsArr = Array.from(cellsHTML);
       const arrVisited = Array.from(unvisitedAnimated);
 
       for (let i = 0; i < cellsArr.length; i++) {
         let k = i;
-        cellsArr[k].className = "unvisited";
+        cellsArr[k].className = `${theme}_unvisited`;
       }
       for (let i = 0; i < arrVisited.length; i++) {
         let k = i;
-        arrVisited[k].className = "unvisited";
+        arrVisited[k].className = `${theme}_unvisited`;
       }
     }
   };
 
   selectAlgorithm = e => {
     let algorithm = e.target.value;
-    let newState = this.state
+    let newState = {...this.state}
     newState.algorithm = algorithm
     this.setState(newState);
   };
 
   go = () => {
-    this.returnToUnvisited("visited");
+    const theme = this.state.theme
+    this.returnToUnvisited(`${theme}_visited`);
     const name = this.state.algorithm;
     if (name === "algorithm") {
-      let newState = this.state
+      let newState = {...this.state}
       newState.running = false
       this.setState(newState);
       return;
@@ -383,6 +427,7 @@ export class TableContextProvider extends Component {
     let startingPath = {};
     let endingPath = {};
     let counter = 0;
+    const theme = this.state.theme
     while (
       !startingPath[endingQueue[counter]] &&
       !endingPath[startingQueue[counter]]
@@ -419,7 +464,7 @@ export class TableContextProvider extends Component {
         setTimeout(function() {
           let cell = document.getElementById(startingQueue[k]);
           if (cell) {
-            cell.className = "visited";
+            cell.className = `${theme}_visited`;
           }
         }, this.state.speed * k);
       }
@@ -431,12 +476,12 @@ export class TableContextProvider extends Component {
         setTimeout(function() {
           let cell = document.getElementById(endingQueue[k]);
           if (cell) {
-            cell.className = "visited";
+            cell.className = `${theme}_visited`;
           }
         }, this.state.speed * k);
       }
     }
-    let newState = this.state
+    let newState = {...this.state}
     newState.running = false
     this.setState(newState);
   };
@@ -445,6 +490,7 @@ export class TableContextProvider extends Component {
     let current = this.state.current.split("-");
     let path = {};
     path[this.state.starting] = true;
+    const theme = this.state.theme
     const randomHelper = () => {
       let cR = Number(current[0]);
       let cC = Number(current[1]);
@@ -461,29 +507,25 @@ export class TableContextProvider extends Component {
       const direction = Math.floor(Math.random() * 4);
       setTimeout(() => {
         const currentCell = document.getElementById(`${cR}-${cC}`);
-        if (currentCell.className !== "starting") {
-          currentCell.className = "visited";
+        if (currentCell.className !== `${theme}_starting`) {
+          currentCell.className = `${theme}_visited`;
         }
-        if (leftCell && leftCell.className === "ending") {
-          leftCell.className = "ending-acquired";
+        if (leftCell && leftCell.className === `${theme}_ending`) {
           return;
         }
-        if (rightCell && rightCell.className === "ending") {
-          rightCell.className = "ending-acquired";
+        if (rightCell && rightCell.className === `${theme}_ending`) {
           return;
         }
-        if (downCell && downCell.className === "ending") {
-          downCell.className = "ending-acquired";
+        if (downCell && downCell.className === `${theme}_ending`) {
           return;
         }
-        if (upCell && upCell.className === "ending") {
-          upCell.className = "ending-acquired";
+        if (upCell && upCell.className === `${theme}_ending`) {
           return;
         }
         if (
           direction === 0 &&
           upCell &&
-          upCell.className === "unvisited" &&
+          upCell.className === `${theme}_unvisited` &&
           !path[upNext]
         ) {
           current = upNext.split("-");
@@ -491,7 +533,7 @@ export class TableContextProvider extends Component {
         } else if (
           direction === 1 &&
           downCell &&
-          downCell.className === "unvisited" &&
+          downCell.className === `${theme}_unvisited` &&
           !path[downNext]
         ) {
           current = downNext.split("-");
@@ -499,7 +541,7 @@ export class TableContextProvider extends Component {
         } else if (
           direction === 2 &&
           leftCell &&
-          leftCell.className === "unvisited" &&
+          leftCell.className === `${theme}_unvisited` &&
           !path[leftNext]
         ) {
           current = leftNext.split("-");
@@ -507,7 +549,7 @@ export class TableContextProvider extends Component {
         } else if (
           direction === 3 &&
           rightCell &&
-          rightCell.className === "unvisited" &&
+          rightCell.className === `${theme}_unvisited` &&
           !path[rightNext]
         ) {
           current = rightNext.split("-");
@@ -528,7 +570,7 @@ export class TableContextProvider extends Component {
             downCell = document.getElementById(downNext);
             if (
               rightCell &&
-              rightCell.className === "unvisited" &&
+              rightCell.className === `${theme}_unvisited` &&
               !path[rightNext]
             ) {
               current = rightNext.split("-");
@@ -536,19 +578,19 @@ export class TableContextProvider extends Component {
             }
             if (
               leftCell &&
-              leftCell.className === "unvisited" &&
+              leftCell.className === `${theme}_unvisited` &&
               !path[leftNext]
             ) {
               current = leftNext.split("-");
               return randomHelper();
             }
-            if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+            if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
               current = upNext.split("-");
               return randomHelper();
             }
             if (
               downCell &&
-              downCell.className === "unvisited" &&
+              downCell.className === `${theme}_unvisited` &&
               !path[downNext]
             ) {
               current = downNext.split("-");
@@ -562,6 +604,7 @@ export class TableContextProvider extends Component {
   };
 
   linearSearch = () => {
+    const theme = this.state.theme
     let current = this.state.current.split("-");
     let path = {};
     path[this.state.starting] = true;
@@ -580,44 +623,40 @@ export class TableContextProvider extends Component {
       let rightCell = document.getElementById(rightNext);
 
       setTimeout(() => {
-        if (currentCell.className !== "starting") {
-          currentCell.className = "visited";
+        if (currentCell.className !== `${theme}_starting`) {
+          currentCell.className = `${theme}_visited`;
         }
 
-        if (leftCell && leftCell.className === "ending") {
-          leftCell.className = "ending-acquired";
+        if (leftCell && leftCell.className === `${theme}_ending`) {
           return;
         }
-        if (rightCell && rightCell.className === "ending") {
-          rightCell.className = "ending-acquired";
+        if (rightCell && rightCell.className === `${theme}_ending`) {
           return;
         }
-        if (downCell && downCell.className === "ending") {
-          downCell.className = "ending-acquired";
+        if (downCell && downCell.className === `${theme}_ending`) {
           return;
         }
-        if (upCell && upCell.className === "ending") {
-          upCell.className = "ending-acquired";
+        if (upCell && upCell.className === `${theme}_ending`) {
           return;
         }
-        if (leftCell && leftCell.className === "unvisited" && !path[leftNext]) {
+        if (leftCell && leftCell.className === `${theme}_unvisited` && !path[leftNext]) {
           current = leftNext.split("-");
           path[leftNext] = true;
           linearHelper();
         } else if (
           !leftCell ||
-          leftCell.className === "wall" ||
-          leftCell.className === "visited" ||
-          leftCell.className === "starting" ||
+          leftCell.className === `${theme}_wall` ||
+          leftCell.className === `${theme}_visited` ||
+          leftCell.className === `${theme}_starting` ||
           path[leftNext]
         ) {
-          if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+          if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
             current = upNext.split("-");
             path[upNext] = true;
             linearHelper();
           } else if (
             downCell &&
-            downCell.className === "unvisited" &&
+            downCell.className === `${theme}_unvisited` &&
             !path[downNext]
           ) {
             current = downNext.split("-");
@@ -625,7 +664,7 @@ export class TableContextProvider extends Component {
             linearHelper();
           } else if (
             rightCell &&
-            rightCell.className === "unvisited" &&
+            rightCell.className === `${theme}_unvisited` &&
             !path[rightNext]
           ) {
             current = rightNext.split("-");
@@ -648,13 +687,13 @@ export class TableContextProvider extends Component {
               leftCell = document.getElementById(leftNext);
               currentCell = document.getElementById(`${cR}-${cC}`);
 
-              if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+              if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
                 current = upNext.split("-");
                 path[upNext] = true;
                 return linearHelper();
               } else if (
                 downCell &&
-                downCell.className === "unvisited" &&
+                downCell.className === `${theme}_unvisited` &&
                 !path[downNext]
               ) {
                 current = downNext.split("-");
@@ -662,7 +701,7 @@ export class TableContextProvider extends Component {
                 return linearHelper();
               } else if (
                 leftCell &&
-                leftCell.className === "unvisited" &&
+                leftCell.className === `${theme}_unvisited` &&
                 !path[leftNext]
               ) {
                 current = leftNext.split("-");
@@ -670,7 +709,7 @@ export class TableContextProvider extends Component {
                 return linearHelper();
               } else if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
@@ -703,19 +742,17 @@ export class TableContextProvider extends Component {
         break;
       }
     }
+    const theme = this.state.theme
     for (let i = 1; i < queue.length; i++) {
       let k = i;
       if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
         setTimeout(function() {
           let cell = document.getElementById(queue[k]);
-          cell.className = "visited";
+          cell.className = `${theme}_visited`;
         }, this.state.speed * k);
       }
       if (queue[k] === this.state.ending) {
-        setTimeout(function() {
-          let cell = document.getElementById(queue[k]);
-          cell.className = "ending-acquired";
-        }, 1 * k);
+        return
       }
     }
   };
@@ -724,6 +761,7 @@ export class TableContextProvider extends Component {
     let queue = [this.state.current];
     let path = {};
     let counter = 0;
+    const theme = this.state.theme
     while (queue[counter] !== this.state.ending) {
       try {
         let current = queue[counter].split("-");
@@ -743,14 +781,11 @@ export class TableContextProvider extends Component {
       if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
         setTimeout(function() {
           let cell = document.getElementById(queue[k]);
-          cell.className = "visited";
+          cell.className = `${theme}_visited`;
         }, this.state.speed * k);
       }
       if (queue[k] === this.state.ending) {
-        setTimeout(function() {
-          let cell = document.getElementById(queue[k]);
-          cell.className = "ending-acquired";
-        }, 1 * k);
+        return
       }
     }
   };
@@ -763,6 +798,7 @@ export class TableContextProvider extends Component {
     let downCell = document.getElementById(downNext);
     let leftCell = document.getElementById(leftNext);
     let rightCell = document.getElementById(rightNext);
+    const theme = this.state.theme
     if (bidirectionalPath) {
       let current = `${cR}-${cC}`;
       if (bidirectionalPath[current]) {
@@ -774,7 +810,7 @@ export class TableContextProvider extends Component {
     if (rightCell) {
       if (!path[rightNext]) {
         path[rightNext] = true;
-        if (rightCell.className !== "wall") {
+        if (rightCell.className !== `${theme}_wall`) {
           queue.push(rightNext);
         }
       }
@@ -782,7 +818,7 @@ export class TableContextProvider extends Component {
     if (upCell) {
       if (!path[upNext]) {
         path[upNext] = true;
-        if (upCell.className !== "wall") {
+        if (upCell.className !== `${theme}_wall`) {
           queue.push(upNext);
         }
       }
@@ -790,7 +826,7 @@ export class TableContextProvider extends Component {
     if (downCell) {
       if (!path[downNext]) {
         path[downNext] = true;
-        if (downCell.className !== "wall") {
+        if (downCell.className !== `${theme}_wall`) {
           queue.push(downNext);
         }
       }
@@ -798,7 +834,7 @@ export class TableContextProvider extends Component {
     if (leftCell) {
       if (!path[leftNext]) {
         path[leftNext] = true;
-        if (leftCell.className !== "wall") {
+        if (leftCell.className !== `${theme}_wall`) {
           queue.push(leftNext);
         }
       }
@@ -812,6 +848,7 @@ export class TableContextProvider extends Component {
     let eR = ending[0];
     let eC = ending[1];
     path[this.state.starting] = true;
+    const theme = this.state.theme
     const knownHelper = () => {
       let cR = Number(current[0]);
       let cC = Number(current[1]);
@@ -829,31 +866,27 @@ export class TableContextProvider extends Component {
       let rightCell = document.getElementById(rightNext);
 
       setTimeout(() => {
-        if (currentCell.className !== "starting") {
-          currentCell.className = "visited";
+        if (currentCell.className !== `${theme}_starting`) {
+          currentCell.className = `${theme}_visited`;
         }
 
-        if (leftCell && leftCell.className === "ending") {
-          leftCell.className = "ending-acquired";
+        if (leftCell && leftCell.className === `${theme}_ending`) {
           return;
         }
-        if (rightCell && rightCell.className === "ending") {
-          rightCell.className = "ending-acquired";
+        if (rightCell && rightCell.className === `${theme}_ending`) {
           return;
         }
-        if (downCell && downCell.className === "ending") {
-          downCell.className = "ending-acquired";
+        if (downCell && downCell.className === `${theme}_ending`) {
           return;
         }
-        if (upCell && upCell.className === "ending") {
-          upCell.className = "ending-acquired";
+        if (upCell && upCell.className === `${theme}_ending`) {
           return;
         }
         if (cC < eC) {
 
           if (
             rightCell &&
-            rightCell.className === "unvisited" &&
+            rightCell.className === `${theme}_unvisited` &&
             !path[rightNext]
           ) {
             current = rightNext.split("-");
@@ -869,7 +902,7 @@ export class TableContextProvider extends Component {
               rightCell = document.getElementById(rightNext);
               if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
@@ -890,21 +923,21 @@ export class TableContextProvider extends Component {
               downCell = document.getElementById(downNext);
               if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
                 path[rightNext] = true;
                 return knownHelper();
               }
-              if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+              if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
                 current = upNext.split("-");
                 path[upNext] = true;
                 return knownHelper();
               }
               if (
                 downCell &&
-                downCell.className === "unvisited" &&
+                downCell.className === `${theme}_unvisited` &&
                 !path[downNext]
               ) {
                 current = downNext.split("-");
@@ -921,7 +954,7 @@ export class TableContextProvider extends Component {
               leftCell = document.getElementById(leftNext);
               if (
                 leftCell &&
-                leftCell.className === "unvisited" &&
+                leftCell.className === `${theme}_unvisited` &&
                 !path[leftNext]
               ) {
                 current = leftNext.split("-");
@@ -933,7 +966,7 @@ export class TableContextProvider extends Component {
         } else if (cC > eC) {
           if (
             leftCell &&
-            leftCell.className === "unvisited" &&
+            leftCell.className === `${theme}_unvisited` &&
             !path[leftNext]
           ) {
             current = leftNext.split("-");
@@ -953,21 +986,21 @@ export class TableContextProvider extends Component {
               leftCell = document.getElementById(leftNext);
               if (
                 leftCell &&
-                leftCell.className === "unvisited" &&
+                leftCell.className === `${theme}_unvisited` &&
                 !path[leftNext]
               ) {
                 current = leftNext.split("-");
                 path[leftNext] = true;
                 return knownHelper();
               }
-              if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+              if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
                 current = upNext.split("-");
                 path[upNext] = true;
                 return knownHelper();
               }
               if (
                 downCell &&
-                downCell.className === "unvisited" &&
+                downCell.className === `${theme}_unvisited` &&
                 !path[downNext]
               ) {
                 current = downNext.split("-");
@@ -984,7 +1017,7 @@ export class TableContextProvider extends Component {
               rightCell = document.getElementById(rightNext);
               if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
@@ -995,7 +1028,7 @@ export class TableContextProvider extends Component {
           }
         }
         if (cR > eR) {
-          if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+          if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
             current = upNext.split("-");
             path[upNext] = true;
             return knownHelper();
@@ -1008,7 +1041,7 @@ export class TableContextProvider extends Component {
               cC = Number(current[1]);
               upNext = `${cR - 1}-${cC}`;
               upCell = document.getElementById(upNext);
-              if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+              if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
                 current = upNext.split("-");
                 path[upNext] = true;
                 return knownHelper();
@@ -1028,7 +1061,7 @@ export class TableContextProvider extends Component {
 
               if (
                 leftCell &&
-                leftCell.className === "unvisited" &&
+                leftCell.className === `${theme}_unvisited` &&
                 !path[leftNext]
               ) {
                 current = leftNext.split("-");
@@ -1036,7 +1069,7 @@ export class TableContextProvider extends Component {
                 return knownHelper();
               } else if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
@@ -1052,7 +1085,7 @@ export class TableContextProvider extends Component {
               downCell = document.getElementById(downNext);
               if (
                 downCell &&
-                downCell.className === "unvisited" &&
+                downCell.className === `${theme}_unvisited` &&
                 !path[downNext]
               ) {
                 current = downNext.split("-");
@@ -1064,7 +1097,7 @@ export class TableContextProvider extends Component {
         } else if (cR < eR) {
           if (
             downCell &&
-            downCell.className === "unvisited" &&
+            downCell.className === `${theme}_unvisited` &&
             !path[downNext]
           ) {
             current = downNext.split("-");
@@ -1080,7 +1113,7 @@ export class TableContextProvider extends Component {
               downCell = document.getElementById(downNext);
               if (
                 downCell &&
-                downCell.className === "unvisited" &&
+                downCell.className === `${theme}_unvisited` &&
                 !path[downNext]
               ) {
                 current = downNext.split("-");
@@ -1099,7 +1132,7 @@ export class TableContextProvider extends Component {
               rightCell = document.getElementById(rightNext);
               if (
                 leftCell &&
-                leftCell.className === "unvisited" &&
+                leftCell.className === `${theme}_unvisited` &&
                 !path[leftNext]
               ) {
                 current = leftNext.split("-");
@@ -1107,7 +1140,7 @@ export class TableContextProvider extends Component {
                 return knownHelper();
               } else if (
                 rightCell &&
-                rightCell.className === "unvisited" &&
+                rightCell.className === `${theme}_unvisited` &&
                 !path[rightNext]
               ) {
                 current = rightNext.split("-");
@@ -1121,7 +1154,7 @@ export class TableContextProvider extends Component {
               cC = Number(current[1]);
               upNext = `${cR - 1}-${cC}`;
               upCell = document.getElementById(upNext);
-              if (upCell && upCell.className === "unvisited" && !path[upNext]) {
+              if (upCell && upCell.className === `${theme}_unvisited` && !path[upNext]) {
                 current = upNext.split("-");
                 path[upNext] = true;
                 return knownHelper();
@@ -1149,7 +1182,9 @@ export class TableContextProvider extends Component {
           randomlyGeneratedMaze: this.randomlyGeneratedMaze,
           selectAlgorithm: this.selectAlgorithm,
           go: this.go,
-          toggleSpeed:this.toggleSpeed
+          setSpeed: this.setSpeed,
+          setTheme: this.setTheme,
+          setRunning:this.setRunning
         }}
       >
         {this.props.children}

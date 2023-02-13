@@ -6,7 +6,7 @@ const SPIRAL = 'spiral'
 const BASIC = 'basic'
 const FOREST = 'forest'
 
-export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
+export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
   switch(selectedAlgo){
     case BIDIRECTIONAL_SEARCH :{
       switch(selectedMaze){
@@ -18,9 +18,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
             const cellTwoID = `16-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
-            if(cellOne.className === VISITED && cellTwo.className === VISITED){
+            if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
               clearInterval(checkWall)
-              return setIsRunning(false)
+              return setRunning(false)
             }
           }, 2000)
           break;
@@ -33,9 +33,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
             const cellTwoID = `8-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
-            if(cellOne.className === VISITED && cellTwo.className === VISITED){
+            if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
               clearInterval(checkWall)
-              return setIsRunning(false)
+              return setRunning(false)
             }
           }, 2000)
           break;
@@ -48,9 +48,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
             const cellTwoID = `27-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
-            if(cellOne.className === VISITED && cellTwo.className === VISITED){
+            if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
               clearInterval(checkWall)
-              return setIsRunning(false)
+              return setRunning(false)
             }
           }, 2000)
           break;
@@ -63,9 +63,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
             const cellTwoID = `26-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
-            if(cellOne.className === VISITED && cellTwo.className === VISITED){
+            if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
               clearInterval(checkWall)
-              return setIsRunning(false)
+              return setRunning(false)
             }
           }, 2000)
           break;
@@ -78,9 +78,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
             const cellTwoID = `26-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
-            if(cellOne.className === VISITED && cellTwo.className === VISITED){
+            if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
               clearInterval(checkWall)
-              return setIsRunning(false)
+              return setRunning(false)
             }
           }, 2000)
           break;
@@ -95,9 +95,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
               const cellTwoID = `${i}-${middleC_right}`
               const cellOne = document.getElementById(cellOneID);
               const cellTwo = document.getElementById(cellTwoID);
-              if(cellOne.className === VISITED && cellTwo.className === VISITED){
+              if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
                 clearInterval(checkWall)
-                return setIsRunning(false)
+                return setRunning(false)
               }
             }
           }, 2000)
@@ -111,9 +111,9 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setIsRunning) =>{
         for(let i=0; i<surroundingCells.length; i++){
           const cellID = surroundingCells[i]
           const cell = document.getElementById(cellID);
-          if(cell.className === VISITED){
+          if(cell.className === `${theme}_${VISITED}`){
             clearInterval(checkWall)
-            return setIsRunning(false)
+            return setRunning(false)
           }
         }
       }, 2000)

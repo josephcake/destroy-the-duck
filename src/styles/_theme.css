@@ -1,0 +1,28 @@
+/* light */
+.light_bg{
+  background-color: whitesmoke;
+  color:darkslateblue;
+}
+.light_bg_secondary{
+  background-color: darkslateblue;
+  color:whitesmoke;
+}
+.light_border{
+  border: solid 1px #a9a9a9;
+  border-radius: 5px;
+}
+
+
+.dark_bg{
+  background-color: rgb(17, 26, 47);
+  color: rgb(185, 185, 185)
+}
+
+.dark_bg_secondary{
+  background-color: rgb(24, 32, 52);
+  color: rgb(185, 185, 185)
+}
+.dark_border{
+  border: solid 1px #424661;
+  border-radius: 5px;
+}

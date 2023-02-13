@@ -7,7 +7,7 @@ export const NavOptions = ({value, text}) => {
   )
 }
 
-export const NavButtons = ({name, text, isRunning, clearBoard}) => {
+export const NavButtons = ({name, text, isRunning, clearBoard, theme}) => {
   const shouldClear = (e) =>{
     if(name){
       clearBoard(e)
@@ -19,7 +19,7 @@ export const NavButtons = ({name, text, isRunning, clearBoard}) => {
     <button
       name={name}
       disabled={isRunning}
-      className={"nav__button"}
+      className={`nav__button ${theme}_border ${theme}_bg_secondary`}
       onClick={e => shouldClear(e)}
     >
       {text}
@@ -27,10 +27,9 @@ export const NavButtons = ({name, text, isRunning, clearBoard}) => {
   )
 }
 
-export const NavSettingsToggle = ({name,className, text, isRunning,handleClick=()=>{}}) => {
+export const NavSettings = ({name,className, text, handleClick=()=>{}}) => {
   return (
     <div
-      disabled={isRunning}
       onClick={handleClick}
       className={className}
       name={name}

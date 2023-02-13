@@ -12,6 +12,7 @@ class Main extends React.Component {
         {({
           rows,
           cols,
+          theme,
           starting,
           ending,
           current,
@@ -25,15 +26,16 @@ class Main extends React.Component {
               <table>
                 <tbody>
                   <Table
+                    cols={cols}
                     rows={rows}
-                    starting={starting}
+                    theme={theme}
                     ending={ending}
                     current={current}
-                    cols={cols}
                     draggable={false}
+                    starting={starting}
+                    wallBuilding={wallBuilding}
                     wallConstructorOn={wallConstructorOn}
                     wallConstructorOff={wallConstructorOff}
-                    wallBuilding={wallBuilding}
                   />
                 </tbody>
               </table>
