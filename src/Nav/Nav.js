@@ -22,7 +22,7 @@ const Nav = ({
   const handleGo = (go) =>{
     go()
     setRunning(true)
-    isDuckFound(algorithm,maze,setRunning,theme)
+    isDuckFound(algorithm,maze,setRunning,theme,running)
   }
 
   const shouldUpdateMazeSelection = (e) => {
@@ -92,7 +92,12 @@ const Nav = ({
         ))}
       </div>
       <div className={"nav__setting nav__items"}>
-        <div className={`nav__button nav__items__container ${theme}_border ${running && 'disabled'}`}>
+        <div className={`
+        nav__button
+        nav__items__container
+        ${theme}_border
+        `}>
+          {/* ${running && 'disabled'} */}
           <NavSettings
             className={"nav__setting_theme"}
             name={"theme"}
