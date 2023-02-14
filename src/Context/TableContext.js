@@ -88,6 +88,11 @@ export class TableContextProvider extends Component {
       } else {
         const theme = this.state.theme
         let cell = document.getElementById(id);
+        // if (cell.id !== "17-79") {
+        //   if (cell.className === `${theme}_unvisited`) {
+        //     cell.className = `${theme}_wall`;
+        //   }
+        // }
         if (this.state.block !== id) {
           if (cell.id !== "17-79") {
             if (cell.className === `${theme}_unvisited`) {
@@ -110,6 +115,15 @@ export class TableContextProvider extends Component {
     });
     return;
   }
+  cannotFindDuck = () => {
+    if(window.checkWallInterval){
+      clearInterval(window.checkWallInterval)
+    }
+    let newState = {...this.state}
+    newState.running = false
+    this.setState(newState);
+    return alert('cannot find duck')
+  };
   setSpeed = (e) => {
     let name = e.currentTarget.attributes.name.value
     let newState = {...this.state}
@@ -361,7 +375,7 @@ export class TableContextProvider extends Component {
     const theme = this.state.theme
     if (e) {
       let name = e.target ? e.target.name : e;
-      const cellsHTML = document.getElementsByClassName(name);
+      const cellsHTML = document.getElementsByClassName(`${theme}_${name}`);
       const cellsArr = Array.from(cellsHTML);
       for (let i = 0; i < cellsArr.length; i++) {
         let k = i;
@@ -392,8 +406,7 @@ export class TableContextProvider extends Component {
   };
 
   go = () => {
-    const theme = this.state.theme
-    this.returnToUnvisited(`${theme}_visited`);
+    this.returnToUnvisited(`visited`);
     const name = this.state.algorithm;
     if (name === "algorithm") {
       let newState = {...this.state}
@@ -597,6 +610,17 @@ export class TableContextProvider extends Component {
               return randomHelper();
             }
           }
+          if(
+            (!upCell || upCell.className === `${theme}_wall` || upCell.className === `${theme}_starting` || upCell.className === `${theme}_visited`)
+            &&
+            (!downCell || downCell.className === `${theme}_wall` || downCell.className === `${theme}_starting` || downCell.className === `${theme}_visited`)
+            &&
+            (!leftCell || leftCell.className === `${theme}_wall` || leftCell.className === `${theme}_starting` || leftCell.className === `${theme}_visited`)
+            &&
+            (!rightCell || rightCell.className === `${theme}_wall` || rightCell.className === `${theme}_starting` || rightCell.className === `${theme}_visited`)
+          ){
+            return this.cannotFindDuck()
+          }
         }
       }, this.state.speed);
     };
@@ -623,6 +647,7 @@ export class TableContextProvider extends Component {
       let rightCell = document.getElementById(rightNext);
 
       setTimeout(() => {
+        //change to .includes to check against theme change
         if (currentCell.className !== `${theme}_starting`) {
           currentCell.className = `${theme}_visited`;
         }
@@ -719,6 +744,17 @@ export class TableContextProvider extends Component {
             }
           }
         }
+        if(
+          (!upCell || upCell.className === `${theme}_wall` || upCell.className === `${theme}_starting` || upCell.className === `${theme}_visited`)
+          &&
+          (!downCell || downCell.className === `${theme}_wall` || downCell.className === `${theme}_starting` || downCell.className === `${theme}_visited`)
+          &&
+          (!leftCell || leftCell.className === `${theme}_wall` || leftCell.className === `${theme}_starting` || leftCell.className === `${theme}_visited`)
+          &&
+          (!rightCell || rightCell.className === `${theme}_wall` || rightCell.className === `${theme}_starting` || rightCell.className === `${theme}_visited`)
+        ){
+          return this.cannotFindDuck()
+        }
       }, this.state.speed);
     };
     linearHelper();
@@ -728,14 +764,15 @@ export class TableContextProvider extends Component {
     let queue = ["17-79"];
     let path = {};
     let counter = 0;
-    while (queue[counter] !== this.state.ending) {
+    const ending = this.state.ending
+    while (queue[counter] !== ending) {
       try {
         let current = queue[counter].split("-");
         let cR = Number(current[0]);
         let cC = Number(current[1]);
         this.spreadHelper(cR, cC, path, queue);
         counter++;
-        if (queue[counter] === this.state.ending) {
+        if (queue[counter] === ending) {
           break;
         }
       } catch (err) {
@@ -743,15 +780,19 @@ export class TableContextProvider extends Component {
       }
     }
     const theme = this.state.theme
+
     for (let i = 1; i < queue.length; i++) {
       let k = i;
-      if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
-        setTimeout(function() {
+      if (queue[k] !== ending && queue[k] !== this.state.starting) {
+        setTimeout(() => {
           let cell = document.getElementById(queue[k]);
           cell.className = `${theme}_visited`;
+          if(k === queue.length-1 && queue[k] !== ending){
+            this.cannotFindDuck()
+          }
         }, this.state.speed * k);
       }
-      if (queue[k] === this.state.ending) {
+      if (queue[k] === ending) {
         return
       }
     }
@@ -762,14 +803,15 @@ export class TableContextProvider extends Component {
     let path = {};
     let counter = 0;
     const theme = this.state.theme
-    while (queue[counter] !== this.state.ending) {
+    const ending = this.state.ending
+    while (queue[counter] !== ending) {
       try {
         let current = queue[counter].split("-");
         let cR = Number(current[0]);
         let cC = Number(current[1]);
         this.spreadHelper(cR, cC, path, queue);
         counter++;
-        if (queue[counter] === this.state.ending) {
+        if (queue[counter] === ending) {
           break;
         }
       } catch (err) {
@@ -778,13 +820,16 @@ export class TableContextProvider extends Component {
     }
     for (let i = 1; i < queue.length; i++) {
       let k = i;
-      if (queue[k] !== this.state.ending && queue[k] !== this.state.starting) {
-        setTimeout(function() {
+      if (queue[k] !== ending && queue[k] !== this.state.starting) {
+        setTimeout(() => {
           let cell = document.getElementById(queue[k]);
           cell.className = `${theme}_visited`;
+          if(k === queue.length-1 && queue[k] !== ending){
+            this.cannotFindDuck()
+          }
         }, this.state.speed * k);
       }
-      if (queue[k] === this.state.ending) {
+      if (queue[k] === ending) {
         return
       }
     }
@@ -869,7 +914,6 @@ export class TableContextProvider extends Component {
         if (currentCell.className !== `${theme}_starting`) {
           currentCell.className = `${theme}_visited`;
         }
-
         if (leftCell && leftCell.className === `${theme}_ending`) {
           return;
         }
@@ -1162,6 +1206,18 @@ export class TableContextProvider extends Component {
             }
           }
         }
+        if(
+          (!upCell || upCell.className === `${theme}_wall` || upCell.className === `${theme}_starting` || upCell.className === `${theme}_visited`)
+          &&
+          (!downCell || downCell.className === `${theme}_wall` || downCell.className === `${theme}_starting` || downCell.className === `${theme}_visited`)
+          &&
+          (!leftCell || leftCell.className === `${theme}_wall` || leftCell.className === `${theme}_starting` || leftCell.className === `${theme}_visited`)
+          &&
+          (!rightCell || rightCell.className === `${theme}_wall` || rightCell.className === `${theme}_starting` || rightCell.className === `${theme}_visited`)
+        ){
+          return this.cannotFindDuck()
+        }
+
       }, this.state.speed);
     };
 
@@ -1184,7 +1240,8 @@ export class TableContextProvider extends Component {
           go: this.go,
           setSpeed: this.setSpeed,
           setTheme: this.setTheme,
-          setRunning:this.setRunning
+          setRunning:this.setRunning,
+          cannotFindDuck:this.cannotFindDuck
         }}
       >
         {this.props.children}

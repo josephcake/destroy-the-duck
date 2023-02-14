@@ -6,20 +6,20 @@ const SPIRAL = 'spiral'
 const BASIC = 'basic'
 const FOREST = 'forest'
 
-export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
+export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme,running) =>{
   switch(selectedAlgo){
     case BIDIRECTIONAL_SEARCH :{
       switch(selectedMaze){
         case CHECKER:{
           const middleC_left = 38
           const middleC_right = 39
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             const cellOneID = `16-${middleC_left}`
             const cellTwoID = `16-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
             if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-              clearInterval(checkWall)
+              clearInterval(window.checkWallInterval)
               return setRunning(false)
             }
           }, 2000)
@@ -28,13 +28,13 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
         case STAIR:{
           const middleC_left = 45
           const middleC_right = 46
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             const cellOneID = `8-${middleC_left}`
             const cellTwoID = `8-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
             if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-              clearInterval(checkWall)
+              clearInterval(window.checkWallInterval)
               return setRunning(false)
             }
           }, 2000)
@@ -43,13 +43,13 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
         case SPIRAL:{
           const middleC_left = 3
           const middleC_right = 4
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             const cellOneID = `27-${middleC_left}`
             const cellTwoID = `27-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
             if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-              clearInterval(checkWall)
+              clearInterval(window.checkWallInterval)
               return setRunning(false)
             }
           }, 2000)
@@ -58,13 +58,13 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
         case BASIC :{
           const middleC_left = 37
           const middleC_right = 38
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             const cellOneID = `26-${middleC_left}`
             const cellTwoID = `26-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
             if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-              clearInterval(checkWall)
+              clearInterval(window.checkWallInterval)
               return setRunning(false)
             }
           }, 2000)
@@ -73,13 +73,13 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
         case FOREST:{
           const middleC_left = 37
           const middleC_right = 38
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             const cellOneID = `26-${middleC_left}`
             const cellTwoID = `26-${middleC_right}`
             const cellOne = document.getElementById(cellOneID);
             const cellTwo = document.getElementById(cellTwoID);
             if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-              clearInterval(checkWall)
+              clearInterval(window.checkWallInterval)
               return setRunning(false)
             }
           }, 2000)
@@ -89,14 +89,14 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
           const middleC_left = 40
           const middleC_right = 41
           const maxR = 34
-          let checkWall = setInterval(()=>{
+          window.checkWallInterval = setInterval(()=>{
             for(let i=0; i<=maxR; i++){
               const cellOneID = `${i}-${middleC_left}`
               const cellTwoID = `${i}-${middleC_right}`
               const cellOne = document.getElementById(cellOneID);
               const cellTwo = document.getElementById(cellTwoID);
               if(cellOne.className === `${theme}_${VISITED}` && cellTwo.className === `${theme}_${VISITED}`){
-                clearInterval(checkWall)
+                clearInterval(window.checkWallInterval)
                 return setRunning(false)
               }
             }
@@ -107,12 +107,12 @@ export const isDuckFound = (selectedAlgo,selectedMaze,setRunning,theme) =>{
     }
     default :{
       const surroundingCells = ['16-64','17-63','17-65','18-64']
-      let checkWall = setInterval(()=>{
+      window.checkWallInterval = setInterval(()=>{
         for(let i=0; i<surroundingCells.length; i++){
           const cellID = surroundingCells[i]
           const cell = document.getElementById(cellID);
           if(cell.className === `${theme}_${VISITED}`){
-            clearInterval(checkWall)
+            clearInterval(window.checkWallInterval)
             return setRunning(false)
           }
         }
