@@ -20,11 +20,29 @@ const visited_animation = (currentTheme) => {
 	50% {
 		transform: scale(1.4);
 		border-radius:4px;
-		background-color: ${theme[currentTheme].animation.cell.start};
+		background-color: ${theme[currentTheme].animation.cell.end};
 	}
 	100% {
 		transform: scale(1);
 		background-color: ${theme[currentTheme].cell.background.visited};
+	}
+`;
+};
+// drawing wall animation
+const wall_animation = (currentTheme) => {
+	return keyframes`
+  0% {
+		border-radius:2px;
+		transform: scale(0.3);
+		background-color: ${theme[currentTheme].animation.wall.start};
+	}
+	50% {
+		transform: scale(1.4);
+		border-radius:4px;
+	}
+	100% {
+		transform: scale(1);
+		background-color: ${theme[currentTheme].animation.wall.end};
 	}
 `;
 };
@@ -48,6 +66,14 @@ export const Td = styled.td`
 					animation-name: ${visited_animation(props.currentTheme)};
 					animation-duration: 1.5s;
 					animation-timing-function: ease-in-out;
+					animation-fill-mode: forwards;
+			  `
+			: props.state === 'wall'
+			? css`
+					animation-name: ${wall_animation(props.currentTheme)};
+					animation-duration: 1.5s;
+					animation-timing-function: ease-in-out;
+					animation-fill-mode: forwards;
 			  `
 			: css`
 					opacity: 1;
