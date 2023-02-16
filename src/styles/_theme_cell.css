@@ -23,7 +23,6 @@
 	--dark-animation-bg-wall: rgba(4, 4, 44, 0.8);
 }
 
-
 /* light */
 .light_starting {
   border: var(--light-cell-border);

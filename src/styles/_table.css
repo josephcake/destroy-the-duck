@@ -5,17 +5,7 @@ table {
  tr {
 	display: flex;
 }
- td {
-	text-align: center;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	width: 20px;
-	height: 20px;
-	font-size: 0px;
-	/* clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%); */
-}
-
+/*
  @media only screen and (max-height: 900px) {
 	td {
 		width: 19px;
@@ -69,22 +59,22 @@ table {
 		width: 12px;
 		height: 12px;
 	}
-}
+} */
  @media only screen and (max-width: 768px) {
 	tr {
 		display: block;
 		float: left;
 	}
-	td {
+	/* td {
 		display: block;
 		width: 10px;
 		height: 10px;
-	}
+	} */
 }
- @media only screen and (max-width: 500px) {
+ /* @media only screen and (max-width: 500px) {
 	td {
 		width: 6px;
 		height: 6px;
 		padding: 1px;
 	}
-}
+} */
