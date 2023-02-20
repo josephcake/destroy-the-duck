@@ -24,18 +24,7 @@ export const spreadHelper = (starting, ending) => {
 			downNext,
 			leftNext,
 			rightNext,
-			cR,
-			cC,
 		} = validCells;
-
-		// if (bidirectionalPath) {
-		// 	let current = `${cR}-${cC}`;
-		// 	if (bidirectionalPath[current]) {
-		// 		queue.push('crossed');
-		// 		path['crossed'] = 'crossed';
-		// 		return;
-		// 	}
-		// }
 		if (
 			upNext === ending ||
 			downNext === ending ||
