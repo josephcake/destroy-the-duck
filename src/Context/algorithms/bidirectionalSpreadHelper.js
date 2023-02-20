@@ -3,6 +3,7 @@ let lastQueueToRender;
 const spreadHelper = (current, path, queue, otherPath) => {
 	let validCells = checkValidCells(current);
 	let {
+		currentCell,
 		upCell,
 		downCell,
 		leftCell,
@@ -13,19 +14,19 @@ const spreadHelper = (current, path, queue, otherPath) => {
 		rightNext,
 	} = validCells;
 
-	if (otherPath[current]) {
+	if (otherPath[current] && !currentCell.className.includes('_wall')) {
 		lastQueueToRender = current;
 		return;
-	} else if (otherPath[rightNext]) {
+	} else if (otherPath[rightNext] && !rightCell.className.includes('_wall')) {
 		lastQueueToRender = rightNext;
 		return;
-	} else if (otherPath[leftNext]) {
+	} else if (otherPath[leftNext] && !leftCell.className.includes('_wall')) {
 		lastQueueToRender = leftNext;
 		return;
-	} else if (otherPath[upNext]) {
+	} else if (otherPath[upNext] && !upCell.className.includes('_wall')) {
 		lastQueueToRender = upNext;
 		return;
-	} else if (otherPath[downNext]) {
+	} else if (otherPath[downNext] && !downCell.className.includes('_wall')) {
 		lastQueueToRender = downNext;
 		return;
 	}

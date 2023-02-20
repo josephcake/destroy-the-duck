@@ -75,7 +75,7 @@ export const linearSearchHelper = (starting) => {
 				return helper();
 			} else {
 				const potentialPaths = Object.keys(path);
-				for (let i = 0; i < potentialPaths.length; i++) {
+				for (let i = potentialPaths.length - 1; i !== 0; i--) {
 					let validCells = checkValidCells(potentialPaths[i]);
 					let {
 						upCell,
