@@ -36,7 +36,11 @@ export const knownDirectionHelper = (starting, ending) => {
 		const shouldGoDown = cR < eR;
 
 		if (shouldGoRight) {
-			if (rightCell && !path[rightNext]) {
+			if (
+				rightCell &&
+				!rightCell.className.includes('wall') &&
+				!path[rightNext]
+			) {
 				current = rightNext.split('-');
 				path[rightNext] = true;
 				queue.push(rightNext);
@@ -49,7 +53,11 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					rightNext = `${cR}-${cC + 1}`;
 					rightCell = document.getElementById(rightNext);
-					if (rightCell && !path[rightNext]) {
+					if (
+						rightCell &&
+						!rightCell.className.includes('wall') &&
+						!path[rightNext]
+					) {
 						current = rightNext.split('-');
 						path[rightNext] = true;
 						queue.push(rightNext);
@@ -61,25 +69,21 @@ export const knownDirectionHelper = (starting, ending) => {
 					current = potentialPaths[i].split('-');
 					cR = Number(current[0]);
 					cC = Number(current[1]);
-					// rightNext = `${cR}-${cC + 1}`;
-					// rightCell = document.getElementById(rightNext);
 					upNext = `${cR - 1}-${cC}`;
 					downNext = `${cR + 1}-${cC}`;
 					upCell = document.getElementById(upNext);
 					downCell = document.getElementById(downNext);
-					// if (rightCell && !path[rightNext]) {
-					// 	current = rightNext.split('-');
-					// 	path[rightNext] = true;
-					// queue.push(path);
-					// 	return helper(path);
-					// }
-					if (upCell && !path[upNext]) {
+					if (upCell && !upCell.className.includes('wall') && !path[upNext]) {
 						current = upNext.split('-');
 						path[upNext] = true;
 						queue.push(upNext);
 						return helper(upNext);
 					}
-					if (downCell && !path[downNext]) {
+					if (
+						downCell &&
+						!downCell.className.includes('wall') &&
+						!path[downNext]
+					) {
 						current = downNext.split('-');
 						path[downNext] = true;
 						queue.push(downNext);
@@ -93,7 +97,11 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					leftNext = `${cR}-${cC - 1}`;
 					leftCell = document.getElementById(leftNext);
-					if (leftCell && !path[leftNext]) {
+					if (
+						leftCell &&
+						!leftCell.className.includes('wall') &&
+						!path[leftNext]
+					) {
 						current = leftNext.split('-');
 						path[leftNext] = true;
 						queue.push(leftNext);
@@ -102,7 +110,7 @@ export const knownDirectionHelper = (starting, ending) => {
 				}
 			}
 		} else if (shouldGoLeft) {
-			if (leftCell && !path[leftNext]) {
+			if (leftCell && !leftCell.className.includes('wall') && !path[leftNext]) {
 				current = leftNext.split('-');
 				path[leftNext] = true;
 				queue.push(leftNext);
@@ -113,30 +121,18 @@ export const knownDirectionHelper = (starting, ending) => {
 					current = potentialPaths[i].split('-');
 					cR = Number(current[0]);
 					cC = Number(current[1]);
-					// upNext = `${cR - 1}-${cC}`;
-					// downNext = `${cR + 1}-${cC}`;
-					// upCell = document.getElementById(upNext);
-					// downCell = document.getElementById(downNext);
 					leftNext = `${cR}-${cC - 1}`;
 					leftCell = document.getElementById(leftNext);
-					if (leftCell && !path[leftNext]) {
+					if (
+						leftCell &&
+						!leftCell.className.includes('wall') &&
+						!path[leftNext]
+					) {
 						current = leftNext.split('-');
 						path[leftNext] = true;
 						queue.push(leftNext);
 						return helper(leftNext);
 					}
-					// if (upCell && !path[upNext]) {
-					// 	current = upNext.split('-');
-					// 	path[upNext] = true;
-					// queue.push(path);
-					// 	return helper(path);
-					// }
-					// if (downCell && !path[downNext]) {
-					// 	current = downNext.split('-');
-					// 	path[downNext] = true;
-					// queue.push(path);
-					// 	return helper(path);
-					// }
 				}
 				for (let i = potentialPaths.length - 1; i >= 0; i--) {
 					current = potentialPaths[i].split('-');
@@ -146,21 +142,17 @@ export const knownDirectionHelper = (starting, ending) => {
 					downNext = `${cR + 1}-${cC}`;
 					upCell = document.getElementById(upNext);
 					downCell = document.getElementById(downNext);
-					// leftNext = `${cR}-${cC - 1}`;
-					// leftCell = document.getElementById(leftNext);
-					// if (leftCell && !path[leftNext]) {
-					// 	current = leftNext.split('-');
-					// 	path[leftNext] = true;
-					// queue.push(path);
-					// 	return helper(path);
-					// }
-					if (upCell && !path[upNext]) {
+					if (upCell && !upCell.className.includes('wall') && !path[upNext]) {
 						current = upNext.split('-');
 						path[upNext] = true;
 						queue.push(upNext);
 						return helper(upNext);
 					}
-					if (downCell && !path[downNext]) {
+					if (
+						downCell &&
+						!downCell.className.includes('wall') &&
+						!path[downNext]
+					) {
 						current = downNext.split('-');
 						path[downNext] = true;
 						queue.push(downNext);
@@ -174,7 +166,11 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					rightNext = `${cR}-${cC + 1}`;
 					rightCell = document.getElementById(rightNext);
-					if (rightCell && !path[rightNext]) {
+					if (
+						rightCell &&
+						!rightCell.className.includes('wall') &&
+						!path[rightNext]
+					) {
 						current = rightNext.split('-');
 						path[rightNext] = true;
 						queue.push(rightNext);
@@ -184,7 +180,7 @@ export const knownDirectionHelper = (starting, ending) => {
 			}
 		}
 		if (shouldGoUp) {
-			if (upCell && !path[upNext]) {
+			if (upCell && !upCell.className.includes('wall') && !path[upNext]) {
 				current = upNext.split('-');
 				path[upNext] = true;
 				queue.push(upNext);
@@ -198,7 +194,7 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					upNext = `${cR - 1}-${cC}`;
 					upCell = document.getElementById(upNext);
-					if (upCell && !path[upNext]) {
+					if (upCell && !upCell.className.includes('wall') && !path[upNext]) {
 						current = upNext.split('-');
 						path[upNext] = true;
 						queue.push(upNext);
@@ -215,12 +211,20 @@ export const knownDirectionHelper = (starting, ending) => {
 					rightNext = `${cR}-${cC + 1}`;
 					rightCell = document.getElementById(rightNext);
 
-					if (leftCell && !path[leftNext]) {
+					if (
+						leftCell &&
+						!leftCell.className.includes('wall') &&
+						!path[leftNext]
+					) {
 						current = leftNext.split('-');
 						path[leftNext] = true;
 						queue.push(leftNext);
 						return helper(leftNext);
-					} else if (rightCell && !path[rightNext]) {
+					} else if (
+						rightCell &&
+						!rightCell.className.includes('wall') &&
+						!path[rightNext]
+					) {
 						current = rightNext.split('-');
 						path[rightNext] = true;
 						queue.push(rightNext);
@@ -233,7 +237,11 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					downNext = `${cR + 1}-${cC}`;
 					downCell = document.getElementById(downNext);
-					if (downCell && !path[downNext]) {
+					if (
+						downCell &&
+						!downCell.className.includes('wall') &&
+						!path[downNext]
+					) {
 						current = downNext.split('-');
 						path[downNext] = true;
 						queue.push(downNext);
@@ -242,7 +250,7 @@ export const knownDirectionHelper = (starting, ending) => {
 				}
 			}
 		} else if (shouldGoDown) {
-			if (downCell && !path[downNext]) {
+			if (downCell && !downCell.className.includes('wall') && !path[downNext]) {
 				current = downNext.split('-');
 				path[downNext] = true;
 				queue.push(downNext);
@@ -255,7 +263,11 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					downNext = `${cR + 1}-${cC}`;
 					downCell = document.getElementById(downNext);
-					if (downCell && !path[downNext]) {
+					if (
+						downCell &&
+						!downCell.className.includes('wall') &&
+						!path[downNext]
+					) {
 						current = downNext.split('-');
 						path[downNext] = true;
 						queue.push(downNext);
@@ -271,12 +283,20 @@ export const knownDirectionHelper = (starting, ending) => {
 					leftCell = document.getElementById(leftNext);
 					rightNext = `${cR}-${cC + 1}`;
 					rightCell = document.getElementById(rightNext);
-					if (leftCell && !path[leftNext]) {
+					if (
+						leftCell &&
+						!leftCell.className.includes('wall') &&
+						!path[leftNext]
+					) {
 						current = leftNext.split('-');
 						path[leftNext] = true;
 						queue.push(leftNext);
 						return helper(leftNext);
-					} else if (rightCell && !path[rightNext]) {
+					} else if (
+						rightCell &&
+						!rightCell.className.includes('wall') &&
+						!path[rightNext]
+					) {
 						current = rightNext.split('-');
 						path[rightNext] = true;
 						queue.push(rightNext);
@@ -289,7 +309,7 @@ export const knownDirectionHelper = (starting, ending) => {
 					cC = Number(current[1]);
 					upNext = `${cR - 1}-${cC}`;
 					upCell = document.getElementById(upNext);
-					if (upCell && !path[upNext]) {
+					if (upCell && !upCell.className.includes('wall') && !path[upNext]) {
 						current = upNext.split('-');
 						path[upNext] = true;
 						queue.push(upNext);
