@@ -6,7 +6,7 @@
 	flex-direction: row;
 	justify-content: space-around;
 	align-items: space-between;
-	font-family: "Bree Serif";
+	font-family: 'Bree Serif';
 }
 .nav-image {
 	height: 40px;
@@ -26,12 +26,30 @@
 	margin: 0 1px;
 	cursor: pointer;
 }
-.nav__button:disabled{
+.nav__button__clear {
+	color: white;
+	font-weight: 800;
+	outline: none;
+	padding: 0 5px;
+	margin: 0 1px;
+	cursor: pointer;
+	width: 100%;
+	min-width: 100px;
+	height: 50px;
+	border: none;
+}
+.nav__button__selected {
+	filter: grayscale(0.4) invert(0.3);
+}
+.nav__button:disabled {
 	opacity: 0.5;
-	cursor:not-allowed;
+	cursor: not-allowed;
 }
 .nav__button:hover {
-	filter: contrast(1.4);
+	filter: brightness(1.1) contrast(1.2);
+}
+.nav__button__clear:hover {
+	filter: brightness(1.1) contrast(1.2);
 }
 .nav__button.go {
 	width: 80px;
@@ -45,7 +63,7 @@
 	opacity: 0.5;
 }
 .nav__button.go:hover {
-	filter: contrast(1.4);
+	filter: brightness(1.1) contrast(1.2);
 }
 .nav__select {
 	color: white;
@@ -55,14 +73,14 @@
 	font-size: 1.3rem;
 	padding: 0 10px;
 	cursor: pointer;
-	}
-.nav__select:disabled{
+}
+.nav__select:disabled {
 	opacity: 0.5;
-	cursor:not-allowed;
+	cursor: not-allowed;
 }
 .nav__select:hover {
-	filter: contrast(1.4);
- }
+	filter: brightness(1.1) contrast(1.2);
+}
 .nav__select_option {
 	background: #191141;
 	font-size: 1.3rem;
@@ -77,19 +95,41 @@
 	padding: 0 3px;
 	margin: 0 3px;
 }
-.nav__setting{
+.nav__setting {
 	cursor: pointer;
 	text-transform: capitalize;
 }
-.nav__setting_theme{
+.nav__setting_theme {
 	background-size: cover;
-	background-image: url("https://cdn2.iconfinder.com/data/icons/images-and-photography-2/24/light-mode-dark-light-512.png");
+	background-image: url('https://cdn2.iconfinder.com/data/icons/images-and-photography-2/24/light-mode-dark-light-512.png');
 	filter: invert(1);
-	height:40px;
+	height: 40px;
 	width: 40px;
 }
 
-.nav__setting_speed{
+.nav__setting_speed {
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 100%;
+	font-weight: 900;
+	font-family: system-ui;
+	max-width: 100%;
+	min-width: 60px;
+}
+.nav__setting_clear {
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 100%;
+	font-weight: 900;
+	font-family: system-ui;
+	max-width: 100%;
+	/* min-width: 60px; */
+}
+.nav__items__container__clear {
 	text-align: center;
 	display: flex;
 	align-items: center;
@@ -99,12 +139,12 @@
 	font-family: system-ui;
 	width: 100%;
 }
-.nav__items__container{
+.nav__items__container {
 	position: relative;
 	margin: 0 2px;
 }
 
-.nav__items__container__speed{
+.nav__items__container__speed {
 	text-align: center;
 	display: flex;
 	align-items: center;
@@ -114,10 +154,10 @@
 	font-family: system-ui;
 	width: 100%;
 }
-.tooltip{
+.tooltip {
 	padding: 10px;
 }
-.tooltip__container{
+.tooltip__container {
 	display: none;
 	position: absolute;
 	border-radius: 5px;
@@ -126,14 +166,14 @@
 	overflow: hidden;
 	z-index: 9999999;
 }
-.tooltip:hover{
-	filter: contrast(1.4);
+.tooltip:hover {
+	filter: brightness(1.1) contrast(1.2);
 }
-.nav__items__container:hover > .tooltip__container{
+.nav__items__container:hover > .tooltip__container {
 	display: flex;
 	flex-direction: column;
 }
- @media only screen and (max-height: 850px) {
+@media only screen and (max-height: 850px) {
 	.nav {
 		height: 40px;
 		padding: 0;
@@ -154,7 +194,7 @@
 		font-size: 0.8rem;
 	}
 }
- @media only screen and (max-height: 650px) {
+@media only screen and (max-height: 650px) {
 	.nav {
 		height: 30px;
 		padding: 0;
@@ -174,7 +214,7 @@
 		font-size: 0.5rem;
 	}
 }
- @media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px) {
 	.nav {
 		justify-content: space-between;
 		align-items: space-between;
@@ -203,7 +243,7 @@
 		margin: 0 1px;
 	}
 }
- @media only screen and (max-width: 500px) {
+@media only screen and (max-width: 500px) {
 	.nav {
 		padding: 10px;
 		height: auto;

@@ -1,40 +1,45 @@
-import React from 'react'
-export const NavOptions = ({value, text}) => {
-  return (
-    <option className={"nav__select_option"} value={value}>
-      {text}
-    </option>
-  )
-}
+import React from 'react';
+export const NavOptions = ({ value, text }) => {
+	return (
+		<option
+			className={'nav__select_option'}
+			value={value}>
+			{text}
+		</option>
+	);
+};
 
-export const NavButtons = ({name, text, isRunning, clearBoard, theme}) => {
-  const shouldClear = (e) =>{
-    if(name){
-      clearBoard(e)
-    }else{
-      clearBoard()
-    }
-  }
-  return (
-    <button
-      name={name}
-      disabled={isRunning}
-      className={`nav__button ${theme}_border ${theme}_bg_secondary`}
-      onClick={e => shouldClear(e)}
-    >
-      {text}
-    </button>
-  )
-}
+export const NavButtons = ({ name, text, isRunning, clearBoard, theme }) => {
+	const shouldClear = (e) => {
+		if (name) {
+			clearBoard(e);
+		} else {
+			clearBoard();
+		}
+	};
+	return (
+		<button
+			name={name}
+			disabled={isRunning}
+			className={`nav__button__clear ${theme}_bg_secondary`}
+			onClick={(e) => shouldClear(e)}>
+			{text}
+		</button>
+	);
+};
 
-export const NavSettings = ({name,className, text, handleClick=()=>{}}) => {
-  return (
-    <div
-      onClick={handleClick}
-      className={className}
-      name={name}
-    >
-      {text ? text : null}
-    </div>
-  )
-}
+export const NavSettings = ({
+	name,
+	className,
+	text,
+	handleClick = () => {},
+}) => {
+	return (
+		<div
+			onClick={handleClick}
+			className={className}
+			name={name}>
+			{text ? text : null}
+		</div>
+	);
+};
