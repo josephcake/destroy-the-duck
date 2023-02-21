@@ -94,6 +94,21 @@ export class TableContextProvider extends Component {
 		}
 	};
 	setTheme = () => {
+		let tds = document.querySelectorAll('td');
+
+		if (this.state.theme === 'dark') {
+			for (let i = 0; i < tds.length; i++) {
+				let td = tds[i];
+				let classname = td.className.replace('dark', 'light');
+				td.className = classname;
+			}
+		} else if (this.state.theme === 'light') {
+			for (let i = 0; i < tds.length; i++) {
+				let td = tds[i];
+				let classname = td.className.replace('light', 'dark');
+				td.className = classname;
+			}
+		}
 		this.setState({
 			...this.state,
 			theme: this.state.theme === 'dark' ? 'light' : 'dark',
@@ -359,27 +374,34 @@ export class TableContextProvider extends Component {
 		const theme = this.state.theme;
 		if (e) {
 			let name = e.target ? e.target.name : e;
-			const cellsHTML = document.getElementsByClassName(`${theme}_${name}`);
-			const cellsArr = Array.from(cellsHTML);
+			const affectedCells = document.getElementsByClassName(`${theme}_${name}`);
+			const cellsArr = Array.from(affectedCells);
 			for (let i = 0; i < cellsArr.length; i++) {
 				let k = i;
-				cellsArr[k].className = `${theme}_unvisited`;
+				let normalizedCell = cellsArr[k].className.replace(name, 'unvisited');
+				cellsArr[k].className = normalizedCell;
 			}
 		} else {
-			const unvisitedAnimated = document.getElementsByClassName(
-				`${theme}_visited`,
-			);
-			const cellsHTML = document.getElementsByClassName(`${theme}_wall`);
-			const cellsArr = Array.from(cellsHTML);
-			const arrVisited = Array.from(unvisitedAnimated);
+			const visitedCells = document.getElementsByClassName(`${theme}_visited`);
+			const walledCells = document.getElementsByClassName(`${theme}_wall`);
+			const wallCellsArr = Array.from(walledCells);
+			const visitedCellsArr = Array.from(visitedCells);
 
-			for (let i = 0; i < cellsArr.length; i++) {
+			for (let i = 0; i < wallCellsArr.length; i++) {
 				let k = i;
-				cellsArr[k].className = `${theme}_unvisited`;
+				let normalizedCell = wallCellsArr[k].className.replace(
+					'wall',
+					'unvisited',
+				);
+				wallCellsArr[k].className = normalizedCell;
 			}
-			for (let i = 0; i < arrVisited.length; i++) {
+			for (let i = 0; i < visitedCellsArr.length; i++) {
 				let k = i;
-				arrVisited[k].className = `${theme}_unvisited`;
+				let normalizedCell = visitedCellsArr[k].className.replace(
+					'visited',
+					'unvisited',
+				);
+				visitedCellsArr[k].className = normalizedCell;
 			}
 		}
 	};
