@@ -232,103 +232,89 @@ export class TableContextProvider extends Component {
 				}
 			}
 		}
-		if (wide && direction === 'horizontal') {
-			this.horizontalExtension(wallsToBeBuild);
-		} else if (wide && direction === 'vertical') {
-			this.verticalExtension(wallsToBeBuild);
+		if (wide && direction) {
+			this.extension(wallsToBeBuild, direction);
 		} else {
-			const theme = this.state.theme;
+			let counter = 0;
 
-			for (let i = 0; i < wallsToBeBuild.length; i++) {
-				let k = i;
+			let helper = () => {
 				setTimeout(() => {
-					let cell = document.getElementById(wallsToBeBuild[k]);
-					cell.className = `${theme}_wall`;
-				}, this.state.speed * k);
-			}
+					let cell = document.getElementById(wallsToBeBuild[counter]);
+					let classname = cell.className.replace('unvisited', 'wall');
+					cell.className = classname;
+					counter++;
+					if (counter === wallsToBeBuild.length) {
+						return;
+					} else {
+						helper();
+					}
+				}, this.state.speed);
+			};
+			helper();
 		}
-		let newState = { ...this.state };
-		newState.running = true;
-		this.setState(newState);
 	};
-	horizontalExtension = (wallsToBeBuild) => {
-		const theme = this.state.theme;
-		for (let i = 0; i < wallsToBeBuild.length; i++) {
-			let k = i;
-			let extra = Math.ceil(Math.random() * 2);
-			let upOrDown = Math.floor(Math.random() * 10) > 5 ? true : false;
+	extension = (wallsToBeBuild, direction) => {
+		let counter = 0;
+		let helper = () => {
+			let extra = Math.ceil(Math.random() * 3);
+			let difference = Math.floor(Math.random() * 10) > 5 ? true : false;
 			setTimeout(() => {
-				let current = wallsToBeBuild[k].split('-');
+				let current = wallsToBeBuild[counter].split('-');
 				let cR = Number(current[0]);
 				let cC = Number(current[1]);
-				let cell = document.getElementById(wallsToBeBuild[k]);
+				let cell = document.getElementById(wallsToBeBuild[counter]);
+				let nextDifferenceCell =
+					direction === 'horizontal' ? `${cR - 1}-${cC}` : `${cR}-${cC - 1}`;
+				let nextCell =
+					direction === 'horizontal' ? `${cR + 1}-${cC}` : `${cR}-${cC + 1}`;
+
 				for (let i = 0; i < extra; i++) {
-					if (upOrDown) {
-						let tempCell = document.getElementById(`${cR - 1}-${cC}`);
+					if (difference) {
+						let tempCell = document.getElementById(nextDifferenceCell);
 						if (
 							tempCell &&
 							!tempCell.className.includes(`_starting`) &&
 							!tempCell.className.includes(`_ending`)
 						) {
-							tempCell.className = `${theme}_wall`;
-							cR--;
+							let classname = tempCell.className.replace('unvisited', 'wall');
+							tempCell.className = classname;
+							if (direction === 'horizontal') {
+								cR--;
+							} else {
+								cC--;
+							}
+							extra = Math.ceil(Math.random() * 3);
 						}
 					} else {
-						let tempCell = document.getElementById(`${cR + 1}-${cC}`);
+						let tempCell = document.getElementById(nextCell);
 						if (
 							tempCell &&
 							!tempCell.className.includes(`_starting`) &&
 							!tempCell.className.includes(`_ending`)
 						) {
-							tempCell.className = `${theme}_wall`;
-							cR++;
+							let classname = tempCell.className.replace('unvisited', 'wall');
+							tempCell.className = classname;
+							if (direction === 'horizontal') {
+								cR++;
+							} else {
+								cC++;
+							}
 						}
 					}
 				}
 
-				cell.className = `${theme}_wall`;
-			}, this.state.speed * k);
-		}
-	};
-	verticalExtension = (wallsToBeBuild) => {
-		const theme = this.state.theme;
+				let classname = cell.className.replace('unvisited', 'wall');
+				cell.className = classname;
 
-		for (let i = 0; i < wallsToBeBuild.length; i++) {
-			let k = i;
-			let extra = Math.ceil(Math.random() * 2);
-			let leftOrRight = Math.floor(Math.random() * 10) > 5 ? true : false;
-			setTimeout(() => {
-				let current = wallsToBeBuild[k].split('-');
-				let cR = Number(current[0]);
-				let cC = Number(current[1]);
-				let cell = document.getElementById(wallsToBeBuild[k]);
-				for (let i = 0; i < extra; i++) {
-					if (leftOrRight) {
-						let tempCell = document.getElementById(`${cR}-${cC - 1}`);
-						if (
-							tempCell &&
-							!tempCell.className.includes(`_starting`) &&
-							!tempCell.className.includes(`_ending`)
-						) {
-							tempCell.className = `${theme}_wall`;
-							cC--;
-						}
-					} else {
-						let tempCell = document.getElementById(`${cR}-${cC + 1}`);
-						if (
-							tempCell &&
-							!tempCell.className.includes(`_starting`) &&
-							!tempCell.className.includes(`_ending`)
-						) {
-							tempCell.className = `${theme}_wall`;
-							cC++;
-						}
-					}
+				counter++;
+				if (counter === wallsToBeBuild.length) {
+					return;
+				} else {
+					helper();
 				}
-
-				cell.className = `${theme}_wall`;
-			}, this.state.speed * k);
-		}
+			}, this.state.speed);
+		};
+		helper();
 	};
 
 	randomlyGeneratedMaze = () => {
