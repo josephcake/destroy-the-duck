@@ -1,7 +1,7 @@
 export const checkValidCells = (currentID) => {
-	let current = currentID.split('-');
-	let cR = Number(current[0]);
-	let cC = Number(current[1]);
+	let currentSplit = currentID.split('-');
+	let cR = Number(currentSplit[0]);
+	let cC = Number(currentSplit[1]);
 
 	let upNext = `${cR - 1}-${cC}`;
 	let downNext = `${cR + 1}-${cC}`;
@@ -14,6 +14,7 @@ export const checkValidCells = (currentID) => {
 	let rightCell = document.getElementById(rightNext);
 
 	return {
+		current: currentID,
 		currentCell,
 		upCell,
 		downCell,
