@@ -1,6 +1,4 @@
 import React from 'react';
-import { isWallFinishedRendering } from './helper/isWallFinishedRendering';
-import { isDuckFound } from './helper/isDuckFound';
 import { algorithmOptions, mazeOptions, clearButtons } from './constants';
 import { NavButtons, NavOptions, NavSettings } from './NavItems';
 
@@ -19,19 +17,12 @@ const Nav = ({
 	clearBoard,
 	selectAlgorithm,
 }) => {
-	const handleGo = (go) => {
-		go();
-		setRunning(true);
-		isDuckFound(algorithm, maze, setRunning, theme, running);
-	};
-
 	const shouldUpdateMazeSelection = (e) => {
 		const name = e.target.value;
 		if (!running) {
 			buildMaze(name);
 			if (name !== 'maze') {
 				setRunning(true);
-				isWallFinishedRendering(name, setRunning, theme);
 			}
 		}
 	};
@@ -81,13 +72,13 @@ const Nav = ({
 			</div>
 			<div className={'nav__action nav__items'}>
 				<button
-					onClick={() => handleGo(go)}
+					onClick={go}
 					className={`nav__button go ${theme}_border`}
 					disabled={running || algorithm === 'algorithm'}>
 					Go!
 				</button>
 			</div>
-			<div className={'nav__setting nav__items'}>
+			<div className={`nav__setting nav__items ${running && 'disabled'}`}>
 				<div
 					className={`nav__button nav__items__container nav__items__container__clear ${theme}_border`}>
 					<NavSettings
@@ -101,7 +92,6 @@ const Nav = ({
 								key={btn.text}
 								name={btn.name}
 								text={btn.text}
-								isRunning={running}
 								clearBoard={clearBoard}
 								theme={theme}
 							/>
