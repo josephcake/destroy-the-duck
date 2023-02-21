@@ -135,10 +135,10 @@ export class TableContextProvider extends Component {
 			newState.speed = 10;
 			newState.speedText = 'fast';
 		} else if (name === 'norm') {
-			newState.speed = 30;
+			newState.speed = 100;
 			newState.speedText = 'norm';
 		} else if (name === 'slow') {
-			newState.speed = 150;
+			newState.speed = 333;
 			newState.speedText = 'slow';
 		} else if (name === 'sloth') {
 			newState.speed = 1500;
@@ -349,25 +349,31 @@ export class TableContextProvider extends Component {
 			}
 			i += skip;
 		}
-
-		for (let i = 0; i < wallsToBeBuild.length; i++) {
-			let k = i;
-			setTimeout(() => {
-				let cell = document.getElementById(wallsToBeBuild[k]);
-				cell.className = `${theme}_wall`;
-			}, this.state.speed * k);
-		}
-		let newState = { ...this.state };
-		newState.running = true;
-		this.setState(newState);
+		let counter = 0;
+		const helper = () => {
+			let timer = setTimeout(() => {
+				let cell = document.getElementById(wallsToBeBuild[counter]);
+				if (cell) {
+					let classname = cell.className.replace('unvisited', 'wall');
+					cell.className = classname;
+				}
+				if (counter < wallsToBeBuild.length) {
+					counter++;
+					helper();
+				} else {
+					clearTimeout(timer);
+				}
+			}, this.state.speed);
+		};
+		helper();
 	};
 
 	clearBoard = (e) => {
 		this.returnToUnvisited(e);
-		let newState = { ...this.state };
-		newState.running = false;
-		newState.current = this.state.starting;
-		this.setState(newState);
+		// let newState = { ...this.state };
+		// newState.running = false;
+		// newState.current = this.state.starting;
+		// this.setState(newState);
 	};
 
 	returnToUnvisited = (e) => {
