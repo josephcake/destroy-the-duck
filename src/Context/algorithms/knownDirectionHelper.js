@@ -1,332 +1,100 @@
 import { checkValidCells } from './checkValidCellsHelper';
-
 export const knownDirectionHelper = (starting, ending) => {
-	let path = {};
-	let queue = [];
-	let eR = ending.split('-')[0];
-	let eC = ending.split('-')[1];
-	const helper = (current) => {
-		let validCells = checkValidCells(current);
-		let {
-			currentCell,
-			upCell,
-			downCell,
-			leftCell,
-			rightCell,
-			upNext,
-			downNext,
-			leftNext,
-			rightNext,
-			cR,
-			cC,
-		} = validCells;
+	function dijkstra(grid, start, end) {
+		const rows = grid.length;
+		const cols = grid[0].length;
+		const dist = Array(rows)
+			.fill()
+			.map(() => Array(cols).fill(Infinity));
+		const visited = Array(rows)
+			.fill()
+			.map(() => Array(cols).fill(false));
+		const prev = Array(rows)
+			.fill()
+			.map(() => Array(cols).fill(null));
 
-		if (
-			leftNext === ending ||
-			rightNext === ending ||
-			downNext === ending ||
-			upNext === ending
+		const [startRow, startCol] = start;
+		const [endRow, endCol] = end;
+
+		dist[startRow][startCol] = 0;
+
+		for (let i = 0; i < rows * cols; i++) {
+			let minDist = Infinity;
+			let minRow = -1;
+			let minCol = -1;
+
+			for (let r = 0; r < rows; r++) {
+				for (let c = 0; c < cols; c++) {
+					if (!visited[r][c] && dist[r][c] < minDist) {
+						minDist = dist[r][c];
+						minRow = r;
+						minCol = c;
+					}
+				}
+			}
+
+			if (minRow === -1 || minCol === -1) {
+				break;
+			}
+
+			visited[minRow][minCol] = true;
+
+			// Visit neighbors
+			const neighbors = [
+				[minRow - 1, minCol],
+				[minRow + 1, minCol],
+				[minRow, minCol - 1],
+				[minRow, minCol + 1],
+			];
+
+			for (let [r, c] of neighbors) {
+				if (r < 0 || r >= rows || c < 0 || c >= cols) {
+					continue;
+				}
+
+				const weight = grid[r][c];
+				const distance = dist[minRow][minCol] + weight;
+
+				if (distance < dist[r][c]) {
+					dist[r][c] = distance;
+					prev[r][c] = [minRow, minCol];
+				}
+			}
+		}
+
+		const path = [];
+		let currentRow = endRow;
+		let currentCol = endCol;
+		let currentID = `${currentRow}-${currentCol}`;
+		let validCells = checkValidCells(currentID);
+		let { currentCell } = validCells;
+		while (
+			prev[currentRow][currentCol] !== null &&
+			!currentCell.className.includes('_wall')
 		) {
-			return queue;
+			path.push(`${currentRow}-${currentCol}`);
+			const [prevRow, prevCol] = prev[currentRow][currentCol];
+			currentRow = prevRow;
+			currentCol = prevCol;
 		}
 
-		const shouldGoRight = cC < eC;
-		const shouldGoLeft = cC > eC;
-		const shouldGoUp = cR > eR;
-		const shouldGoDown = cR < eR;
+		path.push(`${startRow}-${startCol}`);
+		path.reverse();
 
-		if (shouldGoRight) {
-			if (
-				rightCell &&
-				!rightCell.className.includes('_wall') &&
-				!path[rightNext]
-			) {
-				current = rightNext.split('-');
-				path[rightNext] = true;
-				queue.push(rightNext);
-				return helper(rightNext);
-			} else {
-				const potentialPaths = Object.keys(path);
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					rightNext = `${cR}-${cC + 1}`;
-					rightCell = document.getElementById(rightNext);
-					if (
-						rightCell &&
-						!rightCell.className.includes('_wall') &&
-						!path[rightNext]
-					) {
-						current = rightNext.split('-');
-						path[rightNext] = true;
-						queue.push(rightNext);
-						return helper(rightNext);
-					}
-				}
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					upNext = `${cR - 1}-${cC}`;
-					downNext = `${cR + 1}-${cC}`;
-					upCell = document.getElementById(upNext);
-					downCell = document.getElementById(downNext);
-					if (upCell && !upCell.className.includes('_wall') && !path[upNext]) {
-						current = upNext.split('-');
-						path[upNext] = true;
-						queue.push(upNext);
-						return helper(upNext);
-					}
-					if (
-						downCell &&
-						!downCell.className.includes('_wall') &&
-						!path[downNext]
-					) {
-						current = downNext.split('-');
-						path[downNext] = true;
-						queue.push(downNext);
-						return helper(downNext);
-					}
-				}
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					leftNext = `${cR}-${cC - 1}`;
-					leftCell = document.getElementById(leftNext);
-					if (
-						leftCell &&
-						!leftCell.className.includes('_wall') &&
-						!path[leftNext]
-					) {
-						current = leftNext.split('-');
-						path[leftNext] = true;
-						queue.push(leftNext);
-						return helper(leftNext);
-					}
-				}
-			}
-		} else if (shouldGoLeft) {
-			if (
-				leftCell &&
-				!leftCell.className.includes('_wall') &&
-				!path[leftNext]
-			) {
-				current = leftNext.split('-');
-				path[leftNext] = true;
-				queue.push(leftNext);
-				return helper(leftNext);
-			} else {
-				const potentialPaths = Object.keys(path);
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					leftNext = `${cR}-${cC - 1}`;
-					leftCell = document.getElementById(leftNext);
-					if (
-						leftCell &&
-						!leftCell.className.includes('_wall') &&
-						!path[leftNext]
-					) {
-						current = leftNext.split('-');
-						path[leftNext] = true;
-						queue.push(leftNext);
-						return helper(leftNext);
-					}
-				}
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					upNext = `${cR - 1}-${cC}`;
-					downNext = `${cR + 1}-${cC}`;
-					upCell = document.getElementById(upNext);
-					downCell = document.getElementById(downNext);
-					if (upCell && !upCell.className.includes('_wall') && !path[upNext]) {
-						current = upNext.split('-');
-						path[upNext] = true;
-						queue.push(upNext);
-						return helper(upNext);
-					}
-					if (
-						downCell &&
-						!downCell.className.includes('_wall') &&
-						!path[downNext]
-					) {
-						current = downNext.split('-');
-						path[downNext] = true;
-						queue.push(downNext);
-						return helper(downNext);
-					}
-				}
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					rightNext = `${cR}-${cC + 1}`;
-					rightCell = document.getElementById(rightNext);
-					if (
-						rightCell &&
-						!rightCell.className.includes('_wall') &&
-						!path[rightNext]
-					) {
-						current = rightNext.split('-');
-						path[rightNext] = true;
-						queue.push(rightNext);
-						return helper(rightNext);
-					}
-				}
-			}
+		return path;
+	}
+	const grid = new Array(35).fill().map(() => new Array(80).fill(1));
+	const tds = document.querySelectorAll('td');
+	for (let cell of tds) {
+		if (cell.className.includes('wall')) {
+			let cellId = cell.id.split('-');
+			let row = cellId[0];
+			let col = cellId[1];
+			grid[row][col] = Infinity;
 		}
-		if (shouldGoUp) {
-			if (upCell && !upCell.className.includes('_wall') && !path[upNext]) {
-				current = upNext.split('-');
-				path[upNext] = true;
-				queue.push(upNext);
-				return helper(upNext);
-			} else {
-				const potentialPaths = Object.keys(path);
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					upNext = `${cR - 1}-${cC}`;
-					upCell = document.getElementById(upNext);
-					if (upCell && !upCell.className.includes('_wall') && !path[upNext]) {
-						current = upNext.split('-');
-						path[upNext] = true;
-						queue.push(upNext);
-						return helper(upNext);
-					}
-				}
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					leftNext = `${cR}-${cC - 1}`;
-					leftCell = document.getElementById(leftNext);
-					rightNext = `${cR}-${cC + 1}`;
-					rightCell = document.getElementById(rightNext);
-
-					if (
-						leftCell &&
-						!leftCell.className.includes('_wall') &&
-						!path[leftNext]
-					) {
-						current = leftNext.split('-');
-						path[leftNext] = true;
-						queue.push(leftNext);
-						return helper(leftNext);
-					} else if (
-						rightCell &&
-						!rightCell.className.includes('_wall') &&
-						!path[rightNext]
-					) {
-						current = rightNext.split('-');
-						path[rightNext] = true;
-						queue.push(rightNext);
-						return helper(rightNext);
-					}
-				}
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					downNext = `${cR + 1}-${cC}`;
-					downCell = document.getElementById(downNext);
-					if (
-						downCell &&
-						!downCell.className.includes('_wall') &&
-						!path[downNext]
-					) {
-						current = downNext.split('-');
-						path[downNext] = true;
-						queue.push(downNext);
-						return helper(downNext);
-					}
-				}
-			}
-		} else if (shouldGoDown) {
-			if (
-				downCell &&
-				!downCell.className.includes('_wall') &&
-				!path[downNext]
-			) {
-				current = downNext.split('-');
-				path[downNext] = true;
-				queue.push(downNext);
-				return helper(downNext);
-			} else {
-				const potentialPaths = Object.keys(path);
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					downNext = `${cR + 1}-${cC}`;
-					downCell = document.getElementById(downNext);
-					if (
-						downCell &&
-						!downCell.className.includes('_wall') &&
-						!path[downNext]
-					) {
-						current = downNext.split('-');
-						path[downNext] = true;
-						queue.push(downNext);
-						return helper(downNext);
-					}
-				}
-
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					leftNext = `${cR}-${cC - 1}`;
-					leftCell = document.getElementById(leftNext);
-					rightNext = `${cR}-${cC + 1}`;
-					rightCell = document.getElementById(rightNext);
-					if (
-						leftCell &&
-						!leftCell.className.includes('_wall') &&
-						!path[leftNext]
-					) {
-						current = leftNext.split('-');
-						path[leftNext] = true;
-						queue.push(leftNext);
-						return helper(leftNext);
-					} else if (
-						rightCell &&
-						!rightCell.className.includes('_wall') &&
-						!path[rightNext]
-					) {
-						current = rightNext.split('-');
-						path[rightNext] = true;
-						queue.push(rightNext);
-						return helper(rightNext);
-					}
-				}
-				for (let i = potentialPaths.length - 1; i >= 0; i--) {
-					current = potentialPaths[i].split('-');
-					cR = Number(current[0]);
-					cC = Number(current[1]);
-					upNext = `${cR - 1}-${cC}`;
-					upCell = document.getElementById(upNext);
-					if (upCell && !upCell.className.includes('_wall') && !path[upNext]) {
-						current = upNext.split('-');
-						path[upNext] = true;
-						queue.push(upNext);
-						return helper(upNext);
-					}
-				}
-			}
-		}
-	};
-	helper(starting);
-	return queue;
+	}
+	const start = starting.split('-');
+	const end = ending.split('-');
+	let path = dijkstra(grid, start, end);
+	return path;
 };
