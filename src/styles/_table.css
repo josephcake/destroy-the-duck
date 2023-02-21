@@ -1,80 +1,8 @@
 table {
 	border-collapse: collapse;
 	border: solid 2px darkslateblue;
+	/* background: darkslateblue; */
 }
- tr {
+tr {
 	display: flex;
 }
-/*
- @media only screen and (max-height: 900px) {
-	td {
-		width: 19px;
-		height: 19px;
-	}
-}
- @media only screen and (max-height: 850px) {
-	td {
-		width: 18px;
-		height: 18px;
-	}
-}
- @media only screen and (max-height: 750px) {
-	td {
-		width: 16px;
-		height: 16px;
-	}
-}
- @media only screen and (max-height: 650px) {
-	td {
-		width: 14px;
-		height: 14px;
-	}
-}
- @media only screen and (max-height: 550px) {
-	td {
-		width: 12px;
-		height: 12px;
-	}
-}
- @media only screen and (max-height: 500px) {
-	td {
-		width: 10px;
-		height: 10px;
-	}
-}
- @media only screen and (max-height: 450px) {
-	td {
-		width: 9px;
-		height: 9px;
-	}
-}
- @media only screen and (max-width: 1366px) {
-	td {
-		width: 15px;
-		height: 15px;
-	}
-}
- @media only screen and (max-width: 1025px) {
-	td {
-		width: 12px;
-		height: 12px;
-	}
-} */
- @media only screen and (max-width: 768px) {
-	tr {
-		display: block;
-		float: left;
-	}
-	/* td {
-		display: block;
-		width: 10px;
-		height: 10px;
-	} */
-}
- /* @media only screen and (max-width: 500px) {
-	td {
-		width: 6px;
-		height: 6px;
-		padding: 1px;
-	}
-} */

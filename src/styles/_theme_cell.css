@@ -1,11 +1,11 @@
 :root {
 	--light-cell-border: solid 1px rgb(246, 246, 246);
 	--light-cell-border-visited: solid 1px rgb(117, 5, 117);
-  --light-starting-bg: #e94c0e;
-  --light-ending-bg: #ffd000;
-  --light-path-bg: rgb(255, 99, 71);
-  --light-visited-bg: rgb(124, 77, 162);
-  --light-unvisited-bg: rgb(211, 211, 211);
+	--light-starting-bg: #e94c0e;
+	--light-ending-bg: #ffd000;
+	--light-path-bg: rgb(255, 99, 71);
+	--light-visited-bg: rgb(124, 77, 162);
+	--light-unvisited-bg: rgb(211, 211, 211);
 	--light-animation-bg-one: rgba(234, 0, 255, 0.75);
 	--light-animation-bg-two: rgba(190, 25, 56, 0.75);
 	--light-animation-bg-wall-one: rgba(23, 10, 59, 0.75);
@@ -13,36 +13,36 @@
 
 	--dark-cell-border: solid 1px rgb(30, 29, 29);
 	--dark-cell-border-visited: solid 1px rgb(19, 18, 58);
-  --dark-starting-bg: #e94c0e;
-  --dark-ending-bg: #ffd000;
-  --dark-path-bg: rgb(255, 99, 71);
-  --dark-visited-bg: rgb(94, 145, 120);
-  --dark-unvisited-bg: rgb(55, 55, 55);
+	--dark-starting-bg: #e94c0e;
+	--dark-ending-bg: #ffd000;
+	--dark-path-bg: rgb(255, 99, 71);
+	--dark-visited-bg: rgb(94, 145, 120);
+	--dark-unvisited-bg: rgb(55, 55, 55);
 	--dark-animation-bg-one: rgb(0, 255, 187);
 	--dark-animation-bg-two: rgba(49, 179, 149, 0.75);
-	--dark-animation-bg-wall: rgba(4, 4, 44, 0.8);
+	--dark-animation-bg-wall: rgba(3, 3, 24, 0.8);
 }
 
 /* light */
 .light_starting {
-  border: var(--light-cell-border);
+	border: var(--light-cell-border);
 	background-color: var(--light-starting-bg);
 	transform: rotate(90deg);
-	background-image: url("../Images/feathered-arrow.png");
+	background-image: url('../Images/feathered-arrow.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
 }
 .light_ending {
-  border: var(--light-cell-border);
+	border: var(--light-cell-border);
 	background-color: var(--light-ending-bg);
-	background-image: url("../Images/duck.png");
+	background-image: url('../Images/duck.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
 }
 .light_path {
-  border: var(--light-cell-border);
+	border: var(--light-cell-border);
 	background-color: var(--light-path-bg);
 	transition: background 10ms linear;
 }
@@ -57,7 +57,7 @@
 	animation-fill-mode: forwards;
 }
 .light_unvisitedAnimated {
-  border: var(--light-cell-border);
+	border: var(--light-cell-border);
 	animation-name: light_unvisitedAnimation;
 	animation-duration: 1.5s;
 	animation-timing-function: ease-in-out;
@@ -67,12 +67,12 @@
 	animation-fill-mode: forwards;
 }
 .light_unvisited {
-  border: var(--light-cell-border);
+	border: var(--light-cell-border);
 	background-color: var(--light-unvisited-bg);
 	transition: all ease-in-out;
 }
 .light_visited {
-  border: var(--light-cell-border-visited);
+	border: var(--light-cell-border-visited);
 	animation-name: light_visitedAnimation;
 	animation-duration: 1.5s;
 	animation-timing-function: ease-in-out;
@@ -83,7 +83,7 @@
 	animation-play-state: running;
 }
 
- @keyframes light_wallAnimation {
+@keyframes light_wallAnimation {
 	0% {
 		transform: scale(1);
 		background-color: var(--light-animation-bg-wall-one);
@@ -96,7 +96,7 @@
 		background-color: var(--light-animation-bg-wall-two);
 	}
 }
- @keyframes light_unvisitedAnimation {
+@keyframes light_unvisitedAnimation {
 	0% {
 		transform: scale(1);
 		background-color: var(--light-animation-bg-one);
@@ -110,15 +110,15 @@
 		background-color: var(--light-unvisited-bg);
 	}
 }
- @keyframes light_visitedAnimation {
+@keyframes light_visitedAnimation {
 	0% {
-		border-radius:2px;
+		border-radius: 2px;
 		transform: scale(0.3);
 		background-color: var(--light-animation-bg-one);
 	}
 	50% {
 		transform: scale(1.4);
-		border-radius:4px;
+		border-radius: 4px;
 		background-color: var(--light-animation-bg-two);
 	}
 	100% {
@@ -127,27 +127,26 @@
 	}
 }
 
-
 /* dark */
 .dark_starting {
-  border: var(--dark-cell-border);
+	border: var(--dark-cell-border);
 	background-color: var(--dark-starting-bg);
 	transform: rotate(90deg);
-	background-image: url("../Images/feathered-arrow.png");
+	background-image: url('../Images/feathered-arrow.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
 }
 .dark_ending {
-  border: var(--dark-cell-border);
+	border: var(--dark-cell-border);
 	background-color: var(--dark-ending-bg);
-	background-image: url("../Images/duck.png");
+	background-image: url('../Images/duck.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
 }
 .dark_path {
-  border: var(--dark-cell-border);
+	border: var(--dark-cell-border);
 	background-color: var(--dark-path-bg);
 	transition: background 10ms linear;
 }
@@ -162,7 +161,7 @@
 	animation-fill-mode: forwards;
 }
 .dark_unvisitedAnimated {
-  border: var(--dark-cell-border);
+	border: var(--dark-cell-border);
 	animation-name: dark_unvisitedAnimation;
 	animation-duration: 1.5s;
 	animation-timing-function: ease-out;
@@ -172,12 +171,12 @@
 	animation-fill-mode: forwards;
 }
 .dark_unvisited {
-  border: var(--dark-cell-border);
+	border: var(--dark-cell-border);
 	background-color: var(--dark-unvisited-bg);
 	transition: all ease-in-out;
 }
 .dark_visited {
-  border: var(--dark-cell-border-visited);
+	border: var(--dark-cell-border-visited);
 	animation-name: dark_visitedAnimation;
 	animation-duration: 1.5s;
 	animation-timing-function: ease-in;
@@ -188,7 +187,7 @@
 	animation-play-state: running;
 }
 
- @keyframes dark_wallAnimation {
+@keyframes dark_wallAnimation {
 	0% {
 		transform: scale(1);
 		background-color: var(--dark-animation-bg-one);
@@ -200,7 +199,7 @@
 		background-color: var(--dark-animation-bg-wall);
 	}
 }
- @keyframes dark_unvisitedAnimation {
+@keyframes dark_unvisitedAnimation {
 	0% {
 		transform: scale(1);
 		background-color: var(--dark-animation-bg-one);
@@ -213,15 +212,15 @@
 		background-color: var(--dark-unvisited-bg);
 	}
 }
- @keyframes dark_visitedAnimation {
+@keyframes dark_visitedAnimation {
 	0% {
-		border-radius:2px;
+		border-radius: 2px;
 		transform: scale(0.3);
 		background-color: var(--dark-animation-bg-one);
 	}
 	50% {
 		transform: scale(1.4);
-		border-radius:4px;
+		border-radius: 4px;
 		background-color: var(--dark-animation-bg-two);
 	}
 	100% {
