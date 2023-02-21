@@ -19,21 +19,16 @@ export class TableContextProvider extends Component {
 		ending: '17-64',
 		rows: 35,
 		cols: 80,
-		activeCell: '17-15',
 		algorithm: 'algorithm',
 		current: '17-15',
 		running: false,
 		refresh: false,
 		block: '',
 		speed: 100,
-		// speed: 1000,
 		speedText: 'norm',
-		// speedText: 'sloth',
 		theme: 'light',
 		maze: 'maze',
 		isBuilding: false,
-		buildingCell: null,
-		buildingPath: {},
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
@@ -44,10 +39,7 @@ export class TableContextProvider extends Component {
 
 	shouldComponentUpdate(nextProps, nextState) {
 		if (
-			nextState.buildingCell !== this.state.buildingCell ||
-			nextState.buildingPath !== this.state.buildingPath ||
 			nextState.isBuilding !== this.state.isBuilding ||
-			nextState.activeCell !== this.state.activeCell ||
 			nextState.algorithm !== this.state.algorithm ||
 			nextState.ending !== this.state.ending ||
 			nextState.wallOn !== this.state.wallOn ||
@@ -154,7 +146,6 @@ export class TableContextProvider extends Component {
 			return {
 				...prevState,
 				maze: name,
-				// running : name === "maze" ? false : true
 			};
 		});
 		if (name === 'maze') return;
@@ -205,15 +196,24 @@ export class TableContextProvider extends Component {
 				FOREST_WALL,
 			];
 			const idx = mazeType.indexOf(name);
-			const theme = this.state.theme;
+			let counter = 0;
+			const selectedMaze = mazes[idx];
 
-			for (let i = 0; i < mazes[idx].length; i++) {
-				let k = i;
-				let cell = document.getElementById(mazes[idx][k]);
-				setTimeout(function () {
-					cell.className = `${theme}_wall`;
-				}, this.state.speed * k);
-			}
+			let helper = () => {
+				let timer = setTimeout(() => {
+					let cell = document.getElementById(selectedMaze[counter]);
+					let classname = cell.className.replace('unvisited', 'wall');
+					cell.className = classname;
+					counter++;
+					if (counter === selectedMaze.length) {
+						clearTimeout(timer);
+						this.setRunning(false);
+						return;
+					}
+					helper();
+				}, this.state.speed);
+			};
+			helper();
 		}
 	};
 
@@ -238,12 +238,14 @@ export class TableContextProvider extends Component {
 			let counter = 0;
 
 			let helper = () => {
-				setTimeout(() => {
+				let timer = setTimeout(() => {
 					let cell = document.getElementById(wallsToBeBuild[counter]);
 					let classname = cell.className.replace('unvisited', 'wall');
 					cell.className = classname;
 					counter++;
 					if (counter === wallsToBeBuild.length) {
+						clearTimeout(timer);
+						this.setRunning(false);
 						return;
 					} else {
 						helper();
@@ -258,7 +260,7 @@ export class TableContextProvider extends Component {
 		let helper = () => {
 			let extra = Math.ceil(Math.random() * 3);
 			let difference = Math.floor(Math.random() * 10) > 5 ? true : false;
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let current = wallsToBeBuild[counter].split('-');
 				let cR = Number(current[0]);
 				let cC = Number(current[1]);
@@ -308,6 +310,8 @@ export class TableContextProvider extends Component {
 
 				counter++;
 				if (counter === wallsToBeBuild.length) {
+					clearTimeout(timer);
+					this.setRunning(false);
 					return;
 				} else {
 					helper();
@@ -348,6 +352,7 @@ export class TableContextProvider extends Component {
 					helper();
 				} else {
 					clearTimeout(timer);
+					this.setRunning(false);
 				}
 			}, this.state.speed);
 		};
@@ -355,6 +360,7 @@ export class TableContextProvider extends Component {
 	};
 
 	clearBoard = (e) => {
+		console.log({ e });
 		this.returnToUnvisited(e);
 		// let newState = { ...this.state };
 		// newState.running = false;
@@ -366,6 +372,7 @@ export class TableContextProvider extends Component {
 		const theme = this.state.theme;
 		if (e) {
 			let name = e.target ? e.target.name : e;
+			console.log({ name });
 			const affectedCells = document.getElementsByClassName(`${theme}_${name}`);
 			const cellsArr = Array.from(affectedCells);
 			for (let i = 0; i < cellsArr.length; i++) {
@@ -408,11 +415,14 @@ export class TableContextProvider extends Component {
 	go = () => {
 		this.returnToUnvisited(`visited`);
 		const name = this.state.algorithm;
+		let newState = { ...this.state };
 		if (name === 'algorithm') {
-			let newState = { ...this.state };
 			newState.running = false;
 			this.setState(newState);
 			return;
+		} else {
+			newState.running = true;
+			this.setState(newState);
 		}
 		const algorithmNames = [
 			'knownEndPointSearch',
@@ -441,7 +451,7 @@ export class TableContextProvider extends Component {
 			this.state.ending,
 		);
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let cellOne = document.getElementById(queue.startingQueue[counter]);
 				if (cellOne) {
 					let classnameOne = cellOne.className.replace('unvisited', 'visited');
@@ -452,11 +462,15 @@ export class TableContextProvider extends Component {
 					let classnameTwo = cellTwo.className.replace('unvisited', 'visited');
 					cellTwo.className = classnameTwo;
 				}
-
-				if (counter === queue.length - 1) {
+				counter++;
+				if (
+					counter >= queue.endingQueue.length &&
+					counter >= queue.startingQueue.length
+				) {
+					clearTimeout(timer);
+					this.setRunning(false);
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);
@@ -469,20 +483,20 @@ export class TableContextProvider extends Component {
 		let queue = randomHelper(this.state.starting, ending);
 		let counter = 0;
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
-				if (queue[counter] === ending) {
-					return;
-				}
-				if (counter === queue.length - 1 && queue[counter] !== ending) {
-					return this.cannotFindDuck();
-				}
-				if (counter === queue.length - 1) {
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
+					if (queue.indexOf(ending) === -1) {
+						return this.cannotFindDuck();
+					} else {
+						this.setRunning(false);
+					}
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);
@@ -496,12 +510,13 @@ export class TableContextProvider extends Component {
 		let counter = 0;
 
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let validCells = checkValidCells(queue[counter]);
 				const { currentCell, upNext, downNext, leftNext, rightNext } =
 					validCells;
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
+
 				if (
 					queue[counter] === ending ||
 					upNext === ending ||
@@ -509,15 +524,20 @@ export class TableContextProvider extends Component {
 					leftNext === ending ||
 					rightNext === ending
 				) {
+					clearTimeout(timer);
+					this.setRunning(false);
 					return;
 				}
-				if (counter === queue.length - 1 && queue[counter] !== ending) {
-					return this.cannotFindDuck();
-				}
-				if (counter === queue.length - 1) {
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
+					if (queue.indexOf(ending) === -1) {
+						return this.cannotFindDuck();
+					} else {
+						this.setRunning(false);
+					}
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);
@@ -530,20 +550,25 @@ export class TableContextProvider extends Component {
 		let counter = 0;
 		let queue = spreadHelper(this.state.ending, starting);
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
 				if (queue[counter] === starting) {
+					clearTimeout(timer);
+					this.setRunning(false);
 					return;
 				}
-				if (counter === queue.length - 1 && queue[counter] !== starting) {
-					return this.cannotFindDuck();
-				}
-				if (counter === queue.length - 1) {
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
+					if (queue.indexOf(starting) === -1) {
+						return this.cannotFindDuck();
+					} else {
+						this.setRunning(false);
+					}
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);
@@ -557,20 +582,25 @@ export class TableContextProvider extends Component {
 		let queue = spreadHelper(this.state.starting, ending);
 
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
 				if (queue[counter] === ending) {
+					clearTimeout(timer);
+					this.setRunning(false);
 					return;
 				}
-				if (counter === queue.length - 1 && queue[counter] !== ending) {
-					return this.cannotFindDuck();
-				}
-				if (counter === queue.length - 1) {
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
+					if (queue.indexOf(ending) === -1) {
+						return this.cannotFindDuck();
+					} else {
+						this.setRunning(false);
+					}
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);
@@ -583,22 +613,21 @@ export class TableContextProvider extends Component {
 		let ending = this.state.ending;
 		let counter = 0;
 		let queue = knownDirectionHelper(starting, ending);
-
 		const helper = () => {
-			setTimeout(() => {
+			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
-				if (queue[counter] === ending) {
-					return;
-				}
-				if (counter === queue.length - 1 && queue[counter] !== ending) {
-					return this.cannotFindDuck();
-				}
-				if (counter === queue.length - 1) {
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
+					if (queue.indexOf(ending) === -1) {
+						return this.breadthFirstSearch();
+					} else {
+						this.setRunning(false);
+					}
 					return;
 				} else {
-					counter++;
 					helper();
 				}
 			}, this.state.speed);

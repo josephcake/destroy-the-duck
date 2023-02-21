@@ -1,4 +1,3 @@
-import { checkValidCells } from './checkValidCellsHelper';
 export const knownDirectionHelper = (starting, ending) => {
 	function dijkstra(grid, start, end) {
 		const rows = grid.length;
@@ -65,12 +64,9 @@ export const knownDirectionHelper = (starting, ending) => {
 		const path = [];
 		let currentRow = endRow;
 		let currentCol = endCol;
-		let currentID = `${currentRow}-${currentCol}`;
-		let validCells = checkValidCells(currentID);
-		let { currentCell } = validCells;
 		while (
-			prev[currentRow][currentCol] !== null &&
-			!currentCell.className.includes('_wall')
+			prev[currentRow][currentCol] !== null
+			// &&!currentCell.className.includes('_wall')
 		) {
 			path.push(`${currentRow}-${currentCol}`);
 			const [prevRow, prevCol] = prev[currentRow][currentCol];
