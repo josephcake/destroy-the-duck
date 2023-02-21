@@ -4,7 +4,6 @@ import { NavButtons, NavOptions, NavSettings } from './NavItems';
 
 const Nav = ({
 	go,
-	maze,
 	theme,
 	running,
 	setSpeed,
@@ -13,7 +12,6 @@ const Nav = ({
 	algorithm,
 	speedText,
 	buildMaze,
-	setRunning,
 	clearBoard,
 	selectAlgorithm,
 }) => {
@@ -21,14 +19,11 @@ const Nav = ({
 		const name = e.target.value;
 		if (!running) {
 			buildMaze(name);
-			if (name !== 'maze') {
-				setRunning(true);
-			}
 		}
 	};
 	const handleItemClicked = (e, fn) => {
+		// remove later
 		fn(e);
-		document.getElementsByTagName('body')[0].click();
 	};
 
 	return (

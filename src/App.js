@@ -30,16 +30,6 @@ const App = () => {
 				selectAlgorithm,
 				rows,
 				cols,
-				starting,
-				ending,
-				current,
-				activeCell,
-				wallConstructorOn,
-				wallConstructorOff,
-				wallBuilding,
-				isBuilding,
-				buildingPath,
-				buildingCell,
 			}) => {
 				return (
 					<div className={theme === 'dark' ? 'app dark_bg' : 'app light_bg'}>
@@ -64,18 +54,6 @@ const App = () => {
 						<Main
 							cols={cols}
 							rows={rows}
-							activeCell={activeCell}
-							theme={theme}
-							ending={ending}
-							current={current}
-							buildingCell={buildingCell}
-							buildingPath={buildingPath}
-							draggable={false}
-							isBuilding={isBuilding}
-							starting={starting}
-							wallBuilding={wallBuilding}
-							wallConstructorOn={wallConstructorOn}
-							wallConstructorOff={wallConstructorOff}
 						/>
 						<div className='spacer' />
 						<Footer theme={theme} />
