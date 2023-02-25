@@ -1,4 +1,4 @@
-export const knownDirectionHelper = (starting, ending) => {
+export const dijkstraHelper = (starting, ending) => {
 	function dijkstra(grid, start, end) {
 		const rows = grid.length;
 		const cols = grid[0].length;

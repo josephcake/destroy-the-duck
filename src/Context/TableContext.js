@@ -8,7 +8,7 @@ import { FOREST_WALL } from '../Wall/ForestWall';
 import { linearSearchHelper } from './algorithms/linearSearchHelper';
 import { checkValidCells } from './algorithms/checkValidCellsHelper';
 import { spreadHelper } from './algorithms/spreadHelper';
-import { knownDirectionHelper } from './algorithms/knownDirectionHelper';
+import { dijkstraHelper } from './algorithms/dijkstraHelper';
 import { bidirectionalSpreadHelper } from './algorithms/bidirectionalSpreadHelper';
 import { randomHelper } from './algorithms/randomHelper';
 
@@ -26,19 +26,22 @@ export class TableContextProvider extends Component {
 		block: '',
 		speed: 100,
 		speedText: 'norm',
-		theme: 'light',
+		theme: 'neon',
 		maze: 'maze',
 		isBuilding: false,
+		isToastVisible: false,
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
 		window.addEventListener('mouseup', this.wallConstructorOff);
 		table.addEventListener('mousedown', this.wallConstructorOn);
+		this.checkInitialTheme();
 		// table.addEventListener('mousemove', this.wallConstructorOn);
 	}
 
 	shouldComponentUpdate(nextProps, nextState) {
 		if (
+			nextState.isToastVisible !== this.state.isToastVisible ||
 			nextState.isBuilding !== this.state.isBuilding ||
 			nextState.algorithm !== this.state.algorithm ||
 			nextState.ending !== this.state.ending ||
@@ -60,6 +63,14 @@ export class TableContextProvider extends Component {
 		});
 
 		return;
+	};
+	checkInitialTheme = () => {
+		const initialTheme = localStorage.getItem('dtdTheme');
+		if (initialTheme) {
+			this.setTheme(initialTheme);
+		} else {
+			this.setTheme('light');
+		}
 	};
 
 	wallConstructorOn = () => {
@@ -85,37 +96,54 @@ export class TableContextProvider extends Component {
 			}
 		}
 	};
-	setTheme = () => {
+	setTheme = (newThemeName) => {
 		let tds = document.querySelectorAll('td');
+		let tbody = document.querySelectorAll('tbody')[0];
+		let currentThemeName = tds[0].className.includes('dark')
+			? 'dark'
+			: tds[0].className.includes('light')
+			? 'light'
+			: 'neon';
 
-		if (this.state.theme === 'dark') {
-			for (let i = 0; i < tds.length; i++) {
-				let td = tds[i];
-				let classname = td.className.replace('dark', 'light');
-				td.className = classname;
-			}
-		} else if (this.state.theme === 'light') {
-			for (let i = 0; i < tds.length; i++) {
-				let td = tds[i];
-				let classname = td.className.replace('light', 'dark');
-				td.className = classname;
-			}
+		let tbodyClassname = tbody.className.replace(
+			currentThemeName,
+			newThemeName,
+		);
+
+		tbody.className = tbodyClassname;
+		for (let i = 0; i < tds.length; i++) {
+			let td = tds[i];
+			let classname = td.className.replace(currentThemeName, newThemeName);
+			td.className = classname;
 		}
+
+		localStorage.setItem('dtdTheme', newThemeName);
 		this.setState({
 			...this.state,
-			theme: this.state.theme === 'dark' ? 'light' : 'dark',
+			theme: newThemeName,
 		});
 		return;
 	};
-	cannotFindDuck = () => {
-		if (window.checkWallInterval) {
-			clearInterval(window.checkWallInterval);
+	resetToast = (origin) => {
+		if (origin === 'click') {
+			let newState = { ...this.state };
+			newState.isToastVisible = false;
+			this.setState(newState);
+		} else {
+			setTimeout(() => {
+				let newState = { ...this.state };
+				newState.isToastVisible = false;
+				this.setState(newState);
+			}, 6000);
 		}
+	};
+	cannotFindDuck = () => {
 		let newState = { ...this.state };
 		newState.running = false;
-		this.setState(newState);
-		// return alert('cannot find duck')
-		return console.log('cannot find duck');
+		newState.isToastVisible = true;
+		this.setState(newState, () => {
+			this.resetToast();
+		});
 	};
 	setSpeed = (e) => {
 		let name = e.currentTarget.attributes.name.value;
@@ -146,6 +174,7 @@ export class TableContextProvider extends Component {
 			return {
 				...prevState,
 				maze: name,
+				running: name === 'maze' ? false : true,
 			};
 		});
 		if (name === 'maze') return;
@@ -360,7 +389,6 @@ export class TableContextProvider extends Component {
 	};
 
 	clearBoard = (e) => {
-		console.log({ e });
 		this.returnToUnvisited(e);
 		// let newState = { ...this.state };
 		// newState.running = false;
@@ -372,7 +400,6 @@ export class TableContextProvider extends Component {
 		const theme = this.state.theme;
 		if (e) {
 			let name = e.target ? e.target.name : e;
-			console.log({ name });
 			const affectedCells = document.getElementsByClassName(`${theme}_${name}`);
 			const cellsArr = Array.from(affectedCells);
 			for (let i = 0; i < cellsArr.length; i++) {
@@ -425,7 +452,7 @@ export class TableContextProvider extends Component {
 			this.setState(newState);
 		}
 		const algorithmNames = [
-			'knownEndPointSearch',
+			'dijkstra',
 			'linearSearch',
 			'breadthFirstSearch',
 			'depthFirstSearch',
@@ -433,7 +460,7 @@ export class TableContextProvider extends Component {
 			'randomSearch',
 		];
 		const algorithms = [
-			this.knownEndPointSearch,
+			this.dijkstra,
 			this.linearSearch,
 			this.breadthFirstSearch,
 			this.depthFirstSearch,
@@ -468,8 +495,14 @@ export class TableContextProvider extends Component {
 					counter >= queue.startingQueue.length
 				) {
 					clearTimeout(timer);
-					this.setRunning(false);
-					return;
+					if (
+						queue.endingQueue.indexOf(queue.lastQueueToRender) > -1 &&
+						queue.startingQueue.indexOf(queue.lastQueueToRender) > -1
+					) {
+						return this.cannotFindDuck();
+					} else {
+						return this.setRunning(false);
+					}
 				} else {
 					helper();
 				}
@@ -554,11 +587,6 @@ export class TableContextProvider extends Component {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
-				if (queue[counter] === starting) {
-					clearTimeout(timer);
-					this.setRunning(false);
-					return;
-				}
 				counter++;
 				if (counter >= queue.length) {
 					clearTimeout(timer);
@@ -586,11 +614,6 @@ export class TableContextProvider extends Component {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace('unvisited', 'visited');
 				currentCell.className = classname;
-				if (queue[counter] === ending) {
-					clearTimeout(timer);
-					this.setRunning(false);
-					return;
-				}
 				counter++;
 				if (counter >= queue.length) {
 					clearTimeout(timer);
@@ -608,11 +631,11 @@ export class TableContextProvider extends Component {
 		helper();
 	};
 
-	knownEndPointSearch = () => {
+	dijkstra = () => {
 		let starting = this.state.starting;
 		let ending = this.state.ending;
 		let counter = 0;
-		let queue = knownDirectionHelper(starting, ending);
+		let queue = dijkstraHelper(starting, ending);
 		const helper = () => {
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
@@ -653,6 +676,7 @@ export class TableContextProvider extends Component {
 					setTheme: this.setTheme,
 					setRunning: this.setRunning,
 					cannotFindDuck: this.cannotFindDuck,
+					resetToast: this.resetToast,
 				}}>
 				{this.props.children}
 			</TableContext.Provider>
