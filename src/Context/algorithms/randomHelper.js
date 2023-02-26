@@ -6,7 +6,6 @@ export const randomHelper = (starting, ending) => {
 		const direction = Math.floor(Math.random() * 4);
 		let validCells = checkValidCells(current);
 		let {
-			currentCell,
 			upCell,
 			downCell,
 			leftCell,
@@ -23,6 +22,7 @@ export const randomHelper = (starting, ending) => {
 			downNext === ending ||
 			upNext === ending
 		) {
+			queue.push(ending);
 			return queue;
 		}
 

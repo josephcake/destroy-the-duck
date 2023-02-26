@@ -1,35 +1,36 @@
 .footer {
-  background-color: darkslateblue;
-  height: 50px;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-evenly;
-  align-items: center;
-  color: white;
-  font-family: "Bree serif";
+	background-color: darkslateblue;
+	height: 50px;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-evenly;
+	align-items: center;
+	color: white;
+	font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial,
+		sans-serif;
 }
 .footer__item {
-  cursor: pointer;
-  font-weight: 800;
-  letter-spacing: 1px;
+	cursor: pointer;
+	font-weight: 800;
+	letter-spacing: 1px;
 }
 
 .link-tag {
-  text-decoration: none;
-  text-transform: none;
-  color: white;
+	text-decoration: none;
+	text-transform: none;
+	color: white;
 }
 
 @media only screen and (max-height: 850px) {
-  .footer {
-    height: 30px;
-    font-size: 10px;
-    font-weight: 100;
-  }
+	.footer {
+		height: 30px;
+		font-size: 10px;
+		font-weight: 100;
+	}
 }
 @media only screen and (max-width: 500px) {
-  .footer {
-    font-size: 10px;
-    font-weight: 100;
-  }
+	.footer {
+		font-size: 10px;
+		font-weight: 100;
+	}
 }

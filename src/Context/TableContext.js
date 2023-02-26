@@ -23,14 +23,14 @@ export class TableContextProvider extends Component {
 		algorithm: 'algorithm',
 		current: '17-15',
 		running: false,
-		refresh: false,
-		block: '',
 		speed: 100,
 		speedText: 'norm',
 		theme: NEON,
 		maze: 'maze',
 		isBuilding: false,
 		isToastVisible: false,
+		isPaused: false,
+		currentBuildingPath: null,
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
@@ -42,11 +42,12 @@ export class TableContextProvider extends Component {
 
 	shouldComponentUpdate(nextProps, nextState) {
 		if (
+			nextState.currentBuildingPath !== this.state.currentBuildingPath ||
+			nextState.isPaused !== this.state.isPaused ||
 			nextState.isToastVisible !== this.state.isToastVisible ||
 			nextState.isBuilding !== this.state.isBuilding ||
 			nextState.algorithm !== this.state.algorithm ||
 			nextState.ending !== this.state.ending ||
-			nextState.wallOn !== this.state.wallOn ||
 			nextState.theme !== this.state.theme ||
 			nextState.speed !== this.state.speed ||
 			nextState.speedText !== this.state.speedText ||
@@ -438,9 +439,6 @@ export class TableContextProvider extends Component {
 			newState.running = false;
 			this.setState(newState);
 			return;
-		} else {
-			newState.running = true;
-			this.setState(newState);
 		}
 		const algorithmNames = [
 			'dijkstra',
@@ -461,6 +459,100 @@ export class TableContextProvider extends Component {
 		const selected = algorithmNames.indexOf(name);
 		algorithms[selected]();
 	};
+	pause = () => {
+		let newState = { ...this.state };
+		if (this.state.isPaused) {
+			newState.isPaused = false;
+			this.setState(newState, () => this.resume());
+		} else {
+			newState.isPaused = true;
+			this.setState(newState);
+		}
+	};
+	resume = () => {
+		const queue = this.state.currentBuildingPath;
+		if (this.state.algorithm !== 'bidirectionalSearch') {
+			const firstUnvisited = queue.find((path) =>
+				document.getElementById(path).className.includes(UNVISITED),
+			);
+			const ending = this.state.ending;
+			const firstUnvisitedIdx = queue.indexOf(firstUnvisited);
+			let counter = firstUnvisitedIdx;
+			const helper = () => {
+				if (this.state.isPaused) return;
+				let timer = setTimeout(() => {
+					let currentCell = document.getElementById(queue[counter]);
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(ending) === -1) {
+							return this.cannotFindDuck();
+						} else {
+							this.setRunning(false);
+						}
+						return;
+					} else {
+						helper();
+					}
+				}, this.state.speed);
+			};
+			helper();
+		} else {
+			const { startingQueue, endingQueue, lastQueueToRender } = queue;
+			const firstStartingUnvisited = startingQueue.find((path) =>
+				document.getElementById(path).className.includes(UNVISITED),
+			);
+			const firstEndingUnvisited = endingQueue.find((path) =>
+				document.getElementById(path).className.includes(UNVISITED),
+			);
+
+			const firstStartingUnvisitedIdx = startingQueue.indexOf(
+				firstStartingUnvisited,
+			);
+			const firstEndingUnvisitedIdx = endingQueue.indexOf(firstEndingUnvisited);
+
+			let starting_counter = firstStartingUnvisitedIdx;
+			let ending_counter = firstEndingUnvisitedIdx;
+			const helper = () => {
+				if (this.state.isPaused) return;
+				let timer = setTimeout(() => {
+					let cellOne = document.getElementById(
+						startingQueue[starting_counter],
+					);
+					if (cellOne) {
+						let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
+						cellOne.className = classnameOne;
+					}
+					let cellTwo = document.getElementById(endingQueue[ending_counter]);
+					if (cellTwo) {
+						let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
+						cellTwo.className = classnameTwo;
+					}
+					starting_counter++;
+					ending_counter++;
+					if (
+						ending_counter >= endingQueue.length &&
+						starting_counter >= startingQueue.length
+					) {
+						clearTimeout(timer);
+						if (
+							endingQueue.indexOf(lastQueueToRender) > -1 &&
+							startingQueue.indexOf(lastQueueToRender) > -1
+						) {
+							return this.setRunning(false);
+						} else {
+							return this.cannotFindDuck();
+						}
+					} else {
+						helper();
+					}
+				}, this.state.speed);
+			};
+			helper();
+		}
+	};
 
 	bidirectionalSearch = () => {
 		let counter = 0;
@@ -468,7 +560,9 @@ export class TableContextProvider extends Component {
 			this.state.starting,
 			this.state.ending,
 		);
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let cellOne = document.getElementById(queue.startingQueue[counter]);
 				if (cellOne) {
@@ -490,9 +584,9 @@ export class TableContextProvider extends Component {
 						queue.endingQueue.indexOf(queue.lastQueueToRender) > -1 &&
 						queue.startingQueue.indexOf(queue.lastQueueToRender) > -1
 					) {
-						return this.cannotFindDuck();
-					} else {
 						return this.setRunning(false);
+					} else {
+						return this.cannotFindDuck();
 					}
 				} else {
 					helper();
@@ -506,7 +600,9 @@ export class TableContextProvider extends Component {
 		let ending = this.state.ending;
 		let queue = randomHelper(this.state.starting, ending);
 		let counter = 0;
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace(UNVISITED, VISITED);
@@ -533,7 +629,9 @@ export class TableContextProvider extends Component {
 		let queue = linearSearchHelper(starting);
 		let counter = 0;
 
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let validCells = checkValidCells(queue[counter]);
 				const { currentCell, upNext, downNext, leftNext, rightNext } =
@@ -573,7 +671,10 @@ export class TableContextProvider extends Component {
 		let starting = this.state.starting;
 		let counter = 0;
 		let queue = spreadHelper(this.state.ending, starting);
+
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace(UNVISITED, VISITED);
@@ -600,7 +701,9 @@ export class TableContextProvider extends Component {
 		let counter = 0;
 		let queue = spreadHelper(this.state.starting, ending);
 
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace(UNVISITED, VISITED);
@@ -627,7 +730,10 @@ export class TableContextProvider extends Component {
 		let ending = this.state.ending;
 		let counter = 0;
 		let queue = dijkstraHelper(starting, ending);
+
+		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
 		const helper = () => {
+			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
 				let classname = currentCell.className.replace(UNVISITED, VISITED);
@@ -668,6 +774,7 @@ export class TableContextProvider extends Component {
 					setRunning: this.setRunning,
 					cannotFindDuck: this.cannotFindDuck,
 					resetToast: this.resetToast,
+					pause: this.pause,
 				}}>
 				{this.props.children}
 			</TableContext.Provider>

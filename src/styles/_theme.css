@@ -2,47 +2,53 @@
 .light_bg {
 	background-color: whitesmoke;
 	color: darkslateblue;
+	transition: all ease-in-out;
 }
 .light_bg_secondary {
 	background-color: darkslateblue;
 	color: whitesmoke;
+	transition: all ease-in-out;
 }
 .light_border {
 	border: solid 1px #a9a9a9;
 	border-radius: 5px;
+	transition: all ease-in-out;
 }
 
+/* dark */
 .dark_bg {
 	background-color: rgb(17, 26, 47);
 	color: rgb(185, 185, 185);
+	transition: all ease-in-out;
 }
 
 .dark_bg_secondary {
 	background-color: rgb(24, 32, 52);
 	color: rgb(185, 185, 185);
+	transition: all ease-in-out;
 }
 .dark_border {
 	border: solid 1px #424661;
 	border-radius: 5px;
+	transition: all ease-in-out;
 }
 
-@keyframes light_visited_animation {
-	0% {
-		border-radius: 2px;
-		transform: scale(0.3);
-		background-color: var(--light-animation-bg-one);
-	}
-	50% {
-		transform: scale(1.4);
-		border-radius: 4px;
-		background-color: var(--light-animation-bg-two);
-	}
-	100% {
-		transform: scale(1);
-		background-color: var(--light-visited-bg);
-	}
+/* neon */
+.neon_bg {
+	background-color: rgb(17, 26, 47);
+	color: #fff;
+	text-shadow: 0 0 2px #fff, 0 0 12px #bc13fe, 0 0 15px #bc13fe;
 }
 
-.light_visited {
-	animation: light_visited_animation 1s ease-in 0 1 normal forwards;
+.neon_bg_secondary {
+	background-color: rgb(24, 32, 52);
+	color: rgb(255, 255, 255);
+	transition: all ease-in-out;
+}
+.neon_border {
+	border: solid 1px #424661;
+	border-radius: 5px;
+	box-shadow: 0 0 0.2rem #fff, 0 0 0.2rem #fff, 0 0 2rem #bc13fe,
+		0 0 0.8rem #bc13fe;
+	transition: all ease-in-out;
 }

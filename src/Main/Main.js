@@ -10,9 +10,9 @@ class Main extends React.Component {
 		return (
 			<div
 				id={'main'}
-				className={'main'}>
+				className={`main`}>
 				<table>
-					<tbody>
+					<tbody className={`tbody`}>
 						<Table
 							cols={cols}
 							rows={rows}

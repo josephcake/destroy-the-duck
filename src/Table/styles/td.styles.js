@@ -1,51 +1,4 @@
-import styled, { keyframes, css } from 'styled-components';
-import { theme } from '../../theme/themeDefinition';
-
-const getCellBorder = (currentTheme) => {
-	return theme[currentTheme].cell.border;
-};
-
-const getCellBg = (currentTheme) => {
-	return theme[currentTheme].cell.background;
-};
-
-// turn unvisited to visited
-const visited_animation = (currentTheme) => {
-	return keyframes`
-  0% {
-		border-radius:2px;
-		transform: scale(0.3);
-		background-color: ${theme[currentTheme].animation.cell.start};
-	}
-	50% {
-		transform: scale(1.4);
-		border-radius:4px;
-		background-color: ${theme[currentTheme].animation.cell.end};
-	}
-	100% {
-		transform: scale(1);
-		background-color: ${theme[currentTheme].cell.background.visited};
-	}
-`;
-};
-// drawing wall animation
-const wall_animation = (currentTheme) => {
-	return keyframes`
-  0% {
-		border-radius:2px;
-		transform: scale(0.3);
-		background-color: ${theme[currentTheme].animation.wall.start};
-	}
-	50% {
-		transform: scale(1.4);
-		border-radius:4px;
-	}
-	100% {
-		transform: scale(1);
-		background-color: ${theme[currentTheme].animation.wall.end};
-	}
-`;
-};
+import styled from 'styled-components';
 
 export const Td = styled.td`
 	text-align: center;
@@ -55,29 +8,6 @@ export const Td = styled.td`
 	width: 20px;
 	height: 20px;
 	font-size: 0px;
-	border: ${(props) =>
-		`solid 1px ${
-			getCellBorder(props.currentTheme)[props.state || 'unvisited']
-		}`};
-	background: ${(props) => `${getCellBg(props.currentTheme)[props.state]}`};
-	${(props) =>
-		props.state === 'visited'
-			? css`
-					animation-name: ${visited_animation(props.currentTheme)};
-					animation-duration: 1.5s;
-					animation-timing-function: ease-in-out;
-					animation-fill-mode: forwards;
-			  `
-			: props.state === 'wall'
-			? css`
-					animation-name: ${wall_animation(props.currentTheme)};
-					animation-duration: 1.5s;
-					animation-timing-function: ease-in-out;
-					animation-fill-mode: forwards;
-			  `
-			: css`
-					opacity: 1;
-			  `};
 
 	@media only screen and (max-height: 900px) {
 		width: 19px;

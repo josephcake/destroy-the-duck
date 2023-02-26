@@ -31,9 +31,9 @@ class TdContainer extends React.Component {
 		const cell = `${r}-${c}`;
 		let classN =
 			cell === ending
-				? `ending`
+				? `${theme}_ending`
 				: cell === starting
-				? `starting`
+				? `${theme}_starting`
 				: `${theme}_unvisited`;
 
 		return (

@@ -21,6 +21,17 @@
 	--dark-animation-bg-one: rgb(0, 255, 187);
 	--dark-animation-bg-two: rgba(49, 179, 149, 0.75);
 	--dark-animation-bg-wall: rgba(3, 3, 24, 0.8);
+
+	--neon-cell-border: solid 1px rgb(30, 29, 29);
+	--neon-cell-border-visited: solid 1px rgb(153, 180, 90);
+	--neon-starting-bg: #e94c0e;
+	--neon-ending-bg: #ffd000;
+	--neon-path-bg: rgb(255, 99, 71);
+	--neon-visited-bg: #91ff00;
+	--neon-unvisited-bg: rgb(55, 55, 55);
+	--neon-animation-bg-one: rgb(0, 255, 187);
+	--neon-animation-bg-two: rgba(49, 179, 149, 0.75);
+	--neon-animation-bg-wall: #bc13fe;
 }
 
 /* light */
@@ -28,7 +39,6 @@
 	border: var(--light-cell-border);
 	background-color: var(--light-starting-bg);
 	transform: rotate(90deg);
-	background-image: url('../Images/feathered-arrow.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
@@ -36,7 +46,6 @@
 .light_ending {
 	border: var(--light-cell-border);
 	background-color: var(--light-ending-bg);
-	background-image: url('../Images/duck.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
@@ -69,7 +78,7 @@
 .light_unvisited {
 	border: var(--light-cell-border);
 	background-color: var(--light-unvisited-bg);
-	transition: all ease-in-out;
+	transition: all 1s ease-in-out;
 }
 .light_visited {
 	border: var(--light-cell-border-visited);
@@ -132,7 +141,6 @@
 	border: var(--dark-cell-border);
 	background-color: var(--dark-starting-bg);
 	transform: rotate(90deg);
-	background-image: url('../Images/feathered-arrow.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
@@ -140,7 +148,6 @@
 .dark_ending {
 	border: var(--dark-cell-border);
 	background-color: var(--dark-ending-bg);
-	background-image: url('../Images/duck.png');
 	background-size: contain;
 	background-position: center;
 	border-radius: 10%;
@@ -173,7 +180,7 @@
 .dark_unvisited {
 	border: var(--dark-cell-border);
 	background-color: var(--dark-unvisited-bg);
-	transition: all ease-in-out;
+	transition: all 1s ease-in-out;
 }
 .dark_visited {
 	border: var(--dark-cell-border-visited);
@@ -226,5 +233,118 @@
 	100% {
 		transform: scale(1);
 		background-color: var(--dark-visited-bg);
+	}
+}
+
+/* neon */
+.neon_starting {
+	/* border: var(--neon-cell-border); */
+	background-color: var(--neon-starting-bg);
+	transform: rotate(90deg);
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+	z-index: 99999999999;
+	box-shadow: 0 0 0.2rem #fff, 0 0 0.2rem #fff, 0 0 2rem var(--neon-starting-bg),
+		0 0 0.8rem var(--neon-starting-bg);
+}
+.neon_ending {
+	/* border: var(--neon-cell-border); */
+	background-color: var(--neon-ending-bg);
+	background-size: contain;
+	background-position: center;
+	border-radius: 10%;
+	z-index: 99999999999;
+	box-shadow: 0 0 0.2rem #fff, 0 0 0.2rem #fff, 0 0 2rem var(--neon-ending-bg),
+		0 0 0.8rem var(--neon-ending-bg);
+}
+.neon_path {
+	border: var(--neon-cell-border);
+	background-color: var(--neon-path-bg);
+	transition: background 10ms linear;
+}
+.neon_wall {
+	border: none;
+	animation-name: neon_wallAnimation;
+	animation-duration: 1s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.neon_unvisitedAnimated {
+	border: var(--neon-cell-border);
+	animation-name: neon_unvisitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-out;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+}
+.neon_unvisited {
+	border: var(--neon-cell-border);
+	background-color: var(--neon-unvisited-bg);
+	transition: all 1s ease-in-out;
+}
+.neon_visited {
+	border: var(--neon-cell-border-visited);
+	animation-name: neon_visitedAnimation;
+	animation-duration: 1.5s;
+	animation-timing-function: ease-in;
+	animation-delay: 0s;
+	animation-direction: alternate;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+	animation-play-state: running;
+}
+
+@keyframes neon_wallAnimation {
+	0% {
+		transform: scale(1);
+		background-color: var(--neon-animation-bg-one);
+		box-shadow: 0 0 0.2rem #fff;
+	}
+	50% {
+		transform: scale(0.8);
+	}
+	100% {
+		background-color: var(--neon-animation-bg-wall);
+		box-shadow: 0 0 0.2rem #fff, 0 0 0.2rem #fff, 0 0 2rem #bc13fe,
+			0 0 0.8rem #bc13fe;
+	}
+}
+@keyframes neon_unvisitedAnimation {
+	0% {
+		transform: scale(1);
+		background-color: var(--neon-animation-bg-one);
+	}
+	50% {
+		transform: scale(0.8);
+		background-color: var(--neon-animation-bg-two);
+	}
+	100% {
+		background-color: var(--neon-unvisited-bg);
+	}
+}
+@keyframes neon_visitedAnimation {
+	0% {
+		border-radius: 2px;
+		transform: scale(0.3);
+		background-color: var(--neon-animation-bg-one);
+		box-shadow: 0 0 0.2rem #fff;
+	}
+	50% {
+		transform: scale(1.4);
+		border-radius: 4px;
+		background-color: var(--neon-animation-bg-two);
+	}
+	100% {
+		border: none;
+		transform: scale(1);
+		background-color: var(--neon-visited-bg);
+		box-shadow: 0 0 0.2rem #fff, 0 0 0.2rem #fff, 0 0 2rem #d4ffc2,
+			0 0 0.8rem #13fe3a;
 	}
 }

@@ -6,6 +6,7 @@ import Footer from './Footer/Footer';
 import Intro from './Popup/Intro';
 import { Legend } from './Legend/Legend';
 import { TableContext } from './Context/TableContext';
+import { Toast } from './Toast/Toast';
 
 const App = () => {
 	const [intro, setIntro] = useState(true);
@@ -30,14 +31,20 @@ const App = () => {
 				selectAlgorithm,
 				rows,
 				cols,
+				isToastVisible,
+				resetToast,
+				isPaused,
+				pause,
 			}) => {
 				return (
-					<div className={theme === 'dark' ? 'app dark_bg' : 'app light_bg'}>
+					<div className={`${theme}_bg app`}>
 						<Nav
 							go={go}
 							maze={maze}
 							speed={speed}
 							theme={theme}
+							pause={pause}
+							isPaused={isPaused}
 							running={running}
 							setSpeed={setSpeed}
 							setTheme={setTheme}
@@ -54,6 +61,7 @@ const App = () => {
 						<Main
 							cols={cols}
 							rows={rows}
+							theme={theme}
 						/>
 						<div className='spacer' />
 						<Footer theme={theme} />
@@ -63,6 +71,10 @@ const App = () => {
 								setIntro={toggleIntro}
 							/>
 						)}
+						<Toast
+							resetToast={resetToast}
+							isToastVisible={isToastVisible}
+						/>
 					</div>
 				);
 			}}

@@ -5,6 +5,8 @@ import { NavButtons, NavOptions, NavSettings } from './NavItems';
 const Nav = ({
 	go,
 	theme,
+	pause,
+	isPaused,
 	running,
 	setSpeed,
 	setTheme,
@@ -15,6 +17,7 @@ const Nav = ({
 	clearBoard,
 	selectAlgorithm,
 }) => {
+	console.log({ isPaused, running });
 	const shouldUpdateMazeSelection = (e) => {
 		const name = e.target.value;
 		if (!running) {
@@ -66,16 +69,25 @@ const Nav = ({
 				</select>
 			</div>
 			<div className={'nav__action nav__items'}>
-				<button
-					onClick={go}
-					className={`nav__button go ${theme}_border`}
-					disabled={running || algorithm === 'algorithm'}>
-					Go!
-				</button>
+				{running ? (
+					<button
+						onClick={pause}
+						className={`nav__button pause ${theme}_border`}>
+						{isPaused ? 'Resume' : 'Pause'}
+					</button>
+				) : (
+					<button
+						onClick={go}
+						className={`nav__button go ${theme}_border`}
+						disabled={running || algorithm === 'algorithm'}>
+						Go!
+					</button>
+				)}
 			</div>
-			<div className={`nav__setting nav__items ${running && 'disabled'}`}>
-				<div
-					className={`nav__button nav__items__container nav__items__container__clear ${theme}_border`}>
+			<div className={`nav__setting nav__items`}>
+				<button
+					disabled={running}
+					className={`nav__button nav__items__container nav__items__container__clear ${theme}_border ${theme}_bg_secondary`}>
 					<NavSettings
 						className={`nav__setting_clear ${theme}_bg_secondary`}
 						name={'clear'}
@@ -83,67 +95,62 @@ const Nav = ({
 					/>
 					<div className={`tooltip__container `}>
 						{clearButtons.map((btn) => (
-							<NavButtons
+							<div
+								className={`tooltip ${theme}_bg`}
+								onClick={() => clearBoard(btn.name)}
 								key={btn.text}
-								name={btn.name}
-								text={btn.text}
-								clearBoard={clearBoard}
-								theme={theme}
-							/>
+								name={btn.name}>
+								{btn.text}
+							</div>
 						))}
 					</div>
-				</div>
+				</button>
 			</div>
 
-			<div className={'nav__setting nav__items'}>
-				<div
+			<div className={`nav__setting nav__items`}>
+				<button
+					disabled={running}
 					className={`
         nav__button
         nav__items__container
         ${theme}_border
+				${theme}_bg_secondary
         `}>
 					<NavSettings
-						className={'nav__setting_theme'}
+						className={`nav__setting_theme `}
 						name={'theme'}
 					/>
 					<div className={`tooltip__container`}>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								theme === 'light' && 'nav__button__selected'
 							}`}
-							onClick={(e) => handleItemClicked(e, setTheme)}
+							onClick={(e) => handleItemClicked('light', setTheme)}
 							name={'light'}>
 							Light
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								theme === 'dark' && 'nav__button__selected'
 							}`}
-							onClick={(e) => handleItemClicked(e, setTheme)}
-							name={'light'}>
+							onClick={(e) => handleItemClicked('dark', setTheme)}
+							name={'dark'}>
 							Dark
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
-								theme === 'sloth' && 'nav__button__selected'
+							className={`tooltip ${theme}_bg ${
+								theme === 'neon' && 'nav__button__selected'
 							}`}
-							onClick={(e) => handleItemClicked(e, setTheme)}
-							name={'light'}>
+							onClick={(e) => handleItemClicked('neon', setTheme)}
+							name={'neon'}>
 							Neon
 						</div>
-						<div
-							className={`tooltip ${theme}_bg_secondary ${
-								theme === 'sloth' && 'nav__button__selected'
-							}`}
-							onClick={(e) => handleItemClicked(e, setTheme)}
-							name={'light'}>
-							Glass
-						</div>
 					</div>
-				</div>
+				</button>
 
-				<div
-					className={`nav__button nav__items__container nav__items__container__speed ${theme}_border`}>
+				<button
+					className={`nav__button nav__items__container nav__items__container__speed ${theme}_border
+				${theme}_bg_secondary`}>
 					<NavSettings
 						className={`nav__setting_speed ${theme}_bg_secondary`}
 						name={'speed'}
@@ -151,7 +158,7 @@ const Nav = ({
 					/>
 					<div className={`tooltip__container`}>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								speedText === 'sloth' && 'nav__button__selected'
 							}`}
 							onClick={(e) => handleItemClicked(e, setSpeed)}
@@ -159,7 +166,7 @@ const Nav = ({
 							Sloth
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								speedText === 'slow' && 'nav__button__selected'
 							}`}
 							onClick={(e) => handleItemClicked(e, setSpeed)}
@@ -167,7 +174,7 @@ const Nav = ({
 							Slow
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								speedText === 'norm' && 'nav__button__selected'
 							}`}
 							onClick={(e) => handleItemClicked(e, setSpeed)}
@@ -175,7 +182,7 @@ const Nav = ({
 							Normal
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								speedText === 'fast' && 'nav__button__selected'
 							}`}
 							onClick={(e) => handleItemClicked(e, setSpeed)}
@@ -183,7 +190,7 @@ const Nav = ({
 							Fast
 						</div>
 						<div
-							className={`tooltip ${theme}_bg_secondary ${
+							className={`tooltip ${theme}_bg ${
 								speedText === 'light' && 'nav__button__selected'
 							}`}
 							onClick={(e) => handleItemClicked(e, setSpeed)}
@@ -191,7 +198,7 @@ const Nav = ({
 							Light
 						</div>
 					</div>
-				</div>
+				</button>
 			</div>
 		</div>
 	);

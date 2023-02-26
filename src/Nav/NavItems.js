@@ -21,7 +21,7 @@ export const NavButtons = ({ name, text, isRunning, clearBoard, theme }) => {
 		<button
 			name={name}
 			disabled={isRunning}
-			className={`nav__button__clear ${theme}_bg_secondary`}
+			className={`nav__button__clear ${theme}_bg `}
 			onClick={(e) => shouldClear(e)}>
 			{text}
 		</button>

@@ -18,6 +18,7 @@ export const theme = {
 				path: '#FF6347',
 				starting: '#e94c0e',
 				ending: '#ffd000',
+				wall: '#04042CCC',
 			},
 			border: {
 				unvisited: '#F6F6F6',

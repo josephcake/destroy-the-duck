@@ -40,6 +40,7 @@ html {
 	align-items: center;
 }
 .disabled {
-	pointer-events: none;
+	pointer-events: none !important;
+	cursor: not-allowed !important;
 	opacity: 0.5;
 }
