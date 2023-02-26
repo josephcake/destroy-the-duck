@@ -11,6 +11,7 @@ import { spreadHelper } from './algorithms/spreadHelper';
 import { dijkstraHelper } from './algorithms/dijkstraHelper';
 import { bidirectionalSpreadHelper } from './algorithms/bidirectionalSpreadHelper';
 import { randomHelper } from './algorithms/randomHelper';
+import { VISITED, UNVISITED, WALL, LIGHT, DARK, NEON } from '../lib/constants';
 
 export const TableContext = createContext();
 export class TableContextProvider extends Component {
@@ -26,7 +27,7 @@ export class TableContextProvider extends Component {
 		block: '',
 		speed: 100,
 		speedText: 'norm',
-		theme: 'neon',
+		theme: NEON,
 		maze: 'maze',
 		isBuilding: false,
 		isToastVisible: false,
@@ -69,7 +70,7 @@ export class TableContextProvider extends Component {
 		if (initialTheme) {
 			this.setTheme(initialTheme);
 		} else {
-			this.setTheme('light');
+			this.setTheme(LIGHT);
 		}
 	};
 
@@ -88,10 +89,9 @@ export class TableContextProvider extends Component {
 		if (this.state.isBuilding && !this.state.running) {
 			const cell = document.getElementById(e);
 			const isValidCell =
-				cell.className.includes('unvisited') &&
-				!cell.className.includes('wall');
+				cell.className.includes(UNVISITED) && !cell.className.includes(WALL);
 			if (isValidCell) {
-				const classname = cell.className.replace('unvisited', 'wall');
+				const classname = cell.className.replace(UNVISITED, WALL);
 				cell.className = classname;
 			}
 		}
@@ -99,18 +99,14 @@ export class TableContextProvider extends Component {
 	setTheme = (newThemeName) => {
 		let tds = document.querySelectorAll('td');
 		let tbody = document.querySelectorAll('tbody')[0];
-		let currentThemeName = tds[0].className.includes('dark')
-			? 'dark'
-			: tds[0].className.includes('light')
-			? 'light'
-			: 'neon';
+		let currentThemeName = tds[0].className.includes(DARK)
+			? DARK
+			: tds[0].className.includes(LIGHT)
+			? LIGHT
+			: NEON;
 
-		let tbodyClassname = tbody.className.replace(
-			currentThemeName,
-			newThemeName,
-		);
+		tbody.className = `${newThemeName}_border`;
 
-		tbody.className = tbodyClassname;
 		for (let i = 0; i < tds.length; i++) {
 			let td = tds[i];
 			let classname = td.className.replace(currentThemeName, newThemeName);
@@ -148,9 +144,9 @@ export class TableContextProvider extends Component {
 	setSpeed = (e) => {
 		let name = e.currentTarget.attributes.name.value;
 		let newState = { ...this.state };
-		if (name === 'light') {
+		if (name === LIGHT) {
 			newState.speed = 0;
-			newState.speedText = 'light';
+			newState.speedText = LIGHT;
 		} else if (name === 'fast') {
 			newState.speed = 10;
 			newState.speedText = 'fast';
@@ -231,7 +227,7 @@ export class TableContextProvider extends Component {
 			let helper = () => {
 				let timer = setTimeout(() => {
 					let cell = document.getElementById(selectedMaze[counter]);
-					let classname = cell.className.replace('unvisited', 'wall');
+					let classname = cell.className.replace(UNVISITED, WALL);
 					cell.className = classname;
 					counter++;
 					if (counter === selectedMaze.length) {
@@ -269,7 +265,7 @@ export class TableContextProvider extends Component {
 			let helper = () => {
 				let timer = setTimeout(() => {
 					let cell = document.getElementById(wallsToBeBuild[counter]);
-					let classname = cell.className.replace('unvisited', 'wall');
+					let classname = cell.className.replace(UNVISITED, WALL);
 					cell.className = classname;
 					counter++;
 					if (counter === wallsToBeBuild.length) {
@@ -307,7 +303,7 @@ export class TableContextProvider extends Component {
 							!tempCell.className.includes(`_starting`) &&
 							!tempCell.className.includes(`_ending`)
 						) {
-							let classname = tempCell.className.replace('unvisited', 'wall');
+							let classname = tempCell.className.replace(UNVISITED, WALL);
 							tempCell.className = classname;
 							if (direction === 'horizontal') {
 								cR--;
@@ -323,7 +319,7 @@ export class TableContextProvider extends Component {
 							!tempCell.className.includes(`_starting`) &&
 							!tempCell.className.includes(`_ending`)
 						) {
-							let classname = tempCell.className.replace('unvisited', 'wall');
+							let classname = tempCell.className.replace(UNVISITED, WALL);
 							tempCell.className = classname;
 							if (direction === 'horizontal') {
 								cR++;
@@ -334,7 +330,7 @@ export class TableContextProvider extends Component {
 					}
 				}
 
-				let classname = cell.className.replace('unvisited', 'wall');
+				let classname = cell.className.replace(UNVISITED, WALL);
 				cell.className = classname;
 
 				counter++;
@@ -373,7 +369,7 @@ export class TableContextProvider extends Component {
 			let timer = setTimeout(() => {
 				let cell = document.getElementById(wallsToBeBuild[counter]);
 				if (cell) {
-					let classname = cell.className.replace('unvisited', 'wall');
+					let classname = cell.className.replace(UNVISITED, WALL);
 					cell.className = classname;
 				}
 				if (counter < wallsToBeBuild.length) {
@@ -390,42 +386,37 @@ export class TableContextProvider extends Component {
 
 	clearBoard = (e) => {
 		this.returnToUnvisited(e);
-		// let newState = { ...this.state };
-		// newState.running = false;
-		// newState.current = this.state.starting;
-		// this.setState(newState);
+		// remove and update this
 	};
 
 	returnToUnvisited = (e) => {
 		const theme = this.state.theme;
 		if (e) {
 			let name = e.target ? e.target.name : e;
-			const affectedCells = document.getElementsByClassName(`${theme}_${name}`);
+			const affectedCells = document.querySelectorAll(`td.${theme}_${name}`);
+			// getElementsByClassName(`${theme}_${name}`);
 			const cellsArr = Array.from(affectedCells);
 			for (let i = 0; i < cellsArr.length; i++) {
 				let k = i;
-				let normalizedCell = cellsArr[k].className.replace(name, 'unvisited');
+				let normalizedCell = cellsArr[k].className.replace(name, UNVISITED);
 				cellsArr[k].className = normalizedCell;
 			}
 		} else {
-			const visitedCells = document.getElementsByClassName(`${theme}_visited`);
-			const walledCells = document.getElementsByClassName(`${theme}_wall`);
+			const visitedCells = document.querySelectorAll(`td.${theme}_${VISITED}`);
+			const walledCells = document.querySelectorAll(`td.${theme}_${WALL}`);
 			const wallCellsArr = Array.from(walledCells);
 			const visitedCellsArr = Array.from(visitedCells);
 
 			for (let i = 0; i < wallCellsArr.length; i++) {
 				let k = i;
-				let normalizedCell = wallCellsArr[k].className.replace(
-					'wall',
-					'unvisited',
-				);
+				let normalizedCell = wallCellsArr[k].className.replace(WALL, UNVISITED);
 				wallCellsArr[k].className = normalizedCell;
 			}
 			for (let i = 0; i < visitedCellsArr.length; i++) {
 				let k = i;
 				let normalizedCell = visitedCellsArr[k].className.replace(
-					'visited',
-					'unvisited',
+					VISITED,
+					UNVISITED,
 				);
 				visitedCellsArr[k].className = normalizedCell;
 			}
@@ -481,12 +472,12 @@ export class TableContextProvider extends Component {
 			let timer = setTimeout(() => {
 				let cellOne = document.getElementById(queue.startingQueue[counter]);
 				if (cellOne) {
-					let classnameOne = cellOne.className.replace('unvisited', 'visited');
+					let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
 					cellOne.className = classnameOne;
 				}
 				let cellTwo = document.getElementById(queue.endingQueue[counter]);
 				if (cellTwo) {
-					let classnameTwo = cellTwo.className.replace('unvisited', 'visited');
+					let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
 					cellTwo.className = classnameTwo;
 				}
 				counter++;
@@ -518,7 +509,7 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace('unvisited', 'visited');
+				let classname = currentCell.className.replace(UNVISITED, VISITED);
 				currentCell.className = classname;
 				counter++;
 				if (counter >= queue.length) {
@@ -547,7 +538,7 @@ export class TableContextProvider extends Component {
 				let validCells = checkValidCells(queue[counter]);
 				const { currentCell, upNext, downNext, leftNext, rightNext } =
 					validCells;
-				let classname = currentCell.className.replace('unvisited', 'visited');
+				let classname = currentCell.className.replace(UNVISITED, VISITED);
 				currentCell.className = classname;
 
 				if (
@@ -585,7 +576,7 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace('unvisited', 'visited');
+				let classname = currentCell.className.replace(UNVISITED, VISITED);
 				currentCell.className = classname;
 				counter++;
 				if (counter >= queue.length) {
@@ -612,7 +603,7 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace('unvisited', 'visited');
+				let classname = currentCell.className.replace(UNVISITED, VISITED);
 				currentCell.className = classname;
 				counter++;
 				if (counter >= queue.length) {
@@ -639,7 +630,7 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			let timer = setTimeout(() => {
 				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace('unvisited', 'visited');
+				let classname = currentCell.className.replace(UNVISITED, VISITED);
 				currentCell.className = classname;
 				counter++;
 				if (counter >= queue.length) {
