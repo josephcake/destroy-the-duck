@@ -24,9 +24,9 @@ export const mazeOptions = [
 ];
 
 export const clearButtons = [
-	{ name: null, text: 'Clear Board' },
-	{ name: 'wall', text: 'Clear Wall' },
-	{ name: 'visited', text: 'Clear Path' },
+	{ name: null, text: 'Board' },
+	{ name: 'wall', text: 'Wall' },
+	{ name: 'visited', text: 'Path' },
 ];
 
 export const settingsToggle = [
