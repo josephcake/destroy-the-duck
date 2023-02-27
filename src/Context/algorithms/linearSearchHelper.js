@@ -20,18 +20,23 @@ export const linearSearchHelper = (starting) => {
 		} = validCells;
 
 		if (currentCell && currentCell.className.includes(`ending`)) {
+			queue.push(currentID);
 			return;
 		}
 		if (leftCell && leftCell.className.includes(`ending`)) {
+			queue.push(leftNext);
 			return;
 		}
 		if (rightCell && rightCell.className.includes(`ending`)) {
+			queue.push(rightNext);
 			return;
 		}
 		if (downCell && downCell.className.includes(`ending`)) {
+			queue.push(downNext);
 			return;
 		}
 		if (upCell && upCell.className.includes(`ending`)) {
+			queue.push(upNext);
 			return;
 		}
 		if (

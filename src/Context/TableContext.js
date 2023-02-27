@@ -23,6 +23,7 @@ export class TableContextProvider extends Component {
 		algorithm: 'algorithm',
 		current: '17-15',
 		running: false,
+		mazeRunning: false,
 		speed: 100,
 		speedText: 'norm',
 		theme: NEON,
@@ -59,10 +60,20 @@ export class TableContextProvider extends Component {
 		return false;
 	}
 	setRunning = (running) => {
-		this.setState({
-			...this.state,
-			running,
-		});
+		if (running) {
+			this.setState({
+				...this.state,
+				running,
+			});
+		} else {
+			this.setState({
+				...this.state,
+				running,
+				isPaused: false,
+				mazeRunning: false,
+				currentBuildingPath: null,
+			});
+		}
 
 		return;
 	};
@@ -137,6 +148,8 @@ export class TableContextProvider extends Component {
 	cannotFindDuck = () => {
 		let newState = { ...this.state };
 		newState.running = false;
+		newState.isPaused = false;
+		newState.currentBuildingPath = null;
 		newState.isToastVisible = true;
 		this.setState(newState, () => {
 			this.resetToast();
@@ -172,6 +185,7 @@ export class TableContextProvider extends Component {
 				...prevState,
 				maze: name,
 				running: name === 'maze' ? false : true,
+				mazeRunning: name === 'maze' ? false : true,
 			};
 		});
 		if (name === 'maze') return;

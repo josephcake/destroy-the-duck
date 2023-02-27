@@ -9,25 +9,6 @@ export const NavOptions = ({ value, text }) => {
 	);
 };
 
-export const NavButtons = ({ name, text, isRunning, clearBoard, theme }) => {
-	const shouldClear = (e) => {
-		if (name) {
-			clearBoard(e);
-		} else {
-			clearBoard();
-		}
-	};
-	return (
-		<button
-			name={name}
-			disabled={isRunning}
-			className={`nav__button__clear ${theme}_bg `}
-			onClick={(e) => shouldClear(e)}>
-			{text}
-		</button>
-	);
-};
-
 export const NavSettings = ({
 	name,
 	className,

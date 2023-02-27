@@ -21,6 +21,7 @@ const App = () => {
 				theme,
 				speed,
 				running,
+				mazeRunning,
 				setTheme,
 				setSpeed,
 				algorithm,
@@ -46,6 +47,7 @@ const App = () => {
 							pause={pause}
 							isPaused={isPaused}
 							running={running}
+							mazeRunning={mazeRunning}
 							setSpeed={setSpeed}
 							setTheme={setTheme}
 							algorithm={algorithm}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { algorithmOptions, mazeOptions, clearButtons } from './constants';
-import { NavButtons, NavOptions, NavSettings } from './NavItems';
+import { NavOptions, NavSettings } from './NavItems';
 
 const Nav = ({
 	go,
@@ -8,6 +8,7 @@ const Nav = ({
 	pause,
 	isPaused,
 	running,
+	mazeRunning,
 	setSpeed,
 	setTheme,
 	setIntro,
@@ -17,7 +18,6 @@ const Nav = ({
 	clearBoard,
 	selectAlgorithm,
 }) => {
-	console.log({ isPaused, running });
 	const shouldUpdateMazeSelection = (e) => {
 		const name = e.target.value;
 		if (!running) {
@@ -69,7 +69,7 @@ const Nav = ({
 				</select>
 			</div>
 			<div className={'nav__action nav__items'}>
-				{running ? (
+				{running && !mazeRunning ? (
 					<button
 						onClick={pause}
 						className={`nav__button pause ${theme}_border`}>
