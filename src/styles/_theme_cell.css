@@ -298,6 +298,7 @@
 	animation-iteration-count: 1;
 	animation-fill-mode: forwards;
 	animation-play-state: running;
+	z-index: 9999;
 }
 
 @keyframes neon_wallAnimation {
