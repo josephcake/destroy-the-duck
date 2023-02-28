@@ -1,7 +1,7 @@
 import { checkValidCells } from './checkValidCellsHelper';
 export const randomHelper = (starting, ending) => {
-	let path = {};
-	let queue = [];
+	let path = { [starting]: true };
+	let queue = [starting];
 	const helper = (current) => {
 		const direction = Math.floor(Math.random() * 4);
 		let validCells = checkValidCells(current);

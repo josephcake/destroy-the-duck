@@ -26,7 +26,7 @@ export class TableContextProvider extends Component {
 		mazeRunning: false,
 		speed: 100,
 		speedText: 'norm',
-		theme: NEON,
+		theme: LIGHT,
 		maze: 'maze',
 		isBuilding: false,
 		isToastVisible: false,
@@ -504,9 +504,8 @@ export class TableContextProvider extends Component {
 						if (queue.indexOf(ending) === -1) {
 							return this.cannotFindDuck();
 						} else {
-							this.setRunning(false);
+							return this.setRunning(false);
 						}
-						return;
 					} else {
 						helper();
 					}
@@ -615,6 +614,7 @@ export class TableContextProvider extends Component {
 		let queue = randomHelper(this.state.starting, ending);
 		let counter = 0;
 		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
+
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
@@ -627,9 +627,8 @@ export class TableContextProvider extends Component {
 					if (queue.indexOf(ending) === -1) {
 						return this.cannotFindDuck();
 					} else {
-						this.setRunning(false);
+						return this.setRunning(false);
 					}
-					return;
 				} else {
 					helper();
 				}
@@ -670,9 +669,8 @@ export class TableContextProvider extends Component {
 					if (queue.indexOf(ending) === -1) {
 						return this.cannotFindDuck();
 					} else {
-						this.setRunning(false);
+						return this.setRunning(false);
 					}
-					return;
 				} else {
 					helper();
 				}
@@ -699,9 +697,8 @@ export class TableContextProvider extends Component {
 					if (queue.indexOf(starting) === -1) {
 						return this.cannotFindDuck();
 					} else {
-						this.setRunning(false);
+						return this.setRunning(false);
 					}
-					return;
 				} else {
 					helper();
 				}
@@ -728,9 +725,8 @@ export class TableContextProvider extends Component {
 					if (queue.indexOf(ending) === -1) {
 						return this.cannotFindDuck();
 					} else {
-						this.setRunning(false);
+						return this.setRunning(false);
 					}
-					return;
 				} else {
 					helper();
 				}
@@ -758,9 +754,8 @@ export class TableContextProvider extends Component {
 					if (queue.indexOf(ending) === -1) {
 						return this.breadthFirstSearch();
 					} else {
-						this.setRunning(false);
+						return this.setRunning(false);
 					}
-					return;
 				} else {
 					helper();
 				}

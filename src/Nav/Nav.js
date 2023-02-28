@@ -154,7 +154,8 @@ const Nav = ({
 					<NavSettings
 						className={`nav__setting_speed ${theme}_bg_secondary`}
 						name={'speed'}
-						text={speedText}
+						// text={speedText}
+						text={'Speed'}
 					/>
 					<div className={`tooltip__container`}>
 						<div
