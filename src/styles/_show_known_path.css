@@ -1,0 +1,8 @@
+.knownPathBtn {
+	font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial,
+		sans-serif;
+	align-self: flex-start;
+	margin: 20px;
+	padding: 20px;
+	cursor: pointer;
+}

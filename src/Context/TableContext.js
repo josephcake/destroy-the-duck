@@ -59,20 +59,23 @@ export class TableContextProvider extends Component {
 		}
 		return false;
 	}
-	setRunning = (running) => {
-		if (running) {
-			this.setState({
-				...this.state,
-				running,
-			});
+	setRunning = (running, shouldShowKnownPathBtn) => {
+		if (shouldShowKnownPathBtn) {
 		} else {
-			this.setState({
-				...this.state,
-				running,
-				isPaused: false,
-				mazeRunning: false,
-				currentBuildingPath: null,
-			});
+			if (running) {
+				this.setState({
+					...this.state,
+					running,
+				});
+			} else {
+				this.setState({
+					...this.state,
+					running,
+					isPaused: false,
+					mazeRunning: false,
+					currentBuildingPath: null,
+				});
+			}
 		}
 
 		return;
@@ -111,6 +114,8 @@ export class TableContextProvider extends Component {
 	setTheme = (newThemeName) => {
 		let tds = document.querySelectorAll('td');
 		let tbody = document.querySelectorAll('tbody')[0];
+		let knownPathBtn = document.querySelectorAll('.knownPathBtn')[0];
+
 		let currentThemeName = tds[0].className.includes(DARK)
 			? DARK
 			: tds[0].className.includes(LIGHT)
@@ -118,6 +123,8 @@ export class TableContextProvider extends Component {
 			: NEON;
 
 		tbody.className = `${newThemeName}_border`;
+
+		knownPathBtn.className = `knownPathBtn ${newThemeName}_bg_secondary ${newThemeName}_border`;
 
 		for (let i = 0; i < tds.length; i++) {
 			let td = tds[i];

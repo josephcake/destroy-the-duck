@@ -6,11 +6,15 @@ class Main extends React.Component {
 		return false;
 	}
 	render() {
-		const { rows, cols } = this.props;
+		const { rows, cols, theme } = this.props;
 		return (
 			<div
 				id={'main'}
 				className={`main`}>
+				{/* <div className={`knownPathBtn ${theme}_bg_secondary`}>
+					Show Known Path
+				</div> */}
+
 				<table>
 					<tbody className={`tbody`}>
 						<Table

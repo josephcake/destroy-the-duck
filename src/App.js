@@ -64,6 +64,7 @@ const App = () => {
 							cols={cols}
 							rows={rows}
 							theme={theme}
+							running={running}
 						/>
 						<div className='spacer' />
 						<Footer theme={theme} />

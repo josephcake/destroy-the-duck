@@ -1,24 +1,25 @@
-import React from "react";
-import ReactDOM from "react-dom";
+import React from 'react';
+import ReactDOM from 'react-dom';
 
-import "./styles/_base.css";
-import "./styles/_nav.css";
-import "./styles/_table.css";
-import "./styles/_footer.css";
-import "./styles/_legend.css";
-import "./styles/_intro.css";
-import "./styles/_theme.css";
-import "./styles/_theme_cell.css";
-import App from "./App";
-import * as serviceWorker from "./serviceWorker";
-import { TableContextProvider } from "./Context/TableContext";
+import './styles/_base.css';
+import './styles/_nav.css';
+import './styles/_table.css';
+import './styles/_footer.css';
+import './styles/_legend.css';
+import './styles/_intro.css';
+import './styles/_theme.css';
+import './styles/_theme_cell.css';
+import './styles/_show_known_path.css';
+import App from './App';
+import * as serviceWorker from './serviceWorker';
+import { TableContextProvider } from './Context/TableContext';
 
 ReactDOM.render(
-  <TableContextProvider>
-    <App />
-  </TableContextProvider>,
+	<TableContextProvider>
+		<App />
+	</TableContextProvider>,
 
-  document.getElementById("root")
+	document.getElementById('root'),
 );
 
 // If you want your app to work offline and load faster, you can change
