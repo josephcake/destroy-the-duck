@@ -114,7 +114,7 @@ export class TableContextProvider extends Component {
 	setTheme = (newThemeName) => {
 		let tds = document.querySelectorAll('td');
 		let tbody = document.querySelectorAll('tbody')[0];
-		let knownPathBtn = document.querySelectorAll('.knownPathBtn')[0];
+		// let knownPathBtn = document.querySelectorAll('.knownPathBtn')[0];
 
 		let currentThemeName = tds[0].className.includes(DARK)
 			? DARK
@@ -124,7 +124,7 @@ export class TableContextProvider extends Component {
 
 		tbody.className = `${newThemeName}_border`;
 
-		knownPathBtn.className = `knownPathBtn ${newThemeName}_bg_secondary ${newThemeName}_border`;
+		// knownPathBtn.className = `knownPathBtn ${newThemeName}_bg_secondary ${newThemeName}_border`;
 
 		for (let i = 0; i < tds.length; i++) {
 			let td = tds[i];
