@@ -29,14 +29,16 @@ export class TableContextProvider extends Component {
 		theme: LIGHT,
 		maze: 'maze',
 		isBuilding: false,
+		isDragging: false,
+		draggingEl: null,
 		isToastVisible: false,
 		isPaused: false,
 		currentBuildingPath: null,
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
-		window.addEventListener('mouseup', this.wallConstructorOff);
-		table.addEventListener('mousedown', this.wallConstructorOn);
+		window.addEventListener('mouseup', this.dragOrWallConstructionOff);
+		table.addEventListener('mousedown', this.dragOrWallConstructionOn);
 		this.checkInitialTheme();
 		// table.addEventListener('mousemove', this.wallConstructorOn);
 	}
@@ -88,26 +90,69 @@ export class TableContextProvider extends Component {
 			this.setTheme(LIGHT);
 		}
 	};
+	dragOrWallConstructionOn = (e) => {
+		if (
+			!this.state.isBuilding &&
+			!this.state.isDragging &&
+			!this.state.running &&
+			!this.state.mazeRunning
+		) {
+			let newState = { ...this.state };
 
-	wallConstructorOn = () => {
+			const isStarting = e.target.id === this.state.starting;
+			const isEnding = e.target.id === this.state.ending;
+			if (isStarting) {
+				newState.isDragging = true;
+				newState.draggingEl = { id: e.target.id, point: 'starting' };
+			} else if (isEnding) {
+				newState.isDragging = true;
+				newState.draggingEl = { id: e.target.id, point: 'ending' };
+			} else {
+				newState.isBuilding = true;
+			}
+			this.setState(newState);
+		}
+	};
+	dragOrWallConstructionOff = (e) => {
 		let newState = { ...this.state };
-		newState.isBuilding = true;
+		if (this.state.isDragging) {
+			newState[newState.draggingEl.point] = newState.draggingEl.id;
+			newState.isDragging = false;
+			newState.draggingEl = null;
+		} else {
+			newState.isBuilding = false;
+		}
 		this.setState(newState);
 	};
-	wallConstructorOff = () => {
-		let newState = { ...this.state };
-		newState.isBuilding = false;
-		this.setState(newState);
-	};
 
-	wallBuilding = (e) => {
+	draggingOrWallBuilding = (e) => {
+		const cell = document.getElementById(e);
+		const isValidCell =
+			cell.className.includes(UNVISITED) && !cell.className.includes(WALL);
 		if (this.state.isBuilding && !this.state.running) {
-			const cell = document.getElementById(e);
-			const isValidCell =
-				cell.className.includes(UNVISITED) && !cell.className.includes(WALL);
 			if (isValidCell) {
 				const classname = cell.className.replace(UNVISITED, WALL);
 				cell.className = classname;
+			}
+		} else if (this.state.isDragging && !this.state.running) {
+			if (isValidCell) {
+				const prevStartingCell = document.getElementById(
+					this.state.draggingEl.id,
+				);
+				const updatedPrevStartingCellClassName =
+					prevStartingCell.className.replace(
+						this.state.draggingEl.point,
+						'unvisited',
+					);
+				prevStartingCell.className = updatedPrevStartingCellClassName;
+				const currentClassName = cell.className.replace(
+					'unvisited',
+					this.state.draggingEl.point,
+				);
+				cell.className = currentClassName;
+				let newState = { ...this.state };
+				newState['draggingEl'].id = e;
+				this.setState(newState);
 			}
 		}
 	};
@@ -443,6 +488,8 @@ export class TableContextProvider extends Component {
 				visitedCellsArr[k].className = normalizedCell;
 			}
 		}
+
+		return true;
 	};
 
 	selectAlgorithm = (e) => {
@@ -454,9 +501,10 @@ export class TableContextProvider extends Component {
 
 	go = () => {
 		this.returnToUnvisited(`visited`);
+
 		const name = this.state.algorithm;
-		let newState = { ...this.state };
 		if (name === 'algorithm') {
+			let newState = { ...this.state };
 			newState.running = false;
 			this.setState(newState);
 			return;
@@ -580,7 +628,11 @@ export class TableContextProvider extends Component {
 			this.state.starting,
 			this.state.ending,
 		);
-		this.setState({ ...this.state, currentBuildingPath: queue, running: true });
+
+		this.setState(
+			{ ...this.state, currentBuildingPath: queue, running: true },
+			() => {},
+		);
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
@@ -604,6 +656,8 @@ export class TableContextProvider extends Component {
 						queue.endingQueue.indexOf(queue.lastQueueToRender) > -1 &&
 						queue.startingQueue.indexOf(queue.lastQueueToRender) > -1
 					) {
+						return this.setRunning(false);
+					} else if (queue.lastQueueToRender) {
 						return this.setRunning(false);
 					} else {
 						return this.cannotFindDuck();
@@ -778,9 +832,7 @@ export class TableContextProvider extends Component {
 					...this.state,
 					changeEndpoint: this.changeEndpoint,
 					clearBoard: this.clearBoard,
-					wallConstructorOn: this.wallConstructorOn,
-					wallConstructorOff: this.wallConstructorOff,
-					wallBuilding: this.wallBuilding,
+					draggingOrWallBuilding: this.draggingOrWallBuilding,
 					buildMaze: this.buildMaze,
 					randomlyGeneratedMaze: this.randomlyGeneratedMaze,
 					selectAlgorithm: this.selectAlgorithm,

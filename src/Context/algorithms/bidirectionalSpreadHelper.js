@@ -90,5 +90,11 @@ export const bidirectionalSpreadHelper = (pointOne, pointTwo) => {
 			break;
 		}
 	}
-	return { startingQueue, endingQueue, lastQueueToRender };
+	let newLastQueueToRender = lastQueueToRender;
+	lastQueueToRender = undefined;
+	return {
+		startingQueue,
+		endingQueue,
+		lastQueueToRender: newLastQueueToRender,
+	};
 };

@@ -5,7 +5,7 @@ import { TableContext } from '../Context/TableContext';
 const Td = ({ r, c }) => {
 	return (
 		<TableContext.Consumer>
-			{({ theme, starting, ending, wallBuilding }) => {
+			{({ theme, starting, ending, draggingOrWallBuilding }) => {
 				return (
 					<TdContainer
 						r={r}
@@ -13,7 +13,7 @@ const Td = ({ r, c }) => {
 						starting={starting}
 						ending={ending}
 						theme={theme}
-						wallBuilding={wallBuilding}
+						draggingOrWallBuilding={draggingOrWallBuilding}
 					/>
 				);
 			}}
@@ -41,7 +41,7 @@ class TdContainer extends React.Component {
 				className={`${classN}`}
 				id={cell}
 				draggable={false}
-				onMouseMove={(e) => this.props.wallBuilding(cell)}
+				onMouseMove={(e) => this.props.draggingOrWallBuilding(cell)}
 				currentTheme={theme}
 				state={classN}
 			/>

@@ -24,3 +24,21 @@ export const NavSettings = ({
 		</div>
 	);
 };
+export const NavThemes = ({
+	name,
+	theme,
+	value,
+	setTheme,
+	handleClick = () => {},
+}) => {
+	return (
+		<div
+			className={`tooltip ${theme}_bg ${
+				theme === name && 'nav__button__selected'
+			}`}
+			onClick={(e) => handleClick(name, setTheme)}
+			name={name}>
+			{value}
+		</div>
+	);
+};

@@ -14,7 +14,6 @@ export const dijkstraHelper = (starting, ending) => {
 
 		const [startRow, startCol] = start;
 		const [endRow, endCol] = end;
-
 		dist[startRow][startCol] = 0;
 
 		for (let i = 0; i < rows * cols; i++) {

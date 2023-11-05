@@ -44,3 +44,9 @@ html {
 	cursor: not-allowed !important;
 	opacity: 0.5;
 }
+.w_spacer {
+	width: 24px;
+}
+.h_spacer {
+	height: 24px;
+}

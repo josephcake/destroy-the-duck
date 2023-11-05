@@ -39,3 +39,9 @@ export const settingsToggle = [
 		src: 'https://static.thenounproject.com/png/1979641-200.png',
 	},
 ];
+
+export const themeOptions = [
+	{ name: 'light', value: 'Light' },
+	{ name: 'neon', value: 'Neon' },
+	{ name: 'dark', value: 'Dark' },
+];

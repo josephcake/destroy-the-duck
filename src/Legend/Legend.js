@@ -40,10 +40,11 @@ export const Legend = ({ theme }) => {
 					<label className={'legend__item-label'}>Goal :</label>
 				</div>
 				<div className={'legend__item'}>
-					<label className={'legend__item-label'}>Destroy the Duck!!</label>
+					<div className={`legend__item-box ${theme}_visited`}>
+						Destroy the Duck!!
+					</div>
 				</div>
 			</div>
 		</div>
 	);
 };
-// export default Legend;

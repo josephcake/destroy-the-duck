@@ -58,15 +58,21 @@ const App = () => {
 							setRunning={setRunning}
 							selectAlgorithm={selectAlgorithm}
 						/>
-						<Legend theme={theme} />
-						<div className='spacer' />
+						<hr />
+						<div>display steps taken</div>
+						<div>options to drag starting or ending to show best path</div>
+						<hr />
+						<div className='h_spacer' />
 						<Main
 							cols={cols}
 							rows={rows}
 							theme={theme}
 							running={running}
 						/>
-						<div className='spacer' />
+						<Legend theme={theme} />
+
+						<div className='h_spacer' />
+
 						<Footer theme={theme} />
 						{intro && (
 							<Intro

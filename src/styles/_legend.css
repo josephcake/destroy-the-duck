@@ -4,7 +4,8 @@
 	flex-direction: row;
 	justify-content: space-evenly;
 	align-items: center;
-	padding-bottom: 50px;
+	padding-bottom: 12px;
+
 	border-bottom: solid 1px gray;
 }
 .legend__section {
@@ -25,6 +26,16 @@
 	word-spacing: 5px;
 	font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial,
 		sans-serif;
+}
+.legend__item-box {
+	font-size: 20px;
+	word-spacing: 5px;
+	font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial,
+		sans-serif;
+	height: 30px;
+	padding: 2px;
+	border-radius: 5px;
+	color: lightgray;
 }
 .legend__item-icon {
 	margin: 0 5px;
