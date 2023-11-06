@@ -166,29 +166,17 @@ const Nav = ({
 					<button
 						disabled={running}
 						className={`
-        nav__button
-        nav__items__container
-        ${theme}_border
-				${theme}_bg_secondary
-        `}>
+        			nav__button
+        			nav__button_square
+        			nav__items__container
+        			${theme}_border
+							${theme}_bg_secondary
+        		`}
+						onClick={setTheme}>
 						<NavSettings
-							className={`nav__setting_theme `}
+							className={`nav__setting_theme_${theme} `}
 							name={'theme'}
 						/>
-						<div className={`tooltip__container`}>
-							{themeOptions.map((opt) => {
-								return (
-									<NavThemes
-										key={opt.name}
-										name={opt.name}
-										value={opt.value}
-										theme={theme}
-										setTheme={setTheme}
-										handleClick={handleItemClicked}
-									/>
-								);
-							})}
-						</div>
 					</button>
 				</div>
 			</div>

@@ -1,12 +1,12 @@
 /* light */
 .light_bg {
-	background-color: whitesmoke;
-	color: darkslateblue;
+	background-color: rgb(228, 228, 228);
+	color: rgb(116, 116, 116);
 	transition: all ease-in-out;
 }
 .light_bg_secondary {
-	background-color: darkslateblue;
-	color: whitesmoke;
+	background-color: rgb(116, 116, 116);
+	color: rgb(240, 240, 240);
 	transition: all ease-in-out;
 }
 .light_border {

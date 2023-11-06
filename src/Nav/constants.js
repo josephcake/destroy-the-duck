@@ -42,6 +42,6 @@ export const settingsToggle = [
 
 export const themeOptions = [
 	{ name: 'light', value: 'Light' },
-	{ name: 'neon', value: 'Neon' },
+	// { name: 'neon', value: 'Neon' },s
 	{ name: 'dark', value: 'Dark' },
 ];

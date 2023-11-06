@@ -36,6 +36,9 @@ const App = () => {
 				resetToast,
 				isPaused,
 				pause,
+				showBestPath,
+				hideBestPath,
+				isPreviewing,
 			}) => {
 				return (
 					<div className={`${theme}_bg app`}>
@@ -58,20 +61,26 @@ const App = () => {
 							setRunning={setRunning}
 							selectAlgorithm={selectAlgorithm}
 						/>
-						<hr />
-						<div>display steps taken</div>
-						<div>options to drag starting or ending to show best path</div>
-						<hr />
+						{/* <hr /> */}
+						{/* <div>display steps taken</div> */}
+						{/* <div>options to show best path</div> */}
+						{/* <hr /> */}
+						<div className='h_spacer' />
 						<div className='h_spacer' />
 						<Main
 							cols={cols}
 							rows={rows}
 							theme={theme}
 							running={running}
+							algorithm={algorithm}
+							showBestPath={showBestPath}
+							hideBestPath={hideBestPath}
+							isPreviewing={isPreviewing}
 						/>
-						<Legend theme={theme} />
-
 						<div className='h_spacer' />
+						<div className='h_spacer' />
+						<div className='h_spacer' />
+						<Legend theme={theme} />
 
 						<Footer theme={theme} />
 						{intro && (

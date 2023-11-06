@@ -3,17 +3,32 @@ import Table from '../Table/Table';
 
 class Main extends React.Component {
 	shouldComponentUpdate(nextProps, nextState) {
+		return true;
+		console.log({ nextProps });
+		if (nextProps.algorithm) return true;
 		return false;
 	}
 	render() {
-		const { rows, cols, theme } = this.props;
+		const {
+			rows,
+			cols,
+			theme,
+			algorithm,
+			showBestPath,
+			hideBestPath,
+			isPreviewing,
+		} = this.props;
 		return (
 			<div
 				id={'main'}
 				className={`main`}>
-				{/* <div className={`knownPathBtn ${theme}_bg_secondary`}>
-					Show Known Path
-				</div> */}
+				{algorithm !== 'dijkstra' && algorithm !== 'algorithm' && (
+					<div
+						className={`knownPathBtn ${theme}_bg_secondary`}
+						onClick={isPreviewing ? hideBestPath : showBestPath}>
+						{isPreviewing ? 'Hide Best Path' : 'Show Best Path'}
+					</div>
+				)}
 
 				<table>
 					<tbody className={`tbody`}>

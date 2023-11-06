@@ -5,4 +5,8 @@
 	margin: 20px;
 	padding: 20px;
 	cursor: pointer;
+	position: absolute;
+	bottom: 100%;
+	border-radius: 5px;
+	/* box-shadow: 5px 5px 5px lightgray; */
 }

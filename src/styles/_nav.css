@@ -1,6 +1,6 @@
 .nav {
 	padding: 10px 24px;
-	height: 60px;
+	height: 80px;
 	display: flex;
 	flex-wrap: wrap;
 	flex-direction: row;
@@ -10,8 +10,8 @@
 		sans-serif;
 }
 .nav-image {
-	height: 40px;
-	width: 40px;
+	height: 60px;
+	width: 60px;
 	filter: invert(1);
 	cursor: pointer;
 }
@@ -33,6 +33,13 @@
 	margin: 0 1px;
 	cursor: pointer;
 }
+.nav__button_square {
+	height: 60px;
+	min-width: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
 .nav__button__clear {
 	color: white;
 	font-weight: 800;
@@ -47,7 +54,7 @@
 	border: none;
 }
 .light_bg.nav__button__selected {
-	background-color: darkslateblue;
+	background-color: rgb(116, 116, 116);
 	color: whitesmoke;
 }
 .dark_bg.nav__button__selected {
@@ -73,7 +80,7 @@
 	width: 100%;
 	min-width: 110px;
 	font-size: 2rem;
-	padding: 0 10px;
+	padding: 10px;
 	color: rgb(28, 149, 56);
 	border: 1px solid white;
 }
@@ -82,7 +89,7 @@
 	min-width: 110px;
 	height: 100%;
 	font-size: 1.3rem;
-	padding: 0 10px;
+	padding: 10px;
 	color: rgb(28, 149, 56);
 	border: 1px solid white;
 }
@@ -127,12 +134,19 @@
 	cursor: pointer;
 	text-transform: capitalize;
 }
-.nav__setting_theme {
+.nav__setting_theme_dark {
 	background-size: cover;
-	background-image: url('https://cdn2.iconfinder.com/data/icons/images-and-photography-2/24/light-mode-dark-light-512.png');
-	filter: invert(1);
+	background-image: url('https://cdn-icons-png.flaticon.com/512/6714/6714978.png');
+	filter: invert(0.8) drop-shadow(3px 3px 3px white);
 	height: 40px;
 	width: 40px;
+}
+.nav__setting_theme_light {
+	background-size: cover;
+	background-image: url('https://cdn-icons-png.flaticon.com/512/6714/6714978.png');
+	height: 40px;
+	width: 40px;
+	filter: invert(0.8) drop-shadow(3px 3px 3px black);
 }
 
 .nav__setting_speed {

@@ -34,6 +34,7 @@ export class TableContextProvider extends Component {
 		isToastVisible: false,
 		isPaused: false,
 		currentBuildingPath: null,
+		isPreviewing: false,
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
@@ -156,17 +157,13 @@ export class TableContextProvider extends Component {
 			}
 		}
 	};
-	setTheme = (newThemeName) => {
+	setTheme = () => {
 		let tds = document.querySelectorAll('td');
 		let tbody = document.querySelectorAll('tbody')[0];
 		// let knownPathBtn = document.querySelectorAll('.knownPathBtn')[0];
 
-		let currentThemeName = tds[0].className.includes(DARK)
-			? DARK
-			: tds[0].className.includes(LIGHT)
-			? LIGHT
-			: NEON;
-
+		let currentThemeName = this.state.theme;
+		let newThemeName = currentThemeName === DARK ? LIGHT : DARK;
 		tbody.className = `${newThemeName}_border`;
 
 		// knownPathBtn.className = `knownPathBtn ${newThemeName}_bg_secondary ${newThemeName}_border`;
@@ -824,7 +821,52 @@ export class TableContextProvider extends Component {
 		};
 		helper();
 	};
+	showBestPath = () => {
+		let starting = this.state.starting;
+		let ending = this.state.ending;
+		let counter = 0;
+		let queue = dijkstraHelper(starting, ending);
+		const helper = () => {
+			console.log('running');
+			let timer = setTimeout(() => {
+				if (this.state.isPaused) return;
+				let currentCell = document.getElementById(queue[counter]);
+				let classname = currentCell.className.replace(
+					'visited',
+					'visited preview',
+				);
+				currentCell.className = classname;
+				counter++;
+				if (counter >= queue.length) {
+					clearTimeout(timer);
 
+					if (queue.indexOf(ending) === -1) {
+						return this.breadthFirstSearch();
+					} else {
+						return this.setRunning(false);
+					}
+				} else {
+					helper();
+				}
+			}, 'light');
+		};
+		helper();
+		let newState = { ...this.state };
+		newState.isPreviewing = true;
+		this.setState(newState);
+	};
+	hideBestPath = () => {
+		const affectedCells = document.querySelectorAll(`td.preview`);
+		const cellsArr = Array.from(affectedCells);
+		for (let i = 0; i < cellsArr.length; i++) {
+			let k = i;
+			let normalizedCell = cellsArr[k].className.replace(' preview', '');
+			cellsArr[k].className = normalizedCell;
+		}
+		let newState = { ...this.state };
+		newState.isPreviewing = false;
+		this.setState(newState);
+	};
 	render() {
 		return (
 			<TableContext.Provider
@@ -843,6 +885,8 @@ export class TableContextProvider extends Component {
 					cannotFindDuck: this.cannotFindDuck,
 					resetToast: this.resetToast,
 					pause: this.pause,
+					showBestPath: this.showBestPath,
+					hideBestPath: this.hideBestPath,
 				}}>
 				{this.props.children}
 			</TableContext.Provider>
