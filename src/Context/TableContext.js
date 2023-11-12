@@ -56,7 +56,8 @@ export class TableContextProvider extends Component {
 			nextState.speed !== this.state.speed ||
 			nextState.speedText !== this.state.speedText ||
 			nextState.maze !== this.state.maze ||
-			nextState.running !== this.state.running
+			nextState.running !== this.state.running ||
+			nextState.isPreviewing !== this.state.isPreviewing
 		) {
 			return true;
 		}
@@ -466,6 +467,7 @@ export class TableContextProvider extends Component {
 				cellsArr[k].className = normalizedCell;
 			}
 		} else {
+			this.hideBestPath();
 			const visitedCells = document.querySelectorAll(`td.${theme}_${VISITED}`);
 			const walledCells = document.querySelectorAll(`td.${theme}_${WALL}`);
 			const wallCellsArr = Array.from(walledCells);
@@ -827,7 +829,6 @@ export class TableContextProvider extends Component {
 		let counter = 0;
 		let queue = dijkstraHelper(starting, ending);
 		const helper = () => {
-			console.log('running');
 			let timer = setTimeout(() => {
 				if (this.state.isPaused) return;
 				let currentCell = document.getElementById(queue[counter]);
@@ -848,7 +849,7 @@ export class TableContextProvider extends Component {
 				} else {
 					helper();
 				}
-			}, 'light');
+			}, 0);
 		};
 		helper();
 		let newState = { ...this.state };

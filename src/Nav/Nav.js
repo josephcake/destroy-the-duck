@@ -22,6 +22,9 @@ const Nav = ({
 	buildMaze,
 	clearBoard,
 	selectAlgorithm,
+	showBestPath,
+	hideBestPath,
+	isPreviewing,
 }) => {
 	const shouldUpdateMazeSelection = (e) => {
 		const name = e.target.value;
@@ -45,6 +48,19 @@ const Nav = ({
 				/>
 			</div>
 			<div className={`nav__items`}>
+				{algorithm !== 'dijkstra' && algorithm !== 'algorithm' && (
+					<>
+						<div className={`nav__items`}>
+							<button
+								onClick={isPreviewing ? hideBestPath : showBestPath}
+								className={`nav__button nav__button__knownPathBtn ${theme}_border ${theme}_bg_secondary`}>
+								{isPreviewing ? 'Hide Best Path' : 'Show Best Path'}
+							</button>
+						</div>
+						<div className='w_spacer'></div>
+					</>
+				)}
+
 				<div className={`nav__algo nav__items`}>
 					<select
 						className={`nav__select ${theme}_border ${theme}_bg_secondary`}

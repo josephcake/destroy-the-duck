@@ -60,10 +60,12 @@ const App = () => {
 							clearBoard={clearBoard}
 							setRunning={setRunning}
 							selectAlgorithm={selectAlgorithm}
+							showBestPath={showBestPath}
+							hideBestPath={hideBestPath}
+							isPreviewing={isPreviewing}
 						/>
 						{/* <hr /> */}
 						{/* <div>display steps taken</div> */}
-						{/* <div>options to show best path</div> */}
 						{/* <hr /> */}
 						<div className='h_spacer' />
 						<div className='h_spacer' />
@@ -73,9 +75,6 @@ const App = () => {
 							theme={theme}
 							running={running}
 							algorithm={algorithm}
-							showBestPath={showBestPath}
-							hideBestPath={hideBestPath}
-							isPreviewing={isPreviewing}
 						/>
 						<div className='h_spacer' />
 						<div className='h_spacer' />

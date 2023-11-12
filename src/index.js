@@ -9,7 +9,6 @@ import './styles/_legend.css';
 import './styles/_intro.css';
 import './styles/_theme.css';
 import './styles/_theme_cell.css';
-import './styles/_show_known_path.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
 import { TableContextProvider } from './Context/TableContext';
