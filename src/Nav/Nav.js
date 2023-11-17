@@ -16,7 +16,6 @@ const Nav = ({
 	mazeRunning,
 	setSpeed,
 	setTheme,
-	setIntro,
 	algorithm,
 	speedText,
 	buildMaze,
@@ -41,7 +40,6 @@ const Nav = ({
 		<div className={`nav ${theme}_bg_secondary`}>
 			<div className={'nav__algo nav__items'}>
 				<img
-					onClick={setIntro}
 					className={'nav-image'}
 					src={require('../Images/duck.png')}
 					alt={'Duck'}

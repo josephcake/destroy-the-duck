@@ -15,11 +15,8 @@ export const mazeOptions = [
 	{ value: 'target', text: 'Target' },
 	{ value: 'stair', text: 'Stair' },
 	{ value: 'checker', text: 'Checker' },
-	{ value: 'forest', text: 'Forest' },
 	{ value: 'horizontal', text: 'Horizontal Wide' },
 	{ value: 'vertical', text: 'Vertical Wide' },
-	{ value: 'horizontalNarrow', text: 'Horizontal Narrow' },
-	{ value: 'verticalNarrow', text: 'Vertical Narrow' },
 	{ value: 'random', text: 'Random' },
 ];
 

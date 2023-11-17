@@ -41,7 +41,7 @@ export const Legend = ({ theme }) => {
 				</div>
 				<div className={'legend__item'}>
 					<div className={`legend__item-box ${theme}_visited`}>
-						Destroy the Duck!!
+						Hunt the Quack!!
 					</div>
 				</div>
 			</div>

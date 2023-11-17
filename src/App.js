@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './App.css';
 import Main from './Main/Main';
 import Nav from './Nav/Nav';
 import Footer from './Footer/Footer';
-import Intro from './Popup/Intro';
 import { Legend } from './Legend/Legend';
 import { TableContext } from './Context/TableContext';
 import { Toast } from './Toast/Toast';
 
 const App = () => {
-	const [intro, setIntro] = useState(true);
-	const toggleIntro = () => {
-		setIntro(!intro);
-	};
 	return (
 		<TableContext.Consumer>
 			{({
@@ -56,7 +51,6 @@ const App = () => {
 							algorithm={algorithm}
 							speedText={speedText}
 							buildMaze={buildMaze}
-							setIntro={toggleIntro}
 							clearBoard={clearBoard}
 							setRunning={setRunning}
 							selectAlgorithm={selectAlgorithm}
@@ -82,12 +76,7 @@ const App = () => {
 						<Legend theme={theme} />
 
 						<Footer theme={theme} />
-						{intro && (
-							<Intro
-								theme={theme}
-								setIntro={toggleIntro}
-							/>
-						)}
+
 						<Toast
 							resetToast={resetToast}
 							isToastVisible={isToastVisible}
