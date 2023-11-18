@@ -35,6 +35,7 @@ export class TableContextProvider extends Component {
 		isPaused: false,
 		currentBuildingPath: null,
 		isPreviewing: false,
+		wasPreviewing: false,
 	};
 	componentDidMount() {
 		const table = document.getElementById('main');
@@ -106,9 +107,17 @@ export class TableContextProvider extends Component {
 			if (isStarting) {
 				newState.isDragging = true;
 				newState.draggingEl = { id: e.target.id, point: 'starting' };
+				if (this.state.isPreviewing) {
+					this.hideBestPath();
+					newState.wasPreviewing = true;
+				}
 			} else if (isEnding) {
 				newState.isDragging = true;
 				newState.draggingEl = { id: e.target.id, point: 'ending' };
+				if (this.state.isPreviewing) {
+					this.hideBestPath();
+					newState.wasPreviewing = true;
+				}
 			} else {
 				newState.isBuilding = true;
 			}
@@ -121,6 +130,11 @@ export class TableContextProvider extends Component {
 			newState[newState.draggingEl.point] = newState.draggingEl.id;
 			newState.isDragging = false;
 			newState.draggingEl = null;
+			if (this.state.wasPreviewing) {
+				return this.showBestPath(e, newState);
+				// need to return here, prevent setting state here.
+				// state is set in showBestPath
+			}
 		} else {
 			newState.isBuilding = false;
 		}
@@ -823,9 +837,10 @@ export class TableContextProvider extends Component {
 		};
 		helper();
 	};
-	showBestPath = () => {
-		let starting = this.state.starting;
-		let ending = this.state.ending;
+	showBestPath = (e, draggingState) => {
+		let starting = draggingState ? draggingState.starting : this.state.starting;
+		let ending = draggingState ? draggingState.ending : this.state.ending;
+
 		let counter = 0;
 		let queue = dijkstraHelper(starting, ending);
 		const helper = () => {
@@ -852,11 +867,12 @@ export class TableContextProvider extends Component {
 			}, 0);
 		};
 		helper();
-		let newState = { ...this.state };
+		let newState = draggingState ? { ...draggingState } : { ...this.state };
 		newState.isPreviewing = true;
+		newState.wasPreviewing = false;
 		this.setState(newState);
 	};
-	hideBestPath = () => {
+	hideBestPath = (e, draggingState) => {
 		const affectedCells = document.querySelectorAll(`td.preview`);
 		const cellsArr = Array.from(affectedCells);
 		for (let i = 0; i < cellsArr.length; i++) {

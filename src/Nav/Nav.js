@@ -50,6 +50,7 @@ const Nav = ({
 					<>
 						<div className={`nav__items`}>
 							<button
+								disabled={running}
 								onClick={isPreviewing ? hideBestPath : showBestPath}
 								className={`nav__button nav__button__knownPathBtn ${theme}_border ${theme}_bg_secondary`}>
 								{isPreviewing ? 'Hide Best Path' : 'Show Best Path'}

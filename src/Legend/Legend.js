@@ -6,19 +6,11 @@ export const Legend = ({ theme }) => {
 			<div className={'legend__section'}>
 				<div className={'legend__item'}>
 					<label className={'legend__item-label'}>Arrow :</label>
-					<img
-						className={'legend__item-icon bullet'}
-						src={require('../Images/feathered-arrow.png')}
-						alt={'Bullet'}
-					/>
+					<div className={`legend__item-icon ${theme}_starting`}></div>
 				</div>
 				<div className={'legend__item'}>
 					<label className={'legend__item-label'}>Duck :</label>
-					<img
-						className={'legend__item-icon duck'}
-						src={require('../Images/duck.png')}
-						alt={'Duck'}
-					/>
+					<div className={`legend__item-icon ${theme}_ending`}></div>
 				</div>
 			</div>
 			<div className={'legend__section'}>
