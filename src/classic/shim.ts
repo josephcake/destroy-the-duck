@@ -12,10 +12,10 @@ export type ClassicDocument = {
 	querySelectorAll(selector: string): ClassicCell[];
 };
 
-/** classes: row-major, ROWS * COLS strings such as "dark_wall". */
-export function makeDocument(classes: readonly string[]): ClassicDocument {
-	if (classes.length !== ROWS * COLS) throw new Error(`expected ${ROWS * COLS} classes, got ${classes.length}`);
-	const cells: ClassicCell[] = classes.map((className, i) => ({ id: `${Math.floor(i / COLS)}-${i % COLS}`, className }));
+/** classes: row-major strings such as "dark_wall"; ROWS * COLS of them unless `cols` says the grid is wider. */
+export function makeDocument(classes: readonly string[], cols = COLS): ClassicDocument {
+	if (cols === COLS ? classes.length !== ROWS * COLS : classes.length % cols !== 0) throw new Error(`expected ${cols === COLS ? ROWS * COLS : `a multiple of ${cols}`} classes, got ${classes.length}`);
+	const cells: ClassicCell[] = classes.map((className, i) => ({ id: `${Math.floor(i / cols)}-${i % cols}`, className }));
 	// getElementById is an exact string lookup: "3-80", "-1-4" or "03-4" are null, as in the browser.
 	const byId = new Map(cells.map((c) => [c.id, c]));
 	return {
@@ -25,6 +25,20 @@ export function makeDocument(classes: readonly string[]): ClassicDocument {
 			return cells.slice();
 		},
 	};
+}
+
+/** Runs fn with globalThis.document = shim, even where a real document exists (the main-thread fallback). */
+export function withShim<T>(doc: ClassicDocument, fn: () => T): T {
+	if (typeof globalThis.document === 'undefined') return withDocument(doc, fn);
+	const g = globalThis as Record<string, unknown>;
+	const own = Object.getOwnPropertyDescriptor(g, 'document');
+	Object.defineProperty(g, 'document', { value: doc, configurable: true, writable: true });
+	try {
+		return fn();
+	} finally {
+		if (own) Object.defineProperty(g, 'document', own);
+		else delete g.document;
+	}
 }
 
 /** Runs fn with globalThis.document = shim when no real document exists (Worker, Node). */

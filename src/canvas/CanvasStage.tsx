@@ -264,13 +264,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	/** Where a node may go: not on a Home wall or the Arrow/Duck. */
 	const placeable = (r: number, c: number) => {
 		const { board, mirror } = live.current.scene.current;
-		if (!mirror.inWindow(r, c)) return board.get(r, c)?.kind !== 'wall';
+		if (!mirror.inWindow(r, c)) return board.get(r, c)?.kind !== 'wall' && !mirror.endpointAt(r, c);
 		const k = mirror.at(r, c);
 		return k !== K.Start && k !== K.End && k !== K.Wall;
 	};
 	const paintCell = (r: number, c: number, dir?: Dir) => {
 		const { tool, weight, scene } = live.current;
 		const { board, mirror } = scene.current;
+		if (mirror.free && mirror.endpointAt(r, c)) return; // free mode: the Arrow and Duck 1 aren't in the table to guard their cells
 		if (tool === 'oneway') {
 			if (placeable(r, c)) board.set(r, c, { kind: 'oneway', dir: dir ?? live.current.dir ?? 1 });
 			dirty.current = true;
@@ -336,6 +337,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		}
 		const cell = cellAt(view.current, p.x, p.y);
 		const { mirror } = scene.current;
+		const freeEnd = mirror.free ? mirror.endpointAt(cell.r, cell.c) : null;
+		if (freeEnd) {
+			// free mode: no table to drag in; a ghost follows the pointer and the drop places it
+			scene.current.ghost = { kind: freeEnd, ...cell };
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint: freeEnd, ghost: cell };
+			dirty.current = true;
+			return;
+		}
 		const inside = mirror.inWindow(cell.r, cell.c);
 		const k = mirror.at(cell.r, cell.c);
 		if (inside && (k === K.Start || k === K.End || tool === 'wall')) {

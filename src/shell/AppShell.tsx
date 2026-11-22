@@ -12,11 +12,12 @@ import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, migrateCellSet } from '../canvas/palette';
 import { SwatchKind } from '../canvas/render';
 import { Swatch } from './Swatch';
-import { searchAsync } from '../engine/runner';
-import { FindMode, Trace, TracedAlgo } from '../engine/trace';
+import { searchAsync, wideAsync } from '../engine/runner';
+import { ClassicAlgo, FindMode, Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, contentBox, lonePads } from './snapshot';
-import { dragTableCell, placeEndpoint } from './window';
+import { classicFrame, dragTableCell, moveWindow, placeEndpoint, wideJob } from './window';
+import { wideBlock } from '../classic/wide';
 import { PAD_LETTER } from '../model/nodes';
 import { unsupported } from '../engine/search';
 import { Dir } from '../model/board';
@@ -116,12 +117,13 @@ export default function AppShell() {
 	const [zoom, setZoom] = useState(1);
 	const [newToast, setNewToast] = useState(false);
 	const [lockedToast, setLockedToast] = useState(false);
-	const [farToast, setFarToast] = useState(false);
+	// a classic run that couldn't finish on a wide board says why (classic/wide.ts)
+	const [wideToast, setWideToast] = useState<string | null>(null);
 	useEffect(() => {
-		if (!farToast) return;
-		const t = setTimeout(() => setFarToast(false), 4000);
+		if (!wideToast) return;
+		const t = setTimeout(() => setWideToast(null), 8000);
 		return () => clearTimeout(t);
-	}, [farToast]);
+	}, [wideToast]);
 	useEffect(() => {
 		if (!lockedToast) return;
 		const t = setTimeout(() => setLockedToast(false), 2500);
@@ -277,6 +279,28 @@ export default function AppShell() {
 		setPlaying(autoplay);
 	};
 
+	// A classic algorithm on a board wider than its 35x80 table: the same helper,
+	// off the main thread on a shim, played back like a new algorithm.
+	const startWide = async (which: ClassicAlgo, bounds: Bounds) => {
+		setLanding(false);
+		closeSheetOnPhone();
+		setBestPath(null);
+		setClassicMs(null);
+		setWideToast(null);
+		ctx.clearBoard('visited');
+		if (ctx.isPreviewing) ctx.hideBestPath();
+		const res = await wideAsync(wideJob(which, board, mirror, bounds));
+		if (!res.ok) {
+			clearTrace();
+			setWideToast(res.reason);
+			return;
+		}
+		scene.current.traceTimes = new Map();
+		setTraceState(new TraceState(res.trace));
+		setApplied(0);
+		setPlaying(true);
+	};
+
 	const clearTrace = () => {
 		setTraceState(null);
 		setPlaying(false);
@@ -298,6 +322,9 @@ export default function AppShell() {
 		closeSheetOnPhone();
 		if (!algo) return setPickerOpen(true);
 		if (isTraced(algo)) return void startTrace(algo, true);
+		const f = classicFrame(board, mirror);
+		if (f.kind === 'wide') return void startWide(algo, f.bounds);
+		moveWindow(mirror, board, f.origin); // everything placed fits 35x80: cover it, then run on the table as always
 		clearTrace();
 		setBestPath(null);
 		classicRun.current = true;
@@ -333,7 +360,7 @@ export default function AppShell() {
 		setLanding(false);
 		clearTrace();
 		setBestPath(null);
-		if (!maze.startsWith('gen:')) return ctx.buildMaze(maze);
+		if (!maze.startsWith('gen:')) return mirror.free ? undefined : ctx.buildMaze(maze);
 		// New generators: Generate rolls a new seed; Enter in the seed field replays one.
 		const s = useSeed ?? newSeed();
 		setSeed(s);
@@ -374,12 +401,13 @@ export default function AppShell() {
 	const lone = lonePads(board);
 	const snapNow = buildSnapshot(board, mirror, { findMode });
 	const blocked = (a: TracedAlgo) => unsupported(a, snapNow);
-	const why = algo && isTraced(algo) ? blocked(algo) : null;
-	const outside = [...board.entries()].some(([r, c]) => !mirror.inWindow(r, c));
 	const classic = algo && !isTraced(algo) ? CLASSIC.find((c) => c.id === algo)! : null;
-	const showBestPathBtn = classic && classic.id !== 'dijkstra';
-	// opt-in outline: only while a classic algorithm is picked and something lies past its window
-	scene.current.classicWindow = classic && outside ? mirror.window : null;
+	// classic runs: on the table when everything fits 35x80, else wide (content + 16), or a stated limit
+	const frame = classic ? classicFrame(board, mirror) : null;
+	const wide = frame?.kind === 'wide' ? frame : null;
+	const why = algo && isTraced(algo) ? blocked(algo) : classic && wide ? wideBlock(classic.id, wide.rows, wide.cols) : null;
+	const showBestPathBtn = classic && classic.id !== 'dijkstra' && !wide;
+	const classicMazeOff = !!mirror.free && !maze.startsWith('gen:');
 	const tr = traceState;
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
@@ -392,8 +420,8 @@ export default function AppShell() {
 	// Home (H) frames the Arrow and Duck 1 with 3 cells around them. Phones
 	// never go below 75 % (cells stay tappable); the board around is endless.
 	const homeBounds = (): Bounds => {
-		if (mirror.start < 0 || mirror.end < 0) return mirror.window;
-		const a = mirror.cellAt(mirror.start), d = mirror.cellAt(mirror.end);
+		const a = mirror.startCell(), d = mirror.endCell();
+		if (!a || !d) return mirror.window;
 		return { r0: Math.min(a.r, d.r) - 3, c0: Math.min(a.c, d.c) - 3, r1: Math.max(a.r, d.r) + 3, c1: Math.max(a.c, d.c) + 3 };
 	};
 	const homeMinZoom = small ? PHONE_MIN_ZOOM : 0.5;
@@ -415,9 +443,10 @@ export default function AppShell() {
 		}, 0);
 	});
 	const onEndpointDrop = (which: 'start' | 'end', cell: { r: number; c: number }) => {
+		const cur = which === 'start' ? mirror.startCell() : mirror.endCell();
+		if (cur && cur.r === cell.r && cur.c === cell.c) return; // a click, not a move
 		reset();
-		const res = placeEndpoint(mirror, board, which, cell);
-		if (res === 'too-far') setFarToast(true);
+		placeEndpoint(mirror, board, which, cell);
 		scheduleRender();
 	};
 	const legendRef = useRef<HTMLDivElement>(null);
@@ -551,7 +580,11 @@ export default function AppShell() {
 							<div className="chips chips--reserve" data-testid="find-chips">
 								{algo && <span className="chip chip--mono" data-testid="order-chip">order {classic ? `classic: ${classic.order}` : 'N · E · S · W'}</span>}
 								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
-								{classic && outside && <span className="chip" data-testid="classic-window">Classic algorithms see the 35 × 80 cells around the Arrow and Duck (dashed); the newer ones see everything</span>}
+								{classic && wide && !why && (
+									<span className="chip" data-testid="classic-wide">
+										Runs on the {wide.rows} × {wide.cols} cells around everything you placed
+									</span>
+								)}
 								{algo && isTraced(algo) && <span className="chip">Searches everything you placed, plus 16 cells around it</span>}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
 								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
@@ -649,10 +682,21 @@ export default function AppShell() {
 									))}
 								</optgroup>
 							</select>
-							<button className="btn" disabled={busy} aria-busy={ctx.mazeRunning || undefined} onClick={() => buildMaze()} data-testid="generate">
+							<button
+								className="btn"
+								disabled={busy || classicMazeOff}
+								title={classicMazeOff ? 'Classic mazes fill the 35 × 80 cells around the Arrow and Duck 1, which are further apart now. Pick a Fill-the-view maze.' : undefined}
+								aria-busy={ctx.mazeRunning || undefined}
+								onClick={() => buildMaze()}
+								data-testid="generate">
 								{ctx.mazeRunning ? 'Generating maze…' : 'Generate'}
 							</button>
 						</div>
+						{classicMazeOff && (
+							<div className="chips" style={{ marginTop: 8 }}>
+								<span className="chip" data-testid="classic-maze-off">Classic mazes fill the 35 × 80 cells around the Arrow and Duck 1, which are further apart now. Pick a Fill-the-view maze.</span>
+							</div>
+						)}
 						{maze.startsWith('gen:') && (
 							<div className="row" style={{ marginTop: 8 }}>
 								<label className="label" htmlFor="gen-seed">Seed</label>
@@ -814,12 +858,12 @@ export default function AppShell() {
 					<button className="icon-btn" aria-label="Home" title="Home (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
 				</div>
 
-				{farToast && (
-					<button className="float toast" role="status" data-testid="far-toast" onClick={() => setFarToast(false)}>
-						The Arrow and Duck 1 stay within 35 × 80 cells of each other, so the classic searches can run. Add more ducks anywhere with the Duck tool.
+				{wideToast && (
+					<button className="float toast" role="status" data-testid="wide-toast" onClick={() => setWideToast(null)}>
+						{wideToast}
 					</button>
 				)}
-				{lockedToast && !ctx.isToastVisible && !newToast && !farToast && (
+				{lockedToast && !ctx.isToastVisible && !newToast && !wideToast && (
 					<button className="float toast" role="status" data-testid="locked-toast" onClick={() => setLockedToast(false)}>
 						Drawing is locked while the search runs. Wait, or press Reset.
 					</button>

@@ -109,25 +109,53 @@ const endpointAt = (which: 'starting' | 'ending') => {
 	return [r, c] as [number, number];
 };
 
-test('the Arrow and Duck walk far off the old Home together; a drop too far apart is refused', async () => {
+test('Duck 1 goes anywhere: far from the Arrow the table sits idle, and it comes back with its walls', async () => {
 	const canvas = shell();
 	await flush();
-	drag(canvas, [17, 64], [-300, 40]); // 317 rows from the Arrow: no 35x80 window holds both
-	expect(screen.getByTestId('far-toast')).toBeTruthy();
-	const duck = endpointAt('ending'); // the table drag stopped at the window edge (row 0), origin still (0, 0)
-	expect(duck[0]).toBe(0);
-	drag(canvas, [17, 15], [-20, 15]); // Arrow up 37 rows: the window moves to hold both
+	act(() => void fireEvent.pointerDown(canvas, at(5, 5))); // one wall at world (5, 5)
+	act(() => void fireEvent.pointerUp(canvas, at(5, 5)));
+	act(() => void fireEvent.mouseUp(window));
+	drag(canvas, [17, 64], [-300, 40]); // 317 rows from the Arrow: no 35x80 table holds both
 	await flush();
-	let o = windowFor({ r: -20, c: 15 }, { r: 0, c: duck[1] })!;
-	expect(o.r).toBeLessThan(0);
-	expect(endpointAt('starting')).toEqual([-20 - o.r, 15 - o.c]);
-	drag(canvas, [0, duck[1]], [-50, 20]); // then the Duck past it, and again
+	expect(screen.queryByTestId('far-toast')).toBeNull(); // no refusal any more
+	expect(tableWalls()).toBe(0); // free mode: every wall is on the Board
+	drag(canvas, [-300, 40], [-300, 41]); // the Duck answers at its new world cell
 	await flush();
-	const o2 = windowFor({ r: -50, c: 20 }, { r: -20, c: 15 })!;
-	expect(endpointAt('ending')).toEqual([-50 - o2.r, 20 - o2.c]);
-	expect(endpointAt('starting')).toEqual([-20 - o2.r, 15 - o2.c]);
-	o = o2;
-	expect(o.r).toBeLessThanOrEqual(-50); // 50 rows above the old Home's top edge
+	drag(canvas, [17, 15], [-290, 30]); // the Arrow follows: both fit one table again
+	await flush();
+	const o = windowFor({ r: -290, c: 30 }, { r: -300, c: 41 })!;
+	expect(endpointAt('starting')).toEqual([-290 - o.r, 30 - o.c]);
+	expect(endpointAt('ending')).toEqual([-300 - o.r, 41 - o.c]);
+	drag(canvas, [-290, 30], [17, 15]); // and all the way home
+	await flush();
+	drag(canvas, [-300, 41], [17, 64]);
+	await flush();
+	expect(document.getElementById('17-15')!.className).toMatch(/_starting/);
+	expect(document.getElementById('17-64')!.className).toMatch(/_ending/);
+	expect(document.getElementById('5-5')!.className).toMatch(/_wall/); // back in the table, same world cell
+	expect(tableWalls()).toBe(1);
+});
+
+test('a classic algorithm with Duck 1 far away runs wide; classic Dijkstra says why it cannot', async () => {
+	const canvas = shell();
+	await flush();
+	drag(canvas, [17, 64], [17, 200]); // 185 columns from the Arrow
+	await flush();
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getByRole('option', { name: /Breadth First/ }));
+	expect(screen.getByTestId('classic-wide').textContent).toBe('Runs on the 33 × 218 cells around everything you placed');
+	expect((screen.getByTestId('go') as HTMLButtonElement).disabled).toBe(false);
+	fireEvent.click(screen.getByTestId('go'));
+	await flush();
+	await act(() => new Promise((r) => setTimeout(r, 300)));
+	expect(Number(within(screen.getByTestId('stats')).getAllByText(/\d+/)[0].textContent)).toBeGreaterThan(0); // visits are playing
+	expect(screen.queryByTestId('wide-toast')).toBeNull();
+	act(() => void fireEvent.click(screen.getByTestId('go'))); // Pause
+	act(() => void fireEvent.click(screen.getByLabelText('Reset')));
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getByRole('option', { name: /^Dijkstra ?Draws/ }));
+	expect(screen.getByTestId('algo-blocked').textContent).toBe('Classic Dijkstra is written for a 35 × 80 grid, and this board needs 33 × 218. Try Dijkstra · weighted or A*.');
+	expect((screen.getByTestId('go') as HTMLButtonElement).disabled).toBe(true);
 });
 
 test('small screens: Duck 1 starts closer only when the classic gap cannot fit at 75 %', () => {

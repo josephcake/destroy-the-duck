@@ -18,8 +18,9 @@ export function applyGenerator(id: GenId, seed: number, board: Board, mirror: Le
 	// the generator keeps that cell open and reachable, so a way out stays open.
 	const pin = (q: Cell): Pt => local({ r: Math.min(region.r1, Math.max(region.r0, q.r)), c: Math.min(region.c1, Math.max(region.c0, q.c)) });
 	const centre = { r: (region.r0 + region.r1) >> 1, c: (region.c0 + region.c1) >> 1 };
-	const start = mirror.start >= 0 ? mirror.cellAt(mirror.start) : centre;
-	const ducks: Pt[] = mirror.end >= 0 ? [pin(mirror.cellAt(mirror.end))] : [];
+	const start = mirror.startCell() ?? centre;
+	const d1 = mirror.endCell();
+	const ducks: Pt[] = d1 ? [pin(d1)] : [];
 	const extra: (Cell & { n: number })[] = [];
 	const keepOpen: Pt[] = [];
 	for (const [r, c, t] of board.entries()) {

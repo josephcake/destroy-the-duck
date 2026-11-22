@@ -14,6 +14,7 @@ import { makeDocument, withDocument } from './shim';
 
 export type ClassicInput = {
 	classes: string[]; // Home, row-major, e.g. "dark_wall"
+	cols?: number; // wider than Home's 80 (classic/wide.ts); rows = classes.length / cols
 	starting: string;
 	ending: string;
 	seed?: number; // Random Search: seeds Math.random for this run only
@@ -62,7 +63,7 @@ export function runHelper(algo: ClassicAlgo, { starting, ending, seed }: Classic
 }
 
 export function runClassic(algo: ClassicAlgo, input: ClassicInput): ClassicOutput {
-	return withDocument(makeDocument(input.classes), () => {
+	return withDocument(makeDocument(input.classes, input.cols), () => {
 		const out = runHelper(algo, input);
 		if (algo === 'bidirectionalSearch') return { kind: 'bidirectional', ...(out as Omit<Extract<ClassicOutput, { kind: 'bidirectional' }>, 'kind'>) };
 		if (algo === 'dijkstra') {

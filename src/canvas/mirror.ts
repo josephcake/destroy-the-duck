@@ -5,6 +5,10 @@
 // The table is a 35x80 *window* onto the endless board: table cell "r-c" is
 // world cell (origin.r + r, origin.c + c). The window follows the Arrow and
 // Duck (shell/window.ts); nothing draws it.
+//
+// Free mode: when the Arrow and Duck 1 are too far apart for one 35x80 table,
+// the table sits idle (no walls, nothing in view) and they live in `free` as
+// world cells; every wall is on the Board. See shell/window.ts.
 import { Bounds, Cell, HOME_COLS, HOME_ROWS, idOf } from '../model/cell';
 
 export enum K {
@@ -39,6 +43,8 @@ export class LegacyMirror {
 	start = -1; // table index of the Arrow
 	end = -1; // table index of Duck 1
 	origin: Cell = { r: 0, c: 0 };
+	/** Free mode: the Arrow and Duck 1 as world cells while the table sits idle. */
+	free: { start: Cell; end: Cell } | null = null;
 	/** Set before a window move: the next batch of class changes carries no change time. */
 	silent = false;
 	visitedCount = 0;
@@ -98,9 +104,25 @@ export class LegacyMirror {
 		this.preview[i] = preview ? 1 : 0;
 	}
 
-	/** Table index of world cell (r, c), or -1 outside the window. */
+	/** Table index of world cell (r, c), or -1 outside the window (always -1 in free mode). */
 	index(r: number, c: number) {
-		return windowIndex(this.origin, r, c);
+		return this.free ? -1 : windowIndex(this.origin, r, c);
+	}
+	/** World cell of the Arrow, wherever it lives. */
+	startCell(): Cell | null {
+		return this.free ? this.free.start : this.start >= 0 ? this.cellAt(this.start) : null;
+	}
+	/** World cell of Duck 1, wherever it lives. */
+	endCell(): Cell | null {
+		return this.free ? this.free.end : this.end >= 0 ? this.cellAt(this.end) : null;
+	}
+	/** 'start' / 'end' when the Arrow / Duck 1 stands on world cell (r, c). */
+	endpointAt(r: number, c: number): 'start' | 'end' | null {
+		const a = this.startCell();
+		const d = this.endCell();
+		if (a && a.r === r && a.c === c) return 'start';
+		if (d && d.r === r && d.c === c) return 'end';
+		return null;
 	}
 	inWindow(r: number, c: number) {
 		return this.index(r, c) >= 0;

@@ -12,7 +12,7 @@ export function algoLabel(a: AlgoId | null) {
 }
 export function algoSub(a: AlgoId | null) {
 	if (!a) return 'Classic · New';
-	return isTraced(a) ? `${ALGO_INFO[a].family} · whole canvas` : 'Classic · Home grid';
+	return isTraced(a) ? `${ALGO_INFO[a].family} · whole canvas` : 'Classic · the cells around your board';
 }
 
 type Props = {
@@ -63,7 +63,7 @@ export function AlgoPicker({ value, open, disabled, onOpen, onPick, blocked }: P
 			</button>
 			{open && (
 				<div className="picker__list" role="listbox">
-					<div className="picker__group">Classic · Home grid</div>
+					<div className="picker__group">Classic</div>
 					{CLASSIC.map((a) => (
 						<button key={a.id} className="picker__item" role="option" aria-selected={value === a.id} onClick={() => pick(a.id)}>
 							<span>{a.label}</span>

@@ -38,8 +38,6 @@ export type Scene = {
 	learnCurrent: boolean; // ring the current trace node (Learn mode)
 	hover: { r: number; c: number } | null;
 	bestPath: { r: number; c: number }[] | null;
-	/** the classic window to outline, or null (the default: nothing marks it) */
-	classicWindow?: Bounds | null;
 	/** an Arrow or Duck being dragged outside the classic window: drawn faint under the pointer */
 	ghost?: { kind: 'start' | 'end'; r: number; c: number } | null;
 	now: number;
@@ -134,7 +132,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		if (t < 1) animating = true;
 		return Math.max(0, EASE.pop(t));
 	};
-	if (m.visitedCount > 0)
+	if (m.visitedCount > 0 && !m.free)
 		for (let i = 0; i < m.kind.length; i++)
 			if (m.kind[i] === K.Visited) {
 				const { r, c } = m.cellAt(i);
@@ -179,19 +177,6 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			drawPad(ctx, x + s / 2, y + s / 2, s, color, ends.length < 2, p, dpr);
 			padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color, s });
 		}
-	}
-
-	// Opt-in: the classic window's outline, only while a classic algorithm is
-	// picked and something lies outside the 35x80 cells it can see.
-	if (scene.classicWindow) {
-		const w = scene.classicWindow;
-		const a = cellToScreen(view, w.r0, w.c0);
-		ctx.save();
-		ctx.strokeStyle = p.homeLine;
-		ctx.lineWidth = 1.5;
-		ctx.setLineDash([6, 4]);
-		ctx.strokeRect(a.x - 1, a.y - 1, (w.c1 - w.c0 + 1) * s + 2, (w.r1 - w.r0 + 1) * s + 2);
-		ctx.restore();
 	}
 
 	// §4.10 paths: stitched thread (traced path, and the classic Show Best Path preview)
@@ -251,7 +236,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
 	if (m.previewOrder.length) {
 		const cells = m.previewOrder.map((i) => m.cellAt(i));
-		if (m.start >= 0) cells.unshift(m.cellAt(m.start));
+		const a = m.startCell();
+		if (a) cells.unshift(a);
 		drawPath(cells, false); // the classic player already animates it
 	}
 
@@ -269,9 +255,9 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 
 	// §4.5 / §4.6 characters (z3): start tab and duck stickers
-	const duckCell = m.end >= 0 ? m.cellAt(m.end) : null;
-	if (m.start >= 0) {
-		const a = m.cellAt(m.start);
+	const duckCell = m.endCell();
+	const a = m.startCell();
+	if (a) {
 		const q = cellToScreen(view, a.r, a.c);
 		const ang = duckCell ? Math.atan2(duckCell.r - a.r, duckCell.c - a.c) : 0;
 		drawStart(ctx, q.x + s / 2, q.y + s / 2, s, ang, p, dpr);
