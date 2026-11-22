@@ -259,8 +259,10 @@ export default function AppShell() {
 			// about 240 frames (a wide classic BFS can be 280k steps)
 			const perFrame = Math.max(25, Math.ceil(traceState.totalSteps / 240));
 			const loop = () => {
-				for (let k = 0; k < perFrame && !traceState.done; k++) traceState.seek(traceState.nextStepEnd());
-				seek(traceState.applied);
+				// build the target and let seek() apply it, so recordEvents sees the steps
+				let to = traceState.applied;
+				for (let k = 0; k < perFrame && to < traceState.trace.events.length; k++) to = traceState.nextStepEnd(to);
+				seek(to);
 				if (!traceState.done) raf = requestAnimationFrame(loop);
 			};
 			raf = requestAnimationFrame(loop);
