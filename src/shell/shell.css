@@ -129,6 +129,8 @@ kbd { font: 500 11px/14px var(--f-mono); border: 1px solid var(--line-ui); borde
 .inspector h3 { font: 600 11px/14px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: var(--s-3) 0 var(--s-2); }
 .inspector h3:first-child { margin-top: 0; }
 .narration { font-size: 14px; line-height: 21px; min-height: 63px; }
+.narration p { margin: 0; }
+.narration ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 19px; color: var(--ink-2); }
 .heap { width: 100%; border-collapse: collapse; font: 500 12.5px/18px var(--f-mono); }
 .heap th { text-align: left; font: 600 11px/14px var(--f-ui); color: var(--ink-3); padding: 2px 4px; }
 .heap td { padding: 2px 4px; border-top: 1px solid var(--line); }

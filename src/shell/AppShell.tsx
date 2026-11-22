@@ -220,8 +220,8 @@ export default function AppShell() {
 			else if (k === 'f') stage.current?.fit();
 			else if (k === '+' || k === '=') stage.current?.zoomStep(1);
 			else if (k === '-') stage.current?.zoomStep(-1);
-			else if (tab === 'learn' && traceState && k === '.') seek(traceState.applied + (e.shiftKey ? 10 : 1));
-			else if (tab === 'learn' && traceState && k === ',') seek(traceState.applied - (e.shiftKey ? 10 : 1));
+			else if (tab === 'learn' && traceState && k === '.') seek(traceState.endOf(traceState.position + (e.shiftKey ? 10 : 1)));
+			else if (tab === 'learn' && traceState && k === ',') seek(traceState.endOf(traceState.position - (e.shiftKey ? 10 : 1)));
 			else {
 				const t = TOOLS.find((x) => x.key === k);
 				if (t) setTool(t.id);
@@ -521,7 +521,7 @@ export default function AppShell() {
 				{tr && tab === 'learn' && (
 					<>
 						<Inspector state={tr} />
-						<StepBar state={tr} applied={applied} playing={playing} onSeek={(n) => { setPlaying(false); seek(n); }} onPlay={() => setPlaying((p) => !p)} />
+						<StepBar state={tr} playing={playing} onSeek={(p) => { setPlaying(false); seek(tr.endOf(p)); }} onPlay={() => setPlaying((p) => !p)} />
 					</>
 				)}
 

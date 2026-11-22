@@ -99,6 +99,7 @@ export function runSearch(algo: TracedAlgo, snap: Snapshot): Trace {
 	const path: string[] = [];
 	let pathCost = 0;
 	if (foundKey !== null) {
+		step++; // tracing the path is its own step
 		pathCost = best.get(foundKey)!;
 		const keys: number[] = [];
 		for (let k: number | undefined = foundKey; k !== undefined; k = parent.get(k)) keys.push(k);

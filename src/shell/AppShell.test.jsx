@@ -43,3 +43,21 @@ test('picking a classic algorithm shows its classic neighbour order', () => {
 	fireEvent.click(screen.getByRole('option', { name: /^A\*/ }));
 	expect(screen.getByTestId('order-chip').textContent).toMatch(/N · E · S · W/);
 });
+
+test('Learn: the inspector header and the step bar count the same steps', async () => {
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	fireEvent.click(screen.getByTestId('tab-learn'));
+	fireEvent.click(screen.getByTestId('learn-start'));
+	const fwd = await screen.findByTestId('step-forward');
+	for (let i = 0; i < 3; i++) fireEvent.click(fwd);
+	const total = screen.getByTestId('step-count').textContent.split(' / ')[1];
+	expect(screen.getByTestId('step-count').textContent).toBe(`3 / ${total}`);
+	expect(screen.getByTestId('inspector-step').textContent).toMatch(new RegExp(`step 3 / ${total}$`));
+	fireEvent.keyDown(window, { key: ',' });
+	expect(screen.getByTestId('step-count').textContent).toBe(`2 / ${total}`);
+	expect(screen.getByTestId('inspector-step').textContent).toMatch(new RegExp(`step 2 / ${total}$`));
+});
