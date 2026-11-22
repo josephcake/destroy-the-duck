@@ -16,7 +16,7 @@ test('shell mounts the hidden classic grid with Arrow and Duck, panel and landin
 	expect(screen.getByTestId('go')).toBeInTheDocument();
 });
 
-test('Pond is the default palette and Classic is one click away (decision 7)', () => {
+test('Paper is the default palette and Classic is one click away (decision 7, Paper v2.1)', () => {
 	localStorage.clear();
 	render(
 		<TableContextProvider>
@@ -24,7 +24,7 @@ test('Pond is the default palette and Classic is one click away (decision 7)', (
 		</TableContextProvider>,
 	);
 	const app = document.querySelector('.app');
-	expect(app.getAttribute('data-cells')).toBe('pond');
+	expect(app.getAttribute('data-cells')).toBe('paper');
 	fireEvent.click(screen.getByTestId('cells-classic'));
 	expect(app.getAttribute('data-cells')).toBe('classic');
 	expect(JSON.parse(localStorage.getItem('dtd.ui.v1')).cells).toBe('classic');
@@ -214,4 +214,16 @@ test("Mochi check 3: exactly one button is named 'Reset' (the run Reset), and it
 	expect(all[0]).toHaveAccessibleName('Reset');
 	expect(all[0]).toHaveAttribute('title', 'Reset (clear path)');
 	expect(screen.getByRole('button', { name: 'Zoom to 100%' })).toBeInTheDocument();
+});
+
+test('Paper v2.1 §9 #3: a stored Pond preference opens as Paper', () => {
+	localStorage.clear();
+	localStorage.setItem('dtd.ui.v1', JSON.stringify({ chrome: 'dark', cells: 'pond' }));
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	expect(document.querySelector('.app').getAttribute('data-cells')).toBe('paper');
+	expect(screen.getByTestId('cells-paper')).toBeInTheDocument();
 });

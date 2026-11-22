@@ -30,6 +30,7 @@ export class LegacyMirror {
 	kind = new Uint8Array(N);
 	preview = new Uint8Array(N);
 	changedAt = new Float64Array(N); // ms timestamp of the last kind change
+	prevKind = new Uint8Array(N); // kind before the last change (erase peel: was it a wall?)
 	previewOrder: number[] = []; // indices in the order preview tags appeared
 	start = -1;
 	end = -1;
@@ -77,6 +78,7 @@ export class LegacyMirror {
 		if (prev !== kind) {
 			if (prev === K.Visited) this.visitedCount--;
 			if (kind === K.Visited) this.visitedCount++;
+			this.prevKind[i] = prev;
 			this.kind[i] = kind;
 			this.changedAt[i] = now;
 		}

@@ -1,24 +1,31 @@
-// Walls (Prism review #1): raised slabs, cached per 16x16 chunk.
-// - 4-neighbour mask (N=1, E=2, S=4, W=8); outer corners round only where both
-//   orthogonal neighbours are open (unchanged rule), one union path per chunk.
-// - Two cached layers per chunk: the drop shadow, then the body (fill, 1dp top
-//   highlight, 1dp inner down edge, optional outline). All shadows are drawn
-//   before any body so a neighbour chunk's blur never lands on a wall top.
-// - The shadow is not motion, so it stays under reduced motion.
-// - Newly painted Home walls pop in (scale .85 -> 1, alpha .6 -> 1, 120 ms) on
-//   the live layer; they join the cached union once settled.
+// Walls: Paper v2.1 2-ply card (style.md §4.1), cached per 16x16 chunk.
+// - 4-neighbour mask (N=1, E=2, S=4, W=8) and one union path per chunk, built
+//   with paper-kit's addCutCell: shared sides overlap, outer corners round only
+//   where both orthogonal sides are open, open sides get the seeded inward
+//   deckle (hash of r, c: stable across chunk re-bakes).
+// - Two cached bitmaps per chunk: "shadow" (cast + ambient + under-ply) and
+//   "body" (top ply + top fibre + cut edges). All shadows are blitted before any
+//   body, so a neighbour chunk's blur or under-ply never lands on a wall top.
+// - The cast shadow is not motion, so it stays under reduced motion.
+// - Paint: flutter (220 ms). Erase: peel-away (160 ms). Both on the live layer,
+//   at most 64 cells a frame; the rest land instantly. Reduced motion: instant.
 import { Bounds, inHome } from '../model/cell';
 import { Palette } from './palette';
 import { View, cellToScreen } from './view';
+import { CellRef, DURATION, Shadow, edgeBand, elevation, fibreTile, flutter, peelAway, unionPath } from '../vendor/paper-kit/paper-kit';
 
 export const WALL_CHUNK = 16;
-export const POP_MS = 120;
+export const FLUTTER_MS = DURATION.flutter; // 220
+export const PEEL_MS = DURATION.peel; // 160
+export const LIVE_MAX = 64;
 export const N = 1, E = 2, S = 4, W = 8;
 
 export type WallSource = {
 	isWall(r: number, c: number): boolean;
 	/** ms timestamp of the last change for Home cells (0 when unknown) */
 	changedAt(r: number, c: number): number;
+	/** ms timestamp when a wall here was erased (0 when it wasn't) */
+	erasedAt?(r: number, c: number): number;
 };
 
 export function wallMask(isWall: (r: number, c: number) => boolean, r: number, c: number) {
@@ -31,11 +38,29 @@ export function cornerRadii(mask: number, R: number): [number, number, number, n
 	return [o(N) && o(W) ? R : 0, o(N) && o(E) ? R : 0, o(S) && o(E) ? R : 0, o(S) && o(W) ? R : 0];
 }
 
-/** cubic-bezier(.2,.8,.2,1), close enough for 120 ms. */
-const easeOut = (t: number) => 1 - Math.pow(1 - t, 3.2);
+/** The §4.1 numbers for a cell size s (CSS px) in palette p. */
+export function wallLook(s: number, p: Palette) {
+	const e = elevation(s);
+	const paper = !p.classic;
+	const under = paper && s >= 14 && p.wallUnder ? { fill: p.wallUnder, dx: e.under.dx, dy: e.under.dy } : null;
+	const cast: Shadow | null =
+		s < 6 ? null // 25%: flat
+		: s < 14 ? { color: p.contact, dx: 0, dy: 1, blur: 0 } // 50%: contact only
+		: { color: p.shadow, dx: e.cast.dx + (under?.dx ?? 0), dy: e.cast.dy + (under?.dy ?? 0), blur: e.cast.blur };
+	return {
+		radius: s < 6 ? 0 : p.classic ? 0.1 * s : e.radius,
+		jitter: paper ? e.jitter : 0,
+		under,
+		cast,
+		ambient: paper && s >= 10 ? { color: p.contact, ...e.ambient } : null,
+		edges: s >= 10,
+		topFibre: paper && s >= 14 && p.fibre ? p.fibre.wallTop : 0,
+	};
+}
 
 type Layer = HTMLCanvasElement | OffscreenCanvas;
 type Entry = { sig: number; shadow: Layer | null; body: Layer; pad: number };
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 const mkCanvas = (w: number, h: number): Layer | null => {
 	if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
@@ -53,14 +78,13 @@ export class WallCache {
 	private key = '';
 	baked = 0; // chunks (re)baked, for tests and perf checks
 
-	/** Drop everything when zoom, dpr or palette change. */
+	/** Drop everything when zoom, dpr, palette or reduced motion change (§8 re-bake key). */
 	private reset(key: string) {
 		if (key !== this.key) {
 			this.entries.clear();
 			this.key = key;
 		}
 	}
-
 	get(k: string) {
 		return this.entries.get(k);
 	}
@@ -74,114 +98,99 @@ export class WallCache {
 	}
 }
 
-type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+function withShadow(ctx: Ctx2D, sh: Shadow | null, dpr: number, k: number, draw: () => void) {
+	ctx.save();
+	if (sh) {
+		ctx.shadowColor = sh.color;
+		ctx.shadowOffsetX = sh.dx * k * dpr; // shadowBlur/offsets ignore the transform
+		ctx.shadowOffsetY = sh.dy * k * dpr;
+		ctx.shadowBlur = sh.blur * k * dpr;
+	}
+	draw();
+	ctx.restore();
+}
+const boundsOf = (cells: CellRef[], s: number, extra: number) => {
+	let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+	for (const q of cells) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x + s); y1 = Math.max(y1, q.y + s); }
+	return { x: x0 - extra, y: y0 - extra, w: x1 - x0 + 2 * extra, h: y1 - y0 + 2 * extra };
+};
 
-/** Path helpers in chunk-local coordinates (origin = top-left of cell r0,c0). */
-function addCell(ctx: Ctx2D, x: number, y: number, s: number, rad: number[]) {
-	const [tl, tr, br, bl] = rad;
-	const x0 = x - 0.25, y0 = y - 0.25, x1 = x + s + 0.25, y1 = y + s + 0.25;
-	ctx.moveTo(x0 + tl, y0);
-	ctx.lineTo(x1 - tr, y0);
-	if (tr) ctx.arcTo(x1, y0, x1, y0 + tr, tr);
-	else ctx.lineTo(x1, y0);
-	ctx.lineTo(x1, y1 - br);
-	if (br) ctx.arcTo(x1, y1, x1 - br, y1, br);
-	else ctx.lineTo(x1, y1);
-	ctx.lineTo(x0 + bl, y1);
-	if (bl) ctx.arcTo(x0, y1, x0, y1 - bl, bl);
-	else ctx.lineTo(x0, y1);
-	ctx.lineTo(x0, y0 + tl);
-	if (tl) ctx.arcTo(x0, y0, x0 + tl, y0, tl);
-	else ctx.lineTo(x0, y0);
-	ctx.closePath();
-}
-/** Up-facing outline (top side + its corner arcs) for open N sides. */
-function addTop(ctx: Ctx2D, x: number, y: number, s: number, mask: number, rad: number[]) {
-	if (mask & N) return;
-	const [tl, tr] = rad;
-	ctx.moveTo(x, y + tl);
-	if (tl) ctx.arcTo(x, y, x + tl, y, tl);
-	ctx.lineTo(x + s - tr, y);
-	if (tr) ctx.arcTo(x + s, y, x + s, y + tr, tr);
-}
-function addBottom(ctx: Ctx2D, x: number, y: number, s: number, mask: number, rad: number[]) {
-	if (mask & S) return;
-	const [, , br, bl] = rad;
-	ctx.moveTo(x, y + s - bl);
-	if (bl) ctx.arcTo(x, y + s, x + bl, y + s, bl);
-	ctx.lineTo(x + s - br, y + s);
-	if (br) ctx.arcTo(x + s, y + s, x + s, y + s - br, br);
-}
-function addSides(ctx: Ctx2D, x: number, y: number, s: number, mask: number, rad: number[]) {
-	const [tl, tr, br, bl] = rad;
-	addTop(ctx, x, y, s, mask, rad);
-	addBottom(ctx, x, y, s, mask, rad);
-	if (!(mask & E)) { ctx.moveTo(x + s, y + tr); ctx.lineTo(x + s, y + s - br); }
-	if (!(mask & W)) { ctx.moveTo(x, y + tl); ctx.lineTo(x, y + s - bl); }
+/**
+ * Paint cells (x, y in ctx coordinates) as one union. 'shadow': cast + ambient +
+ * under-ply (+ its cut edge). 'body': top ply + top fibre + cut edges.
+ * `shadowK` scales the cast (flutter 2x -> 1x, peel 1x -> 1.8x).
+ */
+export function paintWalls(ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, layer: 'shadow' | 'body', dpr: number, opts: { jitter?: number; shadowK?: number } = {}) {
+	if (!cells.length) return;
+	const L = wallLook(s, p);
+	const jitter = opts.jitter ?? L.jitter;
+	const top = unionPath(cells, s, L.radius, jitter, 1);
+	const b = boundsOf(cells, s, 2 + (L.under ? Math.max(L.under.dx, L.under.dy) : 0));
+	if (layer === 'shadow') {
+		if (L.cast) withShadow(ctx, L.cast, dpr, opts.shadowK ?? 1, () => { ctx.fillStyle = p.wall; ctx.fill(top); });
+		const up = L.under ? unionPath(cells, s, L.radius, jitter, 1, L.under.dx, L.under.dy) : null;
+		if (L.ambient) withShadow(ctx, L.ambient, dpr, 1, () => { ctx.fillStyle = L.under?.fill ?? p.wall; ctx.fill(up ?? top); });
+		if (up && L.under) {
+			ctx.fillStyle = L.under.fill;
+			ctx.fill(up);
+			if (L.edges) edgeBand(ctx, up, p.cut, 0.3, 'all', 1, b, dpr);
+		}
+		return;
+	}
+	ctx.fillStyle = p.wall;
+	ctx.fill(top);
+	if (L.topFibre > 0 && p.fibre) {
+		// pale ink on navy (Paper), dark ink on manila (Night Paper)
+		const ink = p.name === 'Paper' ? 'rgba(255,246,220,1)' : 'rgba(60,40,15,1)';
+		const tile = fibreTile({ seed: 9, ink, alpha: 0.5, grain: 120 });
+		const pat = ctx.createPattern?.(tile as CanvasImageSource, 'repeat');
+		if (pat) {
+			ctx.save();
+			ctx.clip(top);
+			ctx.globalAlpha *= L.topFibre;
+			ctx.fillStyle = pat;
+			ctx.fill(top);
+			ctx.restore();
+		}
+	}
+	if (L.edges) {
+		edgeBand(ctx, top, p.cut, 0.55, 'all', 1, b, dpr);
+		edgeBand(ctx, top, p.cutTL, 0.9, 'tl', 1.5, b, dpr);
+	}
 }
 
 type Cell = { r: number; c: number; mask: number };
 
-/** Paint one chunk's walls. `layer`: 'shadow' (fill with shadow only) or 'body'. */
-function paintChunk(ctx: Ctx2D, cells: Cell[], r0: number, c0: number, ox: number, oy: number, s: number, p: Palette, layer: 'shadow' | 'body', dpr: number) {
-	const fancy = s >= 10;
-	const R = fancy ? 0.28 * s : 0;
-	const at = (cl: Cell) => [ox + (cl.c - c0) * s, oy + (cl.r - r0) * s] as const;
-	ctx.beginPath();
-	for (const cl of cells) {
-		const [x, y] = at(cl);
-		addCell(ctx, x, y, s, cornerRadii(cl.mask, R));
-	}
-	if (layer === 'shadow') {
-		ctx.save();
-		ctx.shadowColor = p.shadow;
-		ctx.shadowBlur = 0.22 * s * dpr; // shadowBlur ignores the transform
-		ctx.shadowOffsetY = 0.1 * s * dpr;
-		ctx.fillStyle = p.wall;
-		ctx.fill();
-		ctx.restore();
-		return;
-	}
-	ctx.fillStyle = p.wall;
-	ctx.fill();
-	if (!fancy) return;
-	const dp = 1;
-	ctx.save();
-	ctx.clip();
-	const strokeWith = (color: string, add: typeof addTop) => {
-		ctx.beginPath();
-		for (const cl of cells) {
-			const [x, y] = at(cl);
-			add(ctx, x, y, s, cl.mask, cornerRadii(cl.mask, R));
-		}
-		ctx.strokeStyle = color;
-		ctx.lineWidth = 2 * dp; // half of it falls inside the clip: a 1dp edge
-		ctx.stroke();
-	};
-	if (p.wallOutline) strokeWith(p.wallOutline, addSides);
-	strokeWith(p.highlight, addTop);
-	strokeWith(p.wallDown, addBottom);
-	ctx.restore();
-}
-
 /**
- * Draw every wall in `vb`. Returns true while a pop-in is running.
- * `liveOnly` skips the cache (tests, or when a chunk bitmap would be huge).
+ * Draw every wall in `vb`. Returns true while a flutter or peel is running.
  */
 export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: View, vb: Bounds, p: Palette, dpr: number, now: number, reduced: boolean, cache: WallCache): boolean {
 	const s = 20 * view.zoom;
 	cache.prepare(view, dpr, p, reduced);
-	const popping = (r: number, c: number) => {
-		if (reduced || !inHome(r, c)) return false;
-		const t = src.changedAt(r, c);
-		return t > 0 && now - t < POP_MS;
-	};
+	// live cells: freshly painted (flutter) and freshly erased (peel), capped
+	let live = 0;
+	const fluttering = new Set<number>();
+	const peels: { r: number; c: number; t: number }[] = [];
+	if (!reduced) {
+		for (let r = Math.max(0, vb.r0); r <= vb.r1 && live < LIVE_MAX; r++)
+			for (let c = Math.max(0, vb.c0); c <= vb.c1 && live < LIVE_MAX; c++) {
+				if (!inHome(r, c)) continue;
+				if (src.isWall(r, c)) {
+					const t = src.changedAt(r, c);
+					if (t > 0 && now - t < FLUTTER_MS) { fluttering.add(r * 1e5 + c); live++; }
+				} else if (src.erasedAt) {
+					const t = src.erasedAt(r, c);
+					if (t > 0 && now - t < PEEL_MS) { peels.push({ r, c, t: (now - t) / PEEL_MS }); live++; }
+				}
+			}
+	}
+	const popping = (r: number, c: number) => fluttering.has(r * 1e5 + c);
 	const settled = (r: number, c: number) => src.isWall(r, c) && !popping(r, c);
 	const K = WALL_CHUNK;
 	const cr0 = Math.floor(vb.r0 / K), cr1 = Math.floor(vb.r1 / K);
 	const cc0 = Math.floor(vb.c0 / K), cc1 = Math.floor(vb.c1 / K);
-	const useCache = K * s * dpr <= 1100;
-	const pad = Math.ceil(0.6 * s) + 2;
+	const useCache = K * s * dpr <= 1100; // §8 cap; above it draw live with jitter 0
+	const pad = Math.ceil(0.45 * s) + 16;
 	type Job = { r0: number; c0: number; cells: Cell[]; sig: number; key: string };
 	const jobs: Job[] = [];
 	const pops: Cell[] = [];
@@ -194,7 +203,7 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 				for (let c = c0; c < c0 + K; c++) {
 					if (!src.isWall(r, c)) continue;
 					if (popping(r, c)) {
-						pops.push({ r, c, mask: wallMask(src.isWall, r, c) });
+						pops.push({ r, c, mask: 0 });
 						continue;
 					}
 					const mask = wallMask(settled, r, c);
@@ -203,6 +212,7 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 				}
 			if (cells.length) jobs.push({ r0, c0, cells, sig: sig ^ cells.length, key: `${cr},${cc}` });
 		}
+	const refs = (j: Job, ox: number, oy: number): CellRef[] => j.cells.map((q) => ({ x: ox + (q.c - j.c0) * s, y: oy + (q.r - j.r0) * s, r: q.r, c: q.c, mask: q.mask }));
 	const origin = (j: Job) => cellToScreen(view, j.r0, j.c0);
 	const bake = (j: Job): Entry | null => {
 		if (!useCache) return null;
@@ -216,8 +226,9 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 		const sc = shadow.getContext('2d') as Ctx2D | null;
 		if (!bc || !sc) return null;
 		for (const c of [bc, sc]) c.setTransform(dpr, 0, 0, dpr, 0, 0);
-		paintChunk(sc, j.cells, j.r0, j.c0, pad, pad, s, p, 'shadow', dpr);
-		paintChunk(bc, j.cells, j.r0, j.c0, pad, pad, s, p, 'body', dpr);
+		const cells = refs(j, pad, pad);
+		paintWalls(sc, cells, s, p, 'shadow', dpr);
+		paintWalls(bc, cells, s, p, 'body', dpr);
 		const e = { sig: j.sig, shadow, body, pad };
 		cache.set(j.key, e);
 		return e;
@@ -229,29 +240,41 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 		const y = Math.round((o.y - pad) * dpr) / dpr;
 		ctx.drawImage(img as CanvasImageSource, x, y, img.width / dpr, img.height / dpr);
 	};
-	if (s >= 10) for (const [j, e] of entries) {
+	for (const [j, e] of entries) {
 		if (e && e.shadow) blit(j, e.shadow);
-		else { const o = origin(j); paintChunk(ctx, j.cells, j.r0, j.c0, o.x, o.y, s, p, 'shadow', dpr); }
+		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'shadow', dpr, { jitter: 0 }); }
 	}
 	for (const [j, e] of entries) {
 		if (e) blit(j, e.body);
-		else { const o = origin(j); paintChunk(ctx, j.cells, j.r0, j.c0, o.x, o.y, s, p, 'body', dpr); }
+		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'body', dpr, { jitter: 0 }); }
 	}
-	// pop-ins on the live layer
+	// live layer: a dropped scrap settling (flutter), or a scrap peeling away
+	const one = (r: number, c: number): CellRef[] => [{ x: -s / 2, y: -s / 2, r, c, mask: 0 }];
 	for (const cl of pops) {
-		const t = easeOut(Math.min(1, (now - src.changedAt(cl.r, cl.c)) / POP_MS));
-		const k = 0.85 + 0.15 * t;
+		const f = flutter((now - src.changedAt(cl.r, cl.c)) / FLUTTER_MS, cl.r, cl.c);
 		const { x, y } = cellToScreen(view, cl.r, cl.c);
 		ctx.save();
-		ctx.globalAlpha = 0.6 + 0.4 * t;
-		ctx.translate(x + s / 2, y + s / 2);
-		ctx.scale(k, k);
-		ctx.beginPath();
-		addCell(ctx, -s / 2, -s / 2, s, cornerRadii(cl.mask, s >= 10 ? 0.28 * s : 0));
-		ctx.fillStyle = p.wall;
-		ctx.fill();
+		ctx.globalAlpha = f.alpha;
+		ctx.translate(x + s / 2, y + s / 2 + f.dy * s);
+		ctx.rotate(f.rotate);
+		ctx.scale(f.scale, f.scale);
+		paintWalls(ctx, one(cl.r, cl.c), s, p, 'shadow', dpr, { shadowK: f.shadow });
+		paintWalls(ctx, one(cl.r, cl.c), s, p, 'body', dpr);
 		ctx.restore();
 	}
-	return pops.length > 0;
+	for (const pl of peels) {
+		const k = peelAway(pl.t, pl.r, pl.c);
+		const { x, y } = cellToScreen(view, pl.r, pl.c);
+		const px = k.pivot!.x * s, py = k.pivot!.y * s; // the opposite corner stays down
+		ctx.save();
+		ctx.globalAlpha = k.alpha;
+		ctx.translate(x + s / 2 + px, y + s / 2 + py);
+		ctx.rotate(k.rotate);
+		ctx.scale(k.scale, k.scale);
+		ctx.translate(-px, -py);
+		paintWalls(ctx, one(pl.r, pl.c), s, p, 'shadow', dpr, { shadowK: k.shadow });
+		paintWalls(ctx, one(pl.r, pl.c), s, p, 'body', dpr);
+		ctx.restore();
+	}
+	return pops.length + peels.length > 0;
 }
-

@@ -1,22 +1,28 @@
-// Canvas 2D renderer. Cost is proportional to content, not to viewport area:
-// it walks Home (2,800 cells), board chunks in view and the trace overlay.
+// Canvas 2D renderer, Paper Cutout v2.1 (style.md §3, §4). Cost is
+// proportional to content, not to viewport area: it walks Home (2,800 cells),
+// board chunks in view and the trace overlay. Expensive bitmaps (walls, weight
+// piles, pencil grid tiles, dot and frontier sprites) are baked once and blitted.
 import { Board, Weight } from '../model/board';
-import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell';
+import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls } from './walls';
 import { padLabel } from '../model/nodes';
-import { Palette, coveredEdge, labelOn, mix, weightColor, weightEdge } from './palette';
+import { Palette, weightColor, weightTier, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
+import {
+	CellRef, DURATION, EASE, Shadow, cached, elevation, hash, liftedCard, maskAt, paperSheet, paperStack, pencilGrid, punchDot, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
+} from '../vendor/paper-kit/paper-kit';
 
 const FRONTIER_PULSE_MAX = 2000;
-const PULSE_MS = 900;
-/** alpha 0.775 ± 0.225 (0.55..1) over 900 ms, eased in-out (cubic-bezier(.45,0,.55,1) ~ smoothstep). */
+const PULSE_MS = DURATION.pulse; // 900
+/** Frontier lift l in [0, 1]: 0.5 - 0.5 cos(2πt / 900 ms) (§4.8). */
+export function frontierLift(now: number) {
+	return 0.5 - 0.5 * Math.cos((2 * Math.PI * (now % PULSE_MS)) / PULSE_MS);
+}
+/** Kept for callers/tests of the Pond pulse: 0.55..1 over 900 ms. */
 export function frontierAlpha(now: number) {
-	const t = (now % PULSE_MS) / PULSE_MS;
-	const tri = t < 0.5 ? t * 2 : 2 - t * 2; // 0 -> 1 -> 0
-	const e = tri * tri * (3 - 2 * tri);
-	return 0.55 + 0.45 * e;
+	return 0.55 + 0.45 * frontierLift(now);
 }
 
 export type Scene = {
@@ -36,10 +42,31 @@ export type Scene = {
 	reducedMotion: boolean;
 };
 
-const ENTER_MS = 480;
+const ENTER_MS = DURATION.enter; // 480
+const BOB_MS = DURATION.bob; // 2400
+const CHUNK = 16;
+const BAKE_CAP = 1100; // §8: K·s·dpr ≤ 1100, else draw live
 const pathStarts = new Map<string, number>();
-const wallCaches = new WeakMap<CanvasRenderingContext2D, WallCache>();
-const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+const wallCaches = new WeakMap<object, WallCache>();
+
+type Layer = HTMLCanvasElement | OffscreenCanvas;
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+/** An offscreen bitmap, or null where there is no canvas (jsdom). */
+function mkLayer(w: number, h: number): [Layer, Ctx2D] | null {
+	w = Math.max(1, Math.ceil(w));
+	h = Math.max(1, Math.ceil(h));
+	let l: Layer | null = null;
+	if (typeof OffscreenCanvas !== 'undefined') l = new OffscreenCanvas(w, h);
+	else if (typeof document !== 'undefined') {
+		const c = document.createElement('canvas');
+		c.width = w;
+		c.height = h;
+		l = c;
+	}
+	const c = l?.getContext('2d') as Ctx2D | null | undefined;
+	return l && c ? [l, c] : null;
+}
+const contactOf = (p: Palette, s: number): Shadow => ({ color: p.contact, ...elevation(s).contact });
 
 export function isWallAt(scene: Scene, r: number, c: number) {
 	if (inHome(r, c)) return scene.mirror.at(r, c) === K.Wall;
@@ -49,193 +76,73 @@ export function isWallAt(scene: Scene, r: number, c: number) {
 /** True while something is still animating. */
 export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const { view, width, height, dpr, palette: p } = scene;
+	const motion = !scene.reducedMotion;
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	ctx.fillStyle = p.paper;
-	ctx.fillRect(0, 0, width, height);
 	const vb = visibleBounds(view, width, height);
 	const s = CELL * view.zoom;
 	let animating = false;
+	const pan = { x: view.panX, y: view.panY };
 
-	// Home dock
+	// §3 the table, then the Home sheet lying on it (z0)
+	if (p.fibre) {
+		paperSheet(ctx, 0, 0, width, height, { fill: p.paper, fibre: { seed: 5, ink: p.fibre.ink, alpha: p.fibre.strength * 0.9, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha * 0.8, vignette: p.fibre.vignette * 0.8, vignetteRGB: p.fibre.vignetteRGB, patternOffset: pan, dpr });
+	} else {
+		ctx.fillStyle = p.paper;
+		ctx.fillRect(0, 0, width, height);
+	}
 	const home = cellToScreen(view, 0, 0);
 	const hw = HOME_COLS * s;
 	const hh = HOME_ROWS * s;
-	ctx.fillStyle = p.home;
-	ctx.fillRect(home.x, home.y, hw, hh);
-
-	// Grid lines: full at >= 50 %, fading to 0 at 25 %
-	const gridAlpha = Math.max(0, Math.min(1, (view.zoom - 0.25) / 0.25));
-	if (gridAlpha > 0) {
-		ctx.lineWidth = 1 / dpr;
-		ctx.globalAlpha = gridAlpha;
-		for (const [color, inside] of [[p.outerGrid, false], [p.grid, true]] as const) {
-			ctx.strokeStyle = color;
-			ctx.beginPath();
-			const r0 = inside ? Math.max(vb.r0, 0) : vb.r0;
-			const r1 = inside ? Math.min(vb.r1, HOME_ROWS) : vb.r1;
-			const c0 = inside ? Math.max(vb.c0, 0) : vb.c0;
-			const c1 = inside ? Math.min(vb.c1, HOME_COLS) : vb.c1;
-			if (inside) {
-				ctx.save();
-				ctx.rect(home.x, home.y, hw, hh);
-				ctx.clip();
-				ctx.beginPath();
-			}
-			for (let c = c0; c <= c1; c++) {
-				const x = Math.round((view.panX + c * s) * dpr) / dpr;
-				ctx.moveTo(x, view.panY + r0 * s);
-				ctx.lineTo(x, view.panY + r1 * s);
-			}
-			for (let r = r0; r <= r1; r++) {
-				const y = Math.round((view.panY + r * s) * dpr) / dpr;
-				ctx.moveTo(view.panX + c0 * s, y);
-				ctx.lineTo(view.panX + c1 * s, y);
-			}
-			ctx.stroke();
-			if (inside) ctx.restore();
-		}
-		ctx.globalAlpha = 1;
+	if (p.fibre) {
+		paperSheet(ctx, home.x, home.y, hw, hh, { fill: p.home, fibre: { seed: 7, ink: p.fibre.ink, alpha: p.fibre.strength, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha, vignette: p.fibre.vignette, vignetteRGB: p.fibre.vignetteRGB, shadow: { color: p.sheetShadow, dx: 0, dy: 3, blur: 14 }, patternOffset: pan, dpr });
+	} else {
+		ctx.save();
+		ctx.shadowColor = p.sheetShadow;
+		ctx.shadowOffsetY = 2 * dpr;
+		ctx.shadowBlur = 8 * dpr;
+		ctx.fillStyle = p.home;
+		ctx.fillRect(home.x, home.y, hw, hh);
+		ctx.restore();
 	}
 
-
-	// Weights: same-cost neighbours merge into one blob (4-neighbour mask, a
-	// shared side has no inset and its corners no radius). The edge stroke
-	// carries the 3:1 contrast (fix 2) and is drawn only on open sides. Over
-	// visited cells the edge, label and texture are drawn again (fix 7).
-	const weightCells: [number, number, Weight][] = [];
-	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'weight' && !isWallAt(scene, r, c)) weightCells.push([r, c, t.cost]);
-	const sameW = (r: number, c: number, cost: number) => {
-		const t = scene.board.get(r, c);
-		return !!t && t.kind === 'weight' && t.cost === cost && !isWallAt(scene, r, c);
-	};
-	const blobs = view.zoom >= 0.5;
-	const wGeom = (r: number, c: number, cost: number, shrink = 0) => {
-		const { x, y } = cellToScreen(view, r, c);
-		const n = sameW(r - 1, c, cost), e = sameW(r, c + 1, cost), so = sameW(r + 1, c, cost), w = sameW(r, c - 1, cost);
-		const ins = (blobs ? 0.06 * s : 0) + shrink;
-		const x0 = x + (w ? 0 : ins), x1 = x + s - (e ? 0 : ins), y0 = y + (n ? 0 : ins), y1 = y + s - (so ? 0 : ins);
-		const R = blobs ? Math.max(0, 0.22 * s - shrink) : 0;
-		// concave corners (both sides shared, diagonal not): notch by the inset so
-		// the blob's outline steps in cleanly instead of poking out a square
-		const k = blobs ? 0.06 * s : 0;
-		const cc = [
-			n && w && !sameW(r - 1, c - 1, cost) ? k : 0,
-			n && e && !sameW(r - 1, c + 1, cost) ? k : 0,
-			so && e && !sameW(r + 1, c + 1, cost) ? k : 0,
-			so && w && !sameW(r + 1, c - 1, cost) ? k : 0,
-		];
-		return { x, y, x0, x1, y0, y1, n, e, so, w, cc, rad: [!n && !w ? R : 0, !n && !e ? R : 0, !so && !e ? R : 0, !so && !w ? R : 0] };
-	};
-	const blobCellPath = (g: ReturnType<typeof wGeom>) => {
-		const { x0, x1, y0, y1, cc } = g;
-		const [tl, tr, br, bl] = g.rad;
-		ctx.moveTo(x0 + Math.max(tl, cc[0]), y0);
-		if (cc[1]) { ctx.lineTo(x1 - cc[1], y0); ctx.lineTo(x1 - cc[1], y0 + cc[1]); ctx.lineTo(x1, y0 + cc[1]); }
-		else { ctx.lineTo(x1 - tr, y0); if (tr) ctx.arcTo(x1, y0, x1, y0 + tr, tr); }
-		if (cc[2]) { ctx.lineTo(x1, y1 - cc[2]); ctx.lineTo(x1 - cc[2], y1 - cc[2]); ctx.lineTo(x1 - cc[2], y1); }
-		else { ctx.lineTo(x1, y1 - br); if (br) ctx.arcTo(x1, y1, x1 - br, y1, br); }
-		if (cc[3]) { ctx.lineTo(x0 + cc[3], y1); ctx.lineTo(x0 + cc[3], y1 - cc[3]); ctx.lineTo(x0, y1 - cc[3]); }
-		else { ctx.lineTo(x0 + bl, y1); if (bl) ctx.arcTo(x0, y1, x0, y1 - bl, bl); }
-		if (cc[0]) { ctx.lineTo(x0, y0 + cc[0]); ctx.lineTo(x0 + cc[0], y0 + cc[0]); ctx.lineTo(x0 + cc[0], y0); }
-		else { ctx.lineTo(x0, y0 + tl); if (tl) ctx.arcTo(x0, y0, x0 + tl, y0, tl); }
-		ctx.closePath();
-	};
-	const weightDecor = (r: number, c: number, cost: Weight, covered: string | null, inset = 0) => {
-		if (view.zoom < 0.35) return;
-		const edge = covered ? coveredEdge(p, cost, covered) : weightEdge(p, cost);
-		const lw = Math.max(1, Math.min(2, 0.08 * s));
-		const g = wGeom(r, c, cost, inset + lw / 2);
-		const [tl, tr, br, bl] = g.rad;
-		ctx.beginPath();
-		if (!g.n) { ctx.moveTo(g.x0 + tl, g.y0); ctx.lineTo(g.x1 - tr, g.y0); if (tr) ctx.arcTo(g.x1, g.y0, g.x1, g.y0 + tr, tr); }
-		if (!g.e) { ctx.moveTo(g.x1, g.y0 + tr); ctx.lineTo(g.x1, g.y1 - br); if (br) ctx.arcTo(g.x1, g.y1, g.x1 - br, g.y1, br); }
-		if (!g.so) { ctx.moveTo(g.x1 - br, g.y1); ctx.lineTo(g.x0 + bl, g.y1); if (bl) ctx.arcTo(g.x0, g.y1, g.x0, g.y1 - bl, bl); }
-		if (!g.w) { ctx.moveTo(g.x0, g.y1 - bl); ctx.lineTo(g.x0, g.y0 + tl); if (tl) ctx.arcTo(g.x0, g.y0, g.x0 + tl, g.y0, tl); }
-		// concave notches: the two short inner edges
-		const o = lw / 2;
-		const [c0, c1, c2, c3] = g.cc;
-		if (c0) { ctx.moveTo(g.x0, g.y0 + c0 + o); ctx.lineTo(g.x0 + c0 + o, g.y0 + c0 + o); ctx.lineTo(g.x0 + c0 + o, g.y0); }
-		if (c1) { ctx.moveTo(g.x1 - c1 - o, g.y0); ctx.lineTo(g.x1 - c1 - o, g.y0 + c1 + o); ctx.lineTo(g.x1, g.y0 + c1 + o); }
-		if (c2) { ctx.moveTo(g.x1, g.y1 - c2 - o); ctx.lineTo(g.x1 - c2 - o, g.y1 - c2 - o); ctx.lineTo(g.x1 - c2 - o, g.y1); }
-		if (c3) { ctx.moveTo(g.x0 + c3 + o, g.y1); ctx.lineTo(g.x0 + c3 + o, g.y1 - c3 - o); ctx.lineTo(g.x0, g.y1 - c3 - o); }
-		ctx.strokeStyle = edge;
-		ctx.lineWidth = lw;
-		ctx.stroke();
-		if (view.zoom < 1.5) return;
-		const { x, y } = g;
-		ctx.fillStyle = labelOn(weightColor(p, cost));
-		ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'middle';
-		ctx.fillText(String(cost), x + s / 2, y + s / 2 + 0.02 * s);
-		ctx.textAlign = 'left';
-		if (view.zoom < 2) return; // texture from 200% (Mochi fix 5; was 300%)
-		ctx.strokeStyle = ctx.fillStyle = cost === 10 ? 'rgba(255,255,255,0.45)' : edge;
-		if (cost === 10) {
-			ctx.beginPath();
-			for (const k of [0.2, 0.82]) {
-				const yy = y + k * s;
-				ctx.moveTo(x + 0.22 * s, yy);
-				ctx.quadraticCurveTo(x + 0.36 * s, yy - 0.06 * s, x + 0.5 * s, yy);
-				ctx.quadraticCurveTo(x + 0.64 * s, yy + 0.06 * s, x + 0.78 * s, yy);
-			}
-			ctx.lineWidth = Math.max(1, 0.035 * s);
-			ctx.stroke();
-		} else {
-			const d = Math.max(1, 0.035 * s);
-			const pts = cost === 2 ? [[0.22, 0.24], [0.78, 0.76]] : [[0.22, 0.24], [0.78, 0.24], [0.22, 0.78], [0.78, 0.78]];
-			ctx.beginPath();
-			for (const [u, v] of pts) {
-				ctx.moveTo(x + u * s + d, y + v * s);
-				ctx.arc(x + u * s, y + v * s, d, 0, Math.PI * 2);
-			}
-			ctx.fill();
-		}
-	};
-	for (const cost of [2, 5, 10] as Weight[]) {
-		ctx.beginPath();
-		let any = false;
-		for (const [r, c, w] of weightCells) {
-			if (w !== cost) continue;
-			any = true;
-			blobCellPath(wGeom(r, c, cost));
-		}
-		if (!any) continue;
-		ctx.fillStyle = weightColor(p, cost);
-		ctx.fill();
+	// Grid: fades in between 25% and 50% (ga = clamp((zoom − .25)/.25))
+	const ga = Math.max(0, Math.min(1, (view.zoom - 0.25) / 0.25));
+	if (ga > 0) {
+		if (p.pencil) drawPencilGrid(ctx, view, vb, s, p, dpr, ga, home, hw, hh);
+		else drawCrispGrid(ctx, view, vb, s, p, dpr, ga, home, hw, hh);
 	}
-	for (const [r, c, w] of weightCells) weightDecor(r, c, w, null);
 
-	// Walls: raised slabs from per-chunk cached bitmaps (walls.ts)
+	// §4.2 weights: piles of sheets (Paper), merged flat sheets (Classic)
+	drawWeights(ctx, scene, vb, s, dpr);
+
+	// §4.1 walls: 2-ply card from per-chunk cached bitmaps (walls.ts)
 	let cache = wallCaches.get(ctx);
 	if (!cache) wallCaches.set(ctx, (cache = new WallCache()));
+	const m = scene.mirror;
 	const wallSrc = {
 		isWall: (r: number, c: number) => isWallAt(scene, r, c),
-		changedAt: (r: number, c: number) => (inHome(r, c) ? scene.mirror.changedAt[r * HOME_COLS + c] : 0),
+		changedAt: (r: number, c: number) => (inHome(r, c) ? m.changedAt[r * HOME_COLS + c] : 0),
+		erasedAt: (r: number, c: number) => {
+			if (!inHome(r, c)) return 0;
+			const i = r * HOME_COLS + c;
+			return m.prevKind?.[i] === K.Wall && m.kind[i] !== K.Wall ? m.changedAt[i] : 0;
+		},
 	};
 	if (drawWalls(ctx, wallSrc, view, vb, p, dpr, scene.now, scene.reducedMotion, cache)) animating = true;
 
-	// Visited: classic (mirror) and traced, entering at the frontier colour
-	const visitedCell = (r: number, c: number, born: number, fade: number) => {
-		const age = scene.now - born;
-		const t = scene.reducedMotion || born === 0 ? 1 : Math.min(1, age / ENTER_MS);
+	// §4.7 visited: hole-punch confetti, on top of weight piles
+	const dots = new DotDrawer(ctx, s, p, dpr);
+	const enter = (born: number) => {
+		if (!motion || born === 0) return 1;
+		const t = Math.min(1, (scene.now - born) / ENTER_MS);
 		if (t < 1) animating = true;
-		const k = 0.6 + 0.4 * ease(t);
-		const { x, y } = cellToScreen(view, r, c);
-		const inset = 0.05 * s;
-		const w = (s - 2 * inset) * k;
-		ctx.globalAlpha = fade;
-		ctx.fillStyle = t < 1 ? mix(p.front, p.visited, ease(t)) : p.visited;
-		roundRect(ctx, x + s / 2 - w / 2, y + s / 2 - w / 2, w, w, 0.18 * s * k);
-		ctx.fill();
-		ctx.globalAlpha = 1;
+		return Math.max(0, EASE.pop(t));
 	};
-	const m = scene.mirror;
 	if (m.visitedCount > 0)
 		for (let i = 0; i < m.kind.length; i++)
 			if (m.kind[i] === K.Visited) {
 				const { r, c } = LegacyMirror.cellAt(i);
-				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) visitedCell(r, c, m.changedAt[i], 1);
+				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) dots.add(r, c, view, enter(m.changedAt[i]), 1);
 			}
 	const tr = scene.trace;
 	if (tr) {
@@ -243,94 +150,62 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		for (const [id, order] of tr.visited) {
 			const { r, c } = parseId(id);
 			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
-			visitedCell(r, c, scene.traceTimes.get(id) ?? 0, 1 - 0.2 * (1 - order / total));
+			dots.add(r, c, view, enter(scene.traceTimes.get(id) ?? 0), 1 - 0.2 * (1 - order / total)); // floor 0.8
 		}
-		// Frontier rings: thinner, with a slow breathing pulse (static under
-		// reduced motion). Pulsing only while a few thousand are on screen.
-		ctx.strokeStyle = p.front;
-		ctx.lineWidth = Math.max(1, 0.06 * s);
-		let onScreen = 0;
-		ctx.beginPath();
-		for (const id of tr.frontier.keys()) {
-			const { r, c } = parseId(id);
-			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
-			onScreen++;
-			const { x, y } = cellToScreen(view, r, c);
-			roundRectPath(ctx, x + 0.12 * s, y + 0.12 * s, s - 0.24 * s, s - 0.24 * s, [0.2 * s, 0.2 * s, 0.2 * s, 0.2 * s]);
-		}
-		const pulse = onScreen > 0 && onScreen <= FRONTIER_PULSE_MAX && !scene.reducedMotion && !tr.done;
-		ctx.globalAlpha = pulse ? frontierAlpha(scene.now) : 1;
-		ctx.stroke();
-		ctx.globalAlpha = 1;
-		if (pulse) animating = true;
 	}
-	for (const [r, c, t] of scene.board.entries(vb)) {
-		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
-		const covered = (inHome(r, c) && m.at(r, c) === K.Visited) || !!tr?.visited.has(idOf(r, c));
-		if (!covered) continue;
-		// Mochi fix 5: a visited weight keeps its own fill (tan mud, blue water),
-		// inset so a band of the visited colour around it shows it was reached,
-		// instead of shrinking to an outline.
-		const fill = weightColor(p, t.cost);
-		ctx.beginPath();
-		blobCellPath(wGeom(r, c, t.cost, 0.1 * s));
-		ctx.fillStyle = fill;
-		ctx.fill();
-		weightDecor(r, c, t.cost, p.visited, 0.1 * s); // edge sits on the visited band
+	dots.flush();
+
+	// §4.8 frontier: lifted card squares, pulsing (static l = .5 under reduced motion)
+	if (tr) {
+		const cells: { r: number; c: number }[] = [];
+		for (const id of tr.frontier.keys()) {
+			const q = parseId(id);
+			if (q.r >= vb.r0 && q.r <= vb.r1 && q.c >= vb.c0 && q.c <= vb.c1) cells.push(q);
+		}
+		const pulse = motion && cells.length > 0 && cells.length <= FRONTIER_PULSE_MAX && !tr.done;
+		const l = pulse ? frontierLift(scene.now) : 0.5;
+		if (pulse) animating = true;
+		drawFrontier(ctx, cells, view, s, p, dpr, l);
 	}
 
-	// Phase C nodes: one-way lanes and teleporter pads, drawn over visited cells
-	// so they stay readable during a run. (Extra ducks go with the sprites.)
-	// Pairs: a colour each (palette.pads), labels A / A′ (A = first in reading order).
+	// §4.3 one-way and §4.4 teleporters (z2), over visited dots
 	const padEnds = new Map<number, number[]>(); // pair -> keys in reading order
-	const padLabels: { x: number; y: number; label: string; color: string }[] = []; // drawn above paths
+	const padLabels: { x: number; y: number; label: string; color: string; s: number }[] = []; // drawn above paths
 	for (const [r, c, t] of scene.board.entries()) if (t.kind === 'pad') (padEnds.get(t.pair) ?? padEnds.set(t.pair, []).get(t.pair)!).push(r * 1e6 + c);
 	for (const ends of padEnds.values()) ends.sort((a, b) => a - b);
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if ((t.kind !== 'oneway' && t.kind !== 'pad') || isWallAt(scene, r, c)) continue;
 		const { x, y } = cellToScreen(view, r, c);
-		if (t.kind === 'oneway') {
-			ctx.fillStyle = p.oneway;
-			roundRect(ctx, x + 0.04 * s, y + 0.04 * s, s - 0.08 * s, s - 0.08 * s, 0.16 * s);
-			ctx.fill();
-			drawChevron(ctx, x + s / 2, y + s / 2, s, t.dir, p.onewayFg);
-		} else {
+		if (t.kind === 'oneway') drawOneWay(ctx, x, y, s, t.dir, p, dpr);
+		else {
 			const ends = padEnds.get(t.pair) ?? [];
-			const lone = ends.length < 2;
 			const color = p.pads[t.pair % p.pads.length];
-			ctx.save();
-			ctx.strokeStyle = color;
-			ctx.lineWidth = Math.max(2, 0.12 * s);
-			if (lone) ctx.setLineDash([Math.max(2, 0.12 * s), Math.max(2, 0.1 * s)]);
-			ctx.beginPath();
-			ctx.arc(x + s / 2, y + s / 2, 0.44 * s, 0, Math.PI * 2);
-			ctx.stroke();
-			ctx.restore();
-			if (s >= 12) padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color });
+			drawPad(ctx, x + s / 2, y + s / 2, s, color, ends.length < 2, p, dpr);
+			padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color, s });
 		}
 	}
 
-	// Home outline + label, on top of the cells so visited never hides them.
-	// Colours meet 3:1 (line) and 4.5:1 (label) against the paper.
-	ctx.save();
-	ctx.strokeStyle = p.homeLine;
-	ctx.lineWidth = 1.5;
-	ctx.setLineDash([6, 4]);
-	ctx.strokeRect(home.x - 1, home.y - 1, hw + 2, hh + 2);
-	ctx.restore();
-	ctx.fillStyle = p.label;
-	ctx.font = '700 12px "Instrument Sans", system-ui, sans-serif';
-	ctx.textBaseline = 'bottom';
-	ctx.fillText('HOME · 35 × 80', home.x, home.y - 6);
+	// Classic only: the dashed Home outline and label (Paper: the sheet edge is the outline)
+	if (p.classic) {
+		ctx.save();
+		ctx.strokeStyle = p.homeLine;
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([6, 4]);
+		ctx.strokeRect(home.x - 1, home.y - 1, hw + 2, hh + 2);
+		ctx.restore();
+		ctx.fillStyle = p.label;
+		ctx.font = '700 12px Figtree, system-ui, sans-serif';
+		ctx.textBaseline = 'bottom';
+		ctx.fillText('HOME · 35 × 80', home.x, home.y - 6);
+	}
 
-	// Paths: traced path, and the classic Show Best Path preview (in tag order)
+	// §4.10 paths: stitched thread (traced path, and the classic Show Best Path preview)
 	const drawPath = (cells: { r: number; c: number }[], animate: boolean) => {
 		if (cells.length < 1) return;
-		// Draw-on (linear, <= 1.2 s), then a white dash runs the line twice.
-		const L = Math.max(1, cells.length - 1) * s;
 		let k = 1;
-		let dashT = -1;
-		if (animate && !scene.reducedMotion && cells.length > 1) {
+		let tug = 0;
+		let el = Infinity;
+		if (animate && motion && cells.length > 1) {
 			const a = cells[0], b = cells[cells.length - 1];
 			const key = `${a.r},${a.c}>${b.r},${b.c}|${cells.length}`;
 			let t0 = pathStarts.get(key);
@@ -338,73 +213,44 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 				if (pathStarts.size > 32) pathStarts.clear();
 				pathStarts.set(key, (t0 = scene.now));
 			}
-			const drawMs = Math.min(1200, 12 * cells.length);
-			const el = scene.now - t0;
+			const drawMs = Math.min(DURATION.drawMax, DURATION.drawPerUnit * cells.length); // 12 ms/cell, ≤ 1.2 s, linear
+			el = scene.now - t0;
 			k = Math.min(1, el / drawMs);
-			const passMs = (cells.length - 1) * 90;
 			if (k < 1) animating = true;
-			else if (el - drawMs < 2 * passMs) {
-				dashT = el - drawMs;
+			else if (el - drawMs < DURATION.tug) {
+				tug = EASE.out((el - drawMs) / DURATION.tug); // one 240 ms tug, then still
 				animating = true;
-			}
+			} else tug = 1;
+			el -= drawMs;
 		}
-		ctx.save();
-		ctx.globalAlpha = 0.14;
-		ctx.fillStyle = p.path;
-		for (const { r, c } of cells) {
-			const { x, y } = cellToScreen(view, r, c);
-			roundRect(ctx, x + 0.05 * s, y + 0.05 * s, s - 0.1 * s, s - 0.1 * s, 0.18 * s);
-			ctx.fill();
-		}
-		ctx.globalAlpha = 1;
-		ctx.strokeStyle = p.path;
-		ctx.lineWidth = Math.max(2, 0.32 * s);
-		ctx.lineCap = 'round';
-		ctx.lineJoin = 'round';
-		ctx.shadowColor = p.path;
-		ctx.shadowBlur = 0.5 * s;
-		ctx.beginPath();
-		const jumps: [number, number, number, number][] = [];
+		const pts: ({ x: number; y: number } | null)[] = [];
+		const jumps: [{ x: number; y: number }, { x: number; y: number }, string][] = [];
 		cells.forEach(({ r, c }, i) => {
-			const { x, y } = cellToScreen(view, r, c);
+			const q = cellToScreen(view, r, c);
+			const pt = { x: q.x + s / 2, y: q.y + s / 2 };
 			const prev = cells[i - 1];
-			if (i === 0) ctx.moveTo(x + s / 2, y + s / 2);
-			else if (Math.abs(prev.r - r) + Math.abs(prev.c - c) > 1) {
-				// teleporter jump: no line through the board, a dashed arc instead
+			if (prev && Math.abs(prev.r - r) + Math.abs(prev.c - c) > 1) {
+				// a teleporter jump splits the thread
 				const a = cellToScreen(view, prev.r, prev.c);
-				jumps.push([a.x + s / 2, a.y + s / 2, x + s / 2, y + s / 2]);
-				ctx.moveTo(x + s / 2, y + s / 2);
-			} else ctx.lineTo(x + s / 2, y + s / 2);
-		});
-		if (cells.length === 1) {
-			const { x, y } = cellToScreen(view, cells[0].r, cells[0].c);
-			ctx.lineTo(x + s / 2 + 0.01, y + s / 2);
-		}
-		if (k < 1) ctx.setLineDash([L * k, L + s]);
-		ctx.stroke();
-		if (jumps.length && k >= 1) {
-			ctx.save();
-			ctx.shadowBlur = 0;
-			ctx.lineWidth = Math.max(1.5, 0.1 * s);
-			ctx.setLineDash([Math.max(3, 0.25 * s), Math.max(3, 0.2 * s)]);
-			ctx.beginPath();
-			for (const [x0, y0, x1, y1] of jumps) {
-				const mx = (x0 + x1) / 2, my = (y0 + y1) / 2 - Math.max(2 * s, 0.25 * Math.hypot(x1 - x0, y1 - y0));
-				ctx.moveTo(x0, y0);
-				ctx.quadraticCurveTo(mx, my, x1, y1);
+				const from = { x: a.x + s / 2, y: a.y + s / 2 };
+				const pad = scene.board.get(prev.r, prev.c);
+				jumps.push([from, pt, pad?.kind === 'pad' ? p.pads[pad.pair % p.pads.length] : p.pads[0]]);
+				pts.push(null);
 			}
-			ctx.stroke();
-			ctx.restore();
-		}
-		if (dashT >= 0) {
-			ctx.shadowBlur = 0;
-			ctx.setLineDash([0.6 * s, 1.8 * s]);
-			ctx.lineDashOffset = -Math.floor(dashT / 90) * s;
-			ctx.lineWidth = Math.max(1, 0.12 * s);
-			ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-			ctx.stroke();
-		}
-		ctx.restore();
+			pts.push(pt);
+		});
+		if (cells.length === 1) pts.push({ x: pts[0]!.x + 0.01, y: pts[0]!.y });
+		threadPath(ctx, pts, {
+			color: p.path, halo: p.home, width: Math.max(1.6, 0.11 * s), dash: [Math.max(4, 0.34 * s), Math.max(2.5, 0.17 * s)], progress: k, tug,
+			knot: s >= 20, holes: s >= 20 ? { color: p.hole } : null, shadow: { color: p.contact, dx: 0.4, dy: Math.max(1, 0.045 * s), blur: Math.max(1, 0.06 * s) }, dpr,
+		});
+		if (k >= 1)
+			for (const [a, b, col] of jumps) {
+				// §4.4: fold trail in the pair colour, and a paper plane that flies once (420 ms)
+				const ft = motion && el < DURATION.flight ? EASE.flight(Math.max(0, el) / DURATION.flight) : 1;
+				if (ft < 1) animating = true;
+				drawJump(ctx, a, b, s, col, p, ft, motion);
+			}
 	};
 	if (tr) for (const g of tr.paths) drawPath(g.nodes.map(parseId), true);
 	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
@@ -414,20 +260,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		drawPath(cells, false); // the classic player already animates it
 	}
 
-	// Pad letters sit above paths (a jump starts and ends on a pad, so the
-	// line always crosses one): the letter on a paper disc in the pair colour.
-	for (const t of padLabels) {
-		ctx.fillStyle = p.paper;
-		ctx.beginPath();
-		ctx.arc(t.x, t.y, 0.3 * s, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.fillStyle = t.color;
-		ctx.font = `700 ${(t.label.length > 1 ? 0.4 : 0.46) * s}px "DM Mono", monospace`;
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'middle';
-		ctx.fillText(t.label, t.x, t.y + 0.03 * s);
-		ctx.textAlign = 'left';
-	}
+	// Pair letters sit above paths (a jump starts and ends on a pad)
+	for (const t of padLabels) drawPadLetter(ctx, t.x, t.y, t.s, t.label, t.color, p, dpr);
 
 	// Learn: ring the node the current event is about
 	if (tr && scene.learnCurrent && tr.current) {
@@ -439,44 +273,615 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.stroke();
 	}
 
-	// Arrow and duck sprites (from the classic state)
+	// §4.5 / §4.6 characters (z3): start tab and duck stickers
 	const duckCell = m.end >= 0 ? LegacyMirror.cellAt(m.end) : null;
 	if (m.start >= 0) {
 		const a = LegacyMirror.cellAt(m.start);
-		drawArrow(ctx, view, a.r, a.c, duckCell, p);
+		const q = cellToScreen(view, a.r, a.c);
+		const ang = duckCell ? Math.atan2(duckCell.r - a.r, duckCell.c - a.c) : 0;
+		drawStart(ctx, q.x + s / 2, q.y + s / 2, s, ang, p, dpr);
 	}
+	const bob = motion ? 0.03 * s * Math.sin((2 * Math.PI * (scene.now % BOB_MS)) / BOB_MS) : 0;
 	const extra: { n: number; r: number; c: number }[] = [];
 	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'duck' && !isWallAt(scene, r, c)) extra.push({ n: t.n, r, c });
 	const multi = extra.length > 0 || [...scene.board.entries()].some(([, , t]) => t.kind === 'duck');
 	const reached = (n: number) => !!(tr && tr.done && (tr.trace.result.paths ?? []).some((q) => q.duck === n));
-	if (duckCell) drawDuck(ctx, view, duckCell.r, duckCell.c, p, multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done));
-	if (duckCell && multi) drawDuckBadge(ctx, view, duckCell.r, duckCell.c, 1, p);
-	// extra ducks: number order is goal order (duck 1 = the classic Duck)
 	const order = [...scene.board.entries()].filter(([, , t]) => t.kind === 'duck').map(([, , t]) => (t as { n: number }).n).sort((a, b) => a - b);
-	for (const d of extra) {
-		drawDuck(ctx, view, d.r, d.c, p, reached(order.indexOf(d.n) + 2));
-		drawDuckBadge(ctx, view, d.r, d.c, order.indexOf(d.n) + 2, p);
+	const ducks: { r: number; c: number; n: number | null; found: boolean }[] = [];
+	if (duckCell) ducks.push({ ...duckCell, n: multi ? 1 : null, found: multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done) });
+	for (const d of extra) ducks.push({ r: d.r, c: d.c, n: order.indexOf(d.n) + 2, found: reached(order.indexOf(d.n) + 2) });
+	for (const d of ducks) {
+		const q = cellToScreen(view, d.r, d.c);
+		drawDuck(ctx, q.x + s / 2, q.y + s / 2 + bob, s, p, dpr);
+		if (d.n !== null) drawDuckBadge(ctx, q.x + s / 2, q.y + s / 2 + bob, s, d.n, d.found, p, dpr);
 	}
+	if (bob && ducks.length) animating = true; // idle bob (off under reduced motion)
 
-	// Hover outline
+	// §4.9 hover: a rounded pencil guide
 	if (scene.hover) {
 		const { x, y } = cellToScreen(view, scene.hover.r, scene.hover.c);
+		ctx.save();
 		ctx.strokeStyle = p.ink;
-		ctx.globalAlpha = 0.35;
+		ctx.globalAlpha = 0.45;
 		ctx.lineWidth = 1.5;
-		roundRect(ctx, x + 0.06 * s, y + 0.06 * s, s - 0.12 * s, s - 0.12 * s, 0.22 * s);
+		ctx.setLineDash([3, 3]);
+		roundRect(ctx, x + 0.06 * s, y + 0.06 * s, s - 0.12 * s, s - 0.12 * s, 0.14 * s);
 		ctx.stroke();
-		ctx.globalAlpha = 1;
+		ctx.restore();
 	}
 	return animating;
 }
 
+// ------------------------------------------------------------------ grid
+type Pt = { x: number; y: number };
+function drawPencilGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number, home: Pt, hw: number, hh: number) {
+	// §3 hand-ruled grid, baked per 16x16 tile (seeded by tile, so panning never re-rolls it);
+	// above the bitmap cap, live ruled lines in the pencil colour.
+	const tile = CHUNK * s;
+	const pass = (inside: boolean) => {
+		ctx.save();
+		ctx.beginPath();
+		if (inside) ctx.rect(home.x, home.y, hw, hh);
+		else {
+			ctx.rect(0, 0, view.panX + 1e5, view.panY + 1e5);
+			ctx.rect(home.x, home.y, hw, hh);
+		}
+		ctx.clip(inside ? 'nonzero' : 'evenodd');
+		ctx.globalAlpha = ga * (inside ? 1 : 0.7);
+		if (tile * dpr <= BAKE_CAP) {
+			for (let cr = Math.floor(vb.r0 / CHUNK); cr <= Math.floor(vb.r1 / CHUNK); cr++)
+				for (let cc = Math.floor(vb.c0 / CHUNK); cc <= Math.floor(vb.c1 / CHUNK); cc++) {
+					const o = cellToScreen(view, cr * CHUNK, cc * CHUNK);
+					pencilGrid(ctx, Math.round(o.x * dpr) / dpr - s, Math.round(o.y * dpr) / dpr - s, tile + s + 1, tile + s + 1, s, { color: p.pencil!, alpha: 1, pressed: p.pencilPressed, seed: 3 + ((cr * 7919 + cc * 104729) & 0xffff), dpr });
+				}
+		} else {
+			ctx.lineWidth = 1;
+			for (const [col, dy] of [[p.pencilPressed, 1], [p.pencil, 0]] as const) {
+				if (!col) continue;
+				ctx.strokeStyle = col;
+				ctx.beginPath();
+				for (let c = vb.c0; c <= vb.c1 + 1; c++) {
+					const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 + dy;
+					ctx.moveTo(x, view.panY + vb.r0 * s);
+					ctx.lineTo(x, view.panY + (vb.r1 + 1) * s);
+				}
+				for (let r = vb.r0; r <= vb.r1 + 1; r++) {
+					const y = Math.round((view.panY + r * s) * dpr) / dpr + 0.5 + dy;
+					ctx.moveTo(view.panX + vb.c0 * s, y);
+					ctx.lineTo(view.panX + (vb.c1 + 1) * s, y);
+				}
+				ctx.stroke();
+			}
+		}
+		ctx.restore();
+	};
+	pass(true);
+	pass(false);
+}
+function drawCrispGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number, home: Pt, hw: number, hh: number) {
+	ctx.lineWidth = 1 / dpr;
+	ctx.globalAlpha = ga;
+	for (const [color, inside] of [[p.outerGrid, false], [p.grid, true]] as const) {
+		ctx.strokeStyle = color;
+		ctx.beginPath();
+		const r0 = inside ? Math.max(vb.r0, 0) : vb.r0;
+		const r1 = inside ? Math.min(vb.r1, HOME_ROWS) : vb.r1;
+		const c0 = inside ? Math.max(vb.c0, 0) : vb.c0;
+		const c1 = inside ? Math.min(vb.c1, HOME_COLS) : vb.c1;
+		if (inside) {
+			ctx.save();
+			ctx.rect(home.x, home.y, hw, hh);
+			ctx.clip();
+			ctx.beginPath();
+		}
+		for (let c = c0; c <= c1; c++) {
+			const x = Math.round((view.panX + c * s) * dpr) / dpr;
+			ctx.moveTo(x, view.panY + r0 * s);
+			ctx.lineTo(x, view.panY + r1 * s);
+		}
+		for (let r = r0; r <= r1; r++) {
+			const y = Math.round((view.panY + r * s) * dpr) / dpr;
+			ctx.moveTo(view.panX + c0 * s, y);
+			ctx.lineTo(view.panX + c1 * s, y);
+		}
+		ctx.stroke();
+		if (inside) ctx.restore();
+	}
+	ctx.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------------ weights
+const W_LAYERS = [1, 2, 3, 4];
+function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType<typeof visibleBounds>, s: number, dpr: number) {
+	const { view, palette: p } = scene;
+	const byChunk = new Map<string, { cr: number; cc: number; cells: [number, number, Weight][] }>();
+	for (const [r, c, t] of scene.board.entries(vb)) {
+		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
+		const cr = Math.floor(r / CHUNK), cc = Math.floor(c / CHUNK), k = `${cr},${cc}`;
+		(byChunk.get(k) ?? byChunk.set(k, { cr, cc, cells: [] }).get(k)!).cells.push([r, c, t.cost]);
+	}
+	if (!byChunk.size) return;
+	const same = (cost: number) => (r: number, c: number) => {
+		const t = scene.board.get(r, c);
+		return !!t && t.kind === 'weight' && t.cost === cost && !isWallAt(scene, r, c);
+	};
+	// paint one chunk's weights with (ox, oy) = screen position of cell (cr*16, cc*16)
+	const paint = (c2: Ctx2D, cr: number, cc: number, cells: [number, number, Weight][], ox: number, oy: number) => {
+		const at = (r: number, c: number) => ({ x: ox + (c - cc * CHUNK) * s, y: oy + (r - cr * CHUNK) * s });
+		if (!p.classic) {
+			// v2.1: separate piles (no merging in Paper); reading order so lower-right piles overlap
+			for (const [r, c, cost] of cells) {
+				const tier = weightTier(cost);
+				sheetPile(c2, { ...at(r, c), r, c, mask: 0 }, s, {
+					layers: W_LAYERS[tier], fills: [weightColor(p, cost), weightUnder(p, cost)], edge: p.wEdge, contact: contactOf(p, s), dpr, rotate: 0.06, tintVar: 0.06,
+					label: { text: String(cost), color: p.stamp, font: `800 ${Math.round(0.4 * s)}px Fraunces, Georgia, serif` },
+				});
+			}
+			return;
+		}
+		// Classic: flat merged sheets (66c97df's same-cost union), cost on each cell from 200%
+		for (const cost of [2, 5, 10] as Weight[]) {
+			const refs: CellRef[] = cells.filter(([, , w]) => w === cost).map(([r, c]) => ({ ...at(r, c), r, c, mask: maskAt(same(cost), r, c) }));
+			if (!refs.length) continue;
+			paperStack(c2 as CanvasRenderingContext2D, refs, s, { layers: 1, top: weightColor(p, cost), under: weightUnder(p, cost), edge: p.wEdge, radius: s < 6 ? 0 : 0.1 * s, inset: 0.06 * s, dpr, label: { text: String(cost), color: p.stamp, font: `700 ${Math.round(0.34 * s)}px "DM Mono", monospace` } });
+		}
+	};
+	const tile = CHUNK * s, pad = Math.ceil(0.3 * s) + 8;
+	for (const { cr, cc, cells } of byChunk.values()) {
+		const o = cellToScreen(view, cr * CHUNK, cc * CHUNK);
+		if ((tile + 2 * pad) * dpr > BAKE_CAP + 200) {
+			paint(ctx, cr, cc, cells, o.x, o.y);
+			continue;
+		}
+		let sig = 2166136261;
+		for (const [r, c, w] of cells) sig = Math.imul(sig ^ (r * 4099 + c * 7 + w), 16777619);
+		// Classic merges across chunk edges, so its signature includes the neighbour masks
+		if (p.classic) for (const [r, c, w] of cells) sig = Math.imul(sig ^ maskAt(same(w), r, c), 16777619);
+		const img = cached(`w|${p.name}|${s}|${dpr}|${cr},${cc}|${sig}|${cells.length}`, () => {
+			const L = mkLayer((tile + 2 * pad) * dpr, (tile + 2 * pad) * dpr);
+			if (!L) return null;
+			L[1].setTransform(dpr, 0, 0, dpr, 0, 0);
+			paint(L[1], cr, cc, cells, pad, pad);
+			return L[0];
+		});
+		if (img) ctx.drawImage(img as CanvasImageSource, Math.round((o.x - pad) * dpr) / dpr, Math.round((o.y - pad) * dpr) / dpr, tile + 2 * pad, tile + 2 * pad);
+		else paint(ctx, cr, cc, cells, o.x, o.y);
+	}
+}
+
+// ------------------------------------------------------------------ visited
+/** Confetti dots from 3 cached sprites (§8: drawImage, never shadowBlur per dot). Below 8 px: batched squares. */
+class DotDrawer {
+	private squares: [Path2D | null, Path2D | null, Path2D | null] = [null, null, null];
+	private sprites: (Layer | null)[];
+	private pad: number;
+	private R: number;
+	constructor(private ctx: CanvasRenderingContext2D, private s: number, private p: Palette, private dpr: number) {
+		this.R = Math.round(0.3 * s * 2) / 2; // quantised so zoom animations reuse sprites
+		this.pad = Math.ceil(this.R * 1.2 + 6);
+		this.sprites = s < 8 ? [] : p.vis.map((fill) => cached(`vdot|${fill}|${this.R}|${s >= 14}|${s >= 20}|${dpr}`, () => {
+			const L = mkLayer(2 * this.pad * dpr, 2 * this.pad * dpr);
+			if (!L) return null;
+			L[1].setTransform(dpr, 0, 0, dpr, 0, 0);
+			punchDot(L[1], this.pad, this.pad, this.R, { fill, rim: s >= 20 ? 'rgba(255,255,255,0.32)' : null, contact: s >= 14 ? { color: p.contact, dx: 0.3, dy: Math.max(0.7, 0.025 * s), blur: Math.min(0.045 * s, 3) } : null, dpr });
+			return L[0];
+		}));
+	}
+	add(r: number, c: number, view: View, k: number, fade: number) {
+		const { x, y } = cellToScreen(view, r, c);
+		const s = this.s, tint = Math.floor(hash(r, c, 3) * 3);
+		if (s < 8) {
+			const sq = (this.squares[tint] ??= new Path2D());
+			sq.rect(x, y, s, s);
+			return;
+		}
+		if (k <= 0.01) return;
+		const img = this.sprites[tint];
+		const jx = (hash(r, c, 1) - 0.5) * 0.1 * s, jy = (hash(r, c, 2) - 0.5) * 0.1 * s; // ±0.05 s
+		const size = (1 + (hash(r, c, 4) - 0.5) * 0.24) * k; // ±12%, enter 0 -> 1
+		const squash = 1 - 0.12 * hash(r, c, 5);
+		const ctx = this.ctx;
+		ctx.save();
+		ctx.globalAlpha = fade;
+		ctx.translate(x + s / 2 + jx, y + s / 2 + jy);
+		ctx.rotate(hash(r, c, 6) * Math.PI);
+		ctx.scale(size, size * squash);
+		if (img) ctx.drawImage(img as CanvasImageSource, -this.pad, -this.pad, 2 * this.pad, 2 * this.pad);
+		else {
+			ctx.fillStyle = this.p.vis[tint];
+			ctx.beginPath();
+			ctx.arc(0, 0, this.R, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		ctx.restore();
+	}
+	flush() {
+		this.squares.forEach((sq, i) => {
+			if (!sq) return;
+			this.ctx.fillStyle = this.p.vis[i];
+			this.ctx.fill(sq);
+		});
+	}
+}
+
+// ------------------------------------------------------------------ frontier
+function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: number }[], view: View, s: number, p: Palette, dpr: number, l: number) {
+	if (!cells.length) return;
+	const size = 0.74 * s;
+	if (p.classic || s < 8) {
+		// Classic: flat squares, no lift
+		ctx.fillStyle = p.front;
+		ctx.beginPath();
+		for (const { r, c } of cells) {
+			const { x, y } = cellToScreen(view, r, c);
+			roundRectPath(ctx, x + s / 2 - size / 2, y + s / 2 - size / 2, size, size, [0.12 * size, 0.12 * size, 0.12 * size, 0.12 * size]);
+		}
+		ctx.fill();
+		if (p.frontEdge !== p.front && s >= 8) {
+			ctx.strokeStyle = p.frontEdge;
+			ctx.lineWidth = 1;
+			ctx.stroke();
+		}
+		return;
+	}
+	// 2 baked sprites (lift 0 and 1), crossfaded (§8)
+	const S = Math.round(s * 2) / 2, pad = Math.ceil(size / 2 + 12);
+	const sprite = (lift: number) => cached(`front|${p.name}|${S}|${lift}|${dpr}`, () => {
+		const L = mkLayer(2 * pad * dpr, 2 * pad * dpr);
+		if (!L) return null;
+		L[1].setTransform(dpr, 0, 0, dpr, 0, 0);
+		liftedCard(L[1], pad, pad, 0.74 * S, { fill: p.front, edge: p.frontEdge, lift, shadow: p.shadow, dpr });
+		return L[0];
+	});
+	const a = sprite(0), b = sprite(1);
+	for (const { r, c } of cells) {
+		const { x, y } = cellToScreen(view, r, c);
+		const rot = (hash(r, c, 21) - 0.5) * 0.14; // ±0.07 rad
+		if (!a || !b) {
+			liftedCard(ctx, x + s / 2, y + s / 2, size, { fill: p.front, edge: p.frontEdge, lift: l, rotate: rot, shadow: p.shadow, dpr });
+			continue;
+		}
+		ctx.save();
+		ctx.translate(x + s / 2, y + s / 2);
+		ctx.rotate(rot);
+		ctx.globalAlpha = 1 - l;
+		ctx.drawImage(a as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
+		ctx.globalAlpha = l;
+		ctx.drawImage(b as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
+		ctx.restore();
+	}
+}
+
+// ------------------------------------------------------------------ one-way, teleporters, jump
+/** Chevron pointing +x, centred (Prism's paper.js shape); arms ±0.22 s, bar 0.13 s. */
+function chevron(ctx: Ctx2D, s: number) {
+	const a = 0.22 * s, b = 0.13 * s;
+	ctx.beginPath();
+	ctx.moveTo(-a * 0.7, -a);
+	ctx.lineTo(-a * 0.7 + b, -a);
+	ctx.lineTo(a * 0.75, 0);
+	ctx.lineTo(-a * 0.7 + b, a);
+	ctx.lineTo(-a * 0.7, a);
+	ctx.lineTo(a * 0.75 - b, 0);
+	ctx.closePath();
+}
+function drawOneWay(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, dir: number, p: Palette, dpr: number) {
+	const ang = ((dir - 1) * Math.PI) / 2; // model: 0 N, 1 E, 2 S, 3 W; the chevron points E at 0
+	const cx = x + s / 2, cy = y + s / 2;
+	if (s < 10) {
+		// below 10 px: no tile, a solid chevron at 1.2x
+		ctx.save();
+		ctx.translate(cx, cy);
+		ctx.rotate(ang);
+		chevron(ctx, s * 1.2);
+		ctx.fillStyle = p.onewayFg;
+		ctx.fill();
+		ctx.restore();
+		return;
+	}
+	const ins = 0.08 * s;
+	ctx.save();
+	ctx.beginPath();
+	roundRectPath(ctx, x + ins, y + ins, s - 2 * ins, s - 2 * ins, [0.14 * s, 0.14 * s, 0.14 * s, 0.14 * s]);
+	ctx.save();
+	ctx.shadowColor = p.contact;
+	ctx.shadowOffsetY = Math.max(1, 0.03 * s) * dpr;
+	ctx.shadowBlur = Math.min(0.06 * s, 4) * dpr;
+	ctx.fillStyle = p.oneway;
+	ctx.fill();
+	ctx.restore();
+	ctx.save();
+	ctx.clip();
+	ctx.strokeStyle = p.onewayFg;
+	ctx.lineWidth = 2; // 1dp inside the clip
+	ctx.stroke();
+	ctx.restore();
+	// punched chevron: the hole colour with an inner shadow along the up-facing edge
+	ctx.translate(cx, cy);
+	ctx.rotate(ang);
+	chevron(ctx, s);
+	ctx.fillStyle = p.hole;
+	ctx.fill();
+	ctx.clip();
+	ctx.rotate(-ang);
+	ctx.shadowColor = p.holeShadow;
+	ctx.shadowBlur = Math.max(1, 0.05 * s) * dpr;
+	ctx.shadowOffsetY = Math.max(1, 0.04 * s) * dpr;
+	ctx.beginPath();
+	ctx.rect(-s, -s, 2 * s, 2 * s);
+	ctx.rotate(ang);
+	const a = 0.22 * s, b = 0.13 * s;
+	ctx.moveTo(-a * 0.7, -a);
+	ctx.lineTo(a * 0.75 - b, 0);
+	ctx.lineTo(-a * 0.7, a);
+	ctx.lineTo(-a * 0.7 + b, a);
+	ctx.lineTo(a * 0.75, 0);
+	ctx.lineTo(-a * 0.7 + b, -a);
+	ctx.closePath();
+	ctx.fillStyle = p.holeShadow;
+	ctx.fill('evenodd');
+	ctx.restore();
+}
+
+/** §4.4 + gate: ring radius; at least 5 px so pairs still read at 35 % on phones. */
+export const padRing = (s: number) => ({ ri: Math.max(1.5, 0.24 * s), ro: Math.max(5, 0.44 * s) });
+function drawPad(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string, lone: boolean, p: Palette, dpr: number) {
+	const { ri, ro } = padRing(s);
+	const TAU = Math.PI * 2;
+	ctx.save();
+	if (lone) ctx.globalAlpha = 0.6; // with a dashed outline below: "no partner yet"
+	punchHole(ctx, cx, cy, ri, { hole: p.hole, innerShadow: p.holeShadow, dpr });
+	const rin = ri + 0.05 * s;
+	const ring = new Path2D();
+	ring.arc(0, 0, ro, 0, TAU);
+	ring.moveTo(rin, 0);
+	ring.arc(0, 0, rin, 0, TAU, true);
+	if (s >= 10) sticker(ctx, cx, cy, ring, { fill: color, border: p.sticker, borderWidth: Math.max(1, 0.045 * s), edge: p.stickerEdge, contact: contactOf(p, s), peel: 0.3, curl: false, dpr });
+	else {
+		ctx.translate(cx, cy);
+		ctx.fillStyle = color;
+		ctx.fill(ring);
+		ctx.translate(-cx, -cy);
+	}
+	ctx.restore();
+	if (lone) {
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.lineWidth = Math.max(1.5, 0.06 * s);
+		ctx.setLineDash([Math.max(2, 0.12 * s), Math.max(2, 0.1 * s)]);
+		ctx.beginPath();
+		ctx.arc(cx, cy, ro + Math.max(2, 0.08 * s), 0, TAU);
+		ctx.stroke();
+		ctx.restore();
+	}
+}
+/**
+ * Pair letter. From 200 %: in the hole, white at .9, Figtree 800 at 0.22 s (§4.4).
+ * Below that (gate: letters vanished at 35 % on phones), a small letter tag on the ring's
+ * top-right, like the duck badge, so pairs are still told apart by letter as well as colour.
+ */
+export function padLetterGeometry(cx: number, cy: number, s: number) {
+	if (s >= 40) return { inHole: true, x: cx, y: cy, r: 0 };
+	const { ro } = padRing(s);
+	const r = 6.5;
+	return { inHole: false, x: cx + ro * 0.75, y: cy - ro * 0.75, r };
+}
+function drawPadLetter(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, label: string, color: string, p: Palette, dpr: number) {
+	const g = padLetterGeometry(cx, cy, s);
+	ctx.save();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	if (g.inHole) {
+		ctx.globalAlpha = 0.9;
+		ctx.fillStyle = '#ffffff';
+		ctx.font = `800 ${Math.round((label.length > 1 ? 0.2 : 0.22) * s)}px Figtree, system-ui, sans-serif`;
+		ctx.fillText(label, cx, cy + 1);
+		ctx.restore();
+		return;
+	}
+	const w = label.length > 1 ? g.r * 1.5 : g.r;
+	const tag = shapeWithBox((q) => q.roundRect(-w, -g.r, 2 * w, 2 * g.r, g.r), { x: -w, y: -g.r, w: 2 * w, h: 2 * g.r });
+	sticker(ctx, g.x, g.y, tag, { fill: color, border: p.sticker, borderWidth: 1, edge: p.stickerEdge, contact: { color: p.contact, dx: 0, dy: 1, blur: 2 }, dpr }, (c) => {
+		c.fillStyle = '#ffffff';
+		c.font = `800 9px Figtree, system-ui, sans-serif`;
+		c.textAlign = 'center';
+		c.textBaseline = 'middle';
+		c.fillText(label, 0, 0.5);
+	});
+	ctx.restore();
+}
+
+function drawJump(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, s: number, color: string, p: Palette, t: number, motion: boolean) {
+	// quadratic arc, apex 25% of the distance above the midpoint
+	const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - Math.max(2 * s, 0.25 * Math.hypot(b.x - a.x, b.y - a.y));
+	const pt = (u: number) => ({ x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * my + u * u * b.y });
+	ctx.save();
+	ctx.setLineDash([Math.max(3, 0.18 * s), Math.max(3, 0.14 * s)]);
+	ctx.strokeStyle = color;
+	ctx.globalAlpha = 0.75;
+	ctx.lineWidth = Math.max(1.5, 0.06 * s);
+	ctx.beginPath();
+	ctx.moveTo(a.x, a.y);
+	for (let u = 0.02; u <= t + 1e-6; u += 0.02) {
+		const q = pt(u);
+		ctx.lineTo(q.x, q.y);
+	}
+	ctx.stroke();
+	ctx.restore();
+	if (!motion) return; // reduced motion: the trail only, no plane
+	const u = Math.min(0.98, t), q0 = pt(u), q1 = pt(u + 0.02);
+	drawPlane(ctx, q0.x, q0.y, Math.max(16, 0.95 * s), Math.atan2(q1.y - q0.y, q1.x - q0.x), p);
+}
+function drawPlane(ctx: CanvasRenderingContext2D, x: number, y: number, u: number, ang: number, p: Palette) {
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.rotate(ang);
+	ctx.shadowColor = p.contact;
+	ctx.shadowOffsetY = u * 0.12;
+	ctx.shadowBlur = u * 0.2;
+	ctx.beginPath();
+	ctx.moveTo(u * 0.55, 0);
+	ctx.lineTo(-u * 0.45, -u * 0.38);
+	ctx.lineTo(-u * 0.2, 0);
+	ctx.closePath();
+	ctx.fillStyle = p.sticker;
+	ctx.fill();
+	ctx.shadowColor = 'transparent';
+	ctx.beginPath();
+	ctx.moveTo(u * 0.55, 0);
+	ctx.lineTo(-u * 0.45, u * 0.38);
+	ctx.lineTo(-u * 0.2, 0);
+	ctx.closePath();
+	ctx.fillStyle = p.stickerEdge;
+	ctx.fill();
+	ctx.beginPath();
+	ctx.moveTo(u * 0.55, 0);
+	ctx.lineTo(-u * 0.2, 0);
+	ctx.strokeStyle = p.ink;
+	ctx.globalAlpha = 0.35;
+	ctx.lineWidth = 1;
+	ctx.stroke();
+	ctx.restore();
+}
+
+// ------------------------------------------------------------------ start tab, duck, badge
+function drawStart(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, ang: number, p: Palette, dpr: number) {
+	const u = Math.max(1.2 * s, 16);
+	const build = (q: Path2D | Ctx2D) => {
+		q.moveTo(-0.42 * u, -0.04 * u);
+		q.lineTo(-0.22 * u, -0.24 * u);
+		q.lineTo(0.12 * u, -0.24 * u);
+		q.lineTo(0.44 * u, 0);
+		q.lineTo(0.12 * u, 0.24 * u);
+		q.lineTo(-0.42 * u, 0.24 * u);
+		q.closePath();
+	};
+	const tab = shapeWithBox((q) => build(q), { x: -0.42 * u, y: -0.24 * u, w: 0.86 * u, h: 0.48 * u });
+	sticker(ctx, cx, cy, tab, { fill: p.start, border: p.sticker, borderWidth: Math.max(1.5, 0.06 * u), edge: p.stickerEdge, peel: p.classic ? 0 : 0.5, rotate: ang, contact: { color: p.contact, dx: 0.5, dy: Math.max(1, 0.05 * u), blur: Math.min(0.09 * u, 5) }, dpr }, (c) => {
+		c.beginPath();
+		c.moveTo(-0.42 * u, -0.04 * u);
+		c.lineTo(-0.22 * u, -0.24 * u);
+		c.lineTo(-0.22 * u, -0.04 * u);
+		c.closePath();
+		c.shadowColor = 'rgba(0,0,0,0.28)';
+		c.shadowOffsetX = 0.02 * u * dpr;
+		c.shadowOffsetY = 0.02 * u * dpr;
+		c.shadowBlur = 0.03 * u * dpr;
+		c.fillStyle = p.arrowBack;
+		c.fill();
+	});
+	if (p.startOutline) {
+		// Classic Light: the fill is 2.55:1, so a 1dp outline carries the 3:1
+		ctx.save();
+		ctx.translate(cx, cy);
+		ctx.rotate(ang);
+		ctx.beginPath();
+		build(ctx);
+		ctx.strokeStyle = p.startOutline;
+		ctx.lineWidth = 1;
+		ctx.stroke();
+		ctx.restore();
+	}
+}
+
+function duckSilhouette(u: number) {
+	return shapeWithBox((q) => {
+		q.ellipse(-0.04 * u, 0.12 * u, 0.36 * u, 0.25 * u, 0, 0, Math.PI * 2);
+		q.moveTo(0.34 * u, -0.14 * u);
+		q.arc(0.16 * u, -0.14 * u, 0.18 * u, 0, Math.PI * 2);
+		q.moveTo(0.29 * u, -0.2 * u);
+		q.lineTo(0.52 * u, -0.13 * u);
+		q.lineTo(0.5 * u, -0.1 * u);
+		q.lineTo(0.3 * u, -0.06 * u);
+		q.closePath();
+		q.moveTo(-0.38 * u, 0.02 * u);
+		q.lineTo(-0.48 * u, -0.1 * u);
+		q.lineTo(-0.3 * u, -0.02 * u);
+		q.closePath();
+	}, { x: -0.48 * u, y: -0.32 * u, w: 1.0 * u, h: 0.69 * u });
+}
+/** The cut-paper duck sticker (§4.5): body, wing, two-ply beak, eye. Overflows its cell. */
+export function drawDuck(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, p: Palette, dpr: number) {
+	const u = Math.max(1.3 * s, 16);
+	sticker(ctx, cx, cy, duckSilhouette(u), { fill: p.duck, border: p.sticker, borderWidth: Math.max(1.5, 0.07 * u), edge: p.stickerEdge, peel: p.classic ? 0 : 0.7, curl: false, contact: { color: p.contact, dx: 0.5, dy: Math.max(1.2, 0.05 * u), blur: Math.min(0.1 * u, 6) }, dpr }, (c) => {
+		const layer = (build: (q: Path2D) => void, fill: string) => {
+			const q = new Path2D();
+			build(q);
+			c.save();
+			c.shadowColor = p.contact;
+			c.shadowOffsetY = Math.max(1, 0.03 * u) * dpr;
+			c.shadowBlur = Math.min(0.05 * u, 4) * dpr;
+			c.fillStyle = fill;
+			c.fill(q);
+			c.restore();
+		};
+		layer((q) => { q.moveTo(-0.26 * u, 0.06 * u); q.quadraticCurveTo(-0.02 * u, -0.02 * u, 0.12 * u, 0.12 * u); q.quadraticCurveTo(-0.06 * u, 0.3 * u, -0.26 * u, 0.06 * u); }, p.duckWing);
+		layer((q) => { q.moveTo(0.3 * u, -0.15 * u); q.lineTo(0.5 * u, -0.1 * u); q.lineTo(0.3 * u, -0.06 * u); q.closePath(); }, p.beak2);
+		layer((q) => { q.moveTo(0.29 * u, -0.2 * u); q.lineTo(0.52 * u, -0.13 * u); q.lineTo(0.3 * u, -0.1 * u); q.closePath(); }, p.beak);
+		c.beginPath();
+		c.arc(0.2 * u, -0.19 * u, Math.max(1.2, 0.045 * u), 0, Math.PI * 2);
+		c.fillStyle = p.eye;
+		c.fill();
+		if (u >= 20) {
+			c.beginPath();
+			c.arc(0.212 * u, -0.202 * u, Math.max(0.6, 0.014 * u), 0, Math.PI * 2);
+			c.fillStyle = '#fff';
+			c.fill();
+		}
+	});
+	// 1dp duckEdge on the body silhouette at .85 (§4.5)
+	ctx.save();
+	ctx.translate(cx, cy);
+	ctx.globalAlpha = 0.85;
+	ctx.strokeStyle = p.duckEdge;
+	ctx.lineWidth = 1;
+	ctx.stroke(duckSilhouette(u));
+	ctx.restore();
+}
+
+/**
+ * Duck number badge (§4.5 sticker badge): r = max(7, .17u) at (+.36u, −.38u) from the
+ * duck's centre, u = max(1.3 s, 16). The 7 px floor keeps digits >= 9 px at every zoom
+ * (Mochi check 3), so it shows from s >= 6, not only s >= 14.
+ */
+export function badgeGeometry(cx: number, cy: number, s: number) {
+	const u = Math.max(1.3 * s, 16);
+	const rad = Math.max(7, 0.17 * u);
+	return { cx: cx + 0.36 * u, cy: cy - 0.38 * u, rad };
+}
+function drawDuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, n: number, found: boolean, p: Palette, dpr: number) {
+	if (s < 6) return; // below 30 % the whole board is a thumbnail
+	const { cx, cy, rad } = badgeGeometry(x, y, s);
+	const u = Math.max(1.3 * s, 16);
+	const circ = shapeWithBox((q) => q.arc(0, 0, rad, 0, Math.PI * 2), { x: -rad, y: -rad, w: 2 * rad, h: 2 * rad });
+	sticker(ctx, cx, cy, circ, { fill: found ? p.vis[1] : p.sticker, border: p.sticker, borderWidth: Math.max(1, 0.03 * u), edge: p.stickerEdge, peel: 0.55, rotate: -0.12, contact: { color: p.contact, dx: 0, dy: 1, blur: 2 }, dpr }, (c) => {
+		if (found) {
+			// a drawn tick, not a glyph
+			c.beginPath();
+			c.moveTo(-0.45 * rad, 0.02 * rad);
+			c.lineTo(-0.12 * rad, 0.36 * rad);
+			c.lineTo(0.48 * rad, -0.34 * rad);
+			c.strokeStyle = '#fff';
+			c.lineWidth = Math.max(1.5, 0.22 * rad);
+			c.lineCap = 'round';
+			c.lineJoin = 'round';
+			c.stroke();
+			return;
+		}
+		c.fillStyle = '#2b2620';
+		c.font = `800 ${Math.max(9, Math.round(rad * 1.15))}px Figtree, system-ui, sans-serif`;
+		c.textAlign = 'center';
+		c.textBaseline = 'middle';
+		c.fillText(String(n), 0, rad * 0.06);
+	});
+}
+
+// ------------------------------------------------------------------ helpers
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
 	ctx.beginPath();
 	roundRectPath(ctx, x, y, w, h, [r, r, r, r]);
 }
-
-function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number[]) {
+function roundRectPath(ctx: Ctx2D, x: number, y: number, w: number, h: number, rad: number[]) {
 	const [tl, tr, br, bl] = rad.map((v) => Math.min(v, w / 2, h / 2));
 	ctx.moveTo(x + tl, y);
 	ctx.lineTo(x + w - tr, y);
@@ -492,158 +897,4 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 	if (tl) ctx.arcTo(x, y, x + tl, y, tl);
 	else ctx.lineTo(x, y);
 	ctx.closePath();
-}
-
-function drawArrow(
-	ctx: CanvasRenderingContext2D,
-	view: View,
-	r: number,
-	c: number,
-	toward: { r: number; c: number } | null,
-	p: Palette,
-) {
-	let { x, y, s } = cellToScreen(view, r, c);
-	if (s < 12) {
-		x -= (12 - s) / 2;
-		y -= (12 - s) / 2;
-		s = 12;
-	}
-	ctx.fillStyle = p.start;
-	roundRect(ctx, x + 0.04 * s, y + 0.04 * s, s * 0.92, s * 0.92, 0.3 * s);
-	ctx.fill();
-	const angle = toward ? Math.atan2(toward.r - r, toward.c - c) : 0;
-	ctx.save();
-	ctx.translate(x + s / 2, y + s / 2);
-	ctx.rotate(angle);
-	ctx.strokeStyle = '#fff';
-	ctx.lineWidth = Math.max(1.5, 0.09 * s);
-	ctx.lineCap = 'round';
-	ctx.lineJoin = 'round';
-	ctx.beginPath();
-	ctx.moveTo(-0.26 * s, 0);
-	ctx.lineTo(0.26 * s, 0);
-	ctx.moveTo(0.08 * s, -0.17 * s);
-	ctx.lineTo(0.26 * s, 0);
-	ctx.lineTo(0.08 * s, 0.17 * s);
-	ctx.moveTo(-0.26 * s, 0);
-	ctx.lineTo(-0.36 * s, -0.12 * s);
-	ctx.moveTo(-0.26 * s, 0);
-	ctx.lineTo(-0.36 * s, 0.12 * s);
-	ctx.stroke();
-	ctx.restore();
-}
-
-/** The modern duck mark (filled shapes after src/Images/duck.png). */
-export function drawDuck(
-	ctx: CanvasRenderingContext2D,
-	view: View,
-	r: number,
-	c: number,
-	p: Palette,
-	found: boolean,
-) {
-	const cell = cellToScreen(view, r, c);
-	const s = Math.max(12, cell.s) * 1.12;
-	const cx = cell.x + cell.s / 2;
-	const cy = cell.y + cell.s / 2;
-	ctx.save();
-	if (!found) {
-		ctx.fillStyle = 'rgba(255,208,0,0.30)';
-		ctx.beginPath();
-		ctx.arc(cx, cy, 0.62 * s, 0, Math.PI * 2);
-		ctx.fill();
-	}
-	ctx.translate(cx, cy);
-	ctx.lineWidth = Math.max(1, 0.05 * s);
-	ctx.strokeStyle = '#1c2230';
-	ctx.lineJoin = 'round';
-	// body
-	ctx.fillStyle = p.duck;
-	ctx.beginPath();
-	ctx.ellipse(0.06 * s, 0.14 * s, 0.4 * s, 0.26 * s, 0, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.stroke();
-	// tail
-	ctx.beginPath();
-	ctx.moveTo(0.36 * s, 0.02 * s);
-	ctx.lineTo(0.5 * s, -0.12 * s);
-	ctx.lineTo(0.44 * s, 0.12 * s);
-	ctx.closePath();
-	ctx.fill();
-	ctx.stroke();
-	// head
-	ctx.beginPath();
-	ctx.arc(-0.16 * s, -0.16 * s, 0.21 * s, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.stroke();
-	// beak
-	ctx.fillStyle = '#ff9a1f';
-	ctx.beginPath();
-	ctx.ellipse(-0.4 * s, -0.12 * s, 0.11 * s, 0.06 * s, 0, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.stroke();
-	// eye + wing smile
-	ctx.fillStyle = '#1c2230';
-	ctx.beginPath();
-	ctx.arc(-0.2 * s, -0.2 * s, 0.035 * s, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.beginPath();
-	ctx.arc(0.08 * s, 0.08 * s, 0.16 * s, 0.15 * Math.PI, 0.85 * Math.PI);
-	ctx.stroke();
-	ctx.restore();
-}
-
-/** Chevron pointing N/E/S/W (0..3), centred at (cx, cy). */
-function drawChevron(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, dir: number, color: string) {
-	ctx.save();
-	ctx.translate(cx, cy);
-	ctx.rotate((dir * Math.PI) / 2);
-	ctx.strokeStyle = color;
-	ctx.lineWidth = Math.max(1.25, 0.1 * s);
-	ctx.lineCap = 'round';
-	ctx.lineJoin = 'round';
-	ctx.beginPath();
-	ctx.moveTo(-0.22 * s, 0.1 * s);
-	ctx.lineTo(0, -0.14 * s);
-	ctx.lineTo(0.22 * s, 0.1 * s);
-	ctx.stroke();
-	ctx.restore();
-}
-
-/**
- * Duck number badge, kept inside the cell's own bounds at every zoom
- * (top-right corner, radius <= 0.24 s). Hidden when cells are too small.
- */
-/**
- * Duck number badge. Readable at every zoom (radius >= 7 px, digits >= 9 px):
- * from 40 px cells (200 %) it sits inside the cell's top-right corner; below
- * that the cell is too small for a legible number, so the badge sits on the
- * corner, half outside, where it doesn't cover the duck sprite.
- */
-export function badgeGeometry(x: number, y: number, s: number) {
-	if (s >= 40) {
-		const rad = Math.min(0.3 * s, 16);
-		return { cx: x + s - rad - 0.02 * s, cy: y + rad + 0.02 * s, rad };
-	}
-	const rad = 7;
-	return { cx: x + s, cy: y, rad };
-}
-function drawDuckBadge(ctx: CanvasRenderingContext2D, view: View, r: number, c: number, n: number, p: Palette) {
-	const { x, y, s } = cellToScreen(view, r, c);
-	if (s < 6) return; // below 30 % the whole board is a thumbnail
-	const { cx, cy, rad } = badgeGeometry(x, y, s);
-	ctx.save();
-	ctx.fillStyle = p.ink;
-	ctx.strokeStyle = p.paper; // a paper ring keeps it legible over cells and paths
-	ctx.lineWidth = 1.5;
-	ctx.beginPath();
-	ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.stroke();
-	ctx.fillStyle = p.paper;
-	ctx.font = `700 ${Math.max(9, rad * 1.25)}px "DM Mono", monospace`;
-	ctx.textAlign = 'center';
-	ctx.textBaseline = 'middle';
-	ctx.fillText(String(n), cx, cy + rad * 0.06);
-	ctx.restore();
 }

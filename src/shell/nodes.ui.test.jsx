@@ -57,19 +57,14 @@ test('a dragged one-way lane makes JPS unavailable, and the UI says why', async 
 	expect(jps.getAttribute('title')).toMatch(/one-way lanes/);
 });
 
-test('Mochi check 3: duck numbers are legible at every zoom; inside the cell from 200 % up to 400 %', () => {
-	for (const s of [6, 10, 14, 20, 30]) {
+test('Mochi check 3 + §4.5: duck numbers are legible at every zoom, on the sticker\'s top-right', () => {
+	for (const s of [6, 10, 14, 20, 30, 40, 60, 80]) {
+		const u = Math.max(1.3 * s, 16);
 		const { cx, cy, rad } = badgeGeometry(100, 200, s);
 		expect(rad).toBeGreaterThanOrEqual(7); // 9 px digits
-		expect(Math.hypot(cx - (100 + s), cy - 200)).toBe(0); // on the top-right corner, off the sprite's centre
-	}
-	for (const s of [40, 60, 80]) {
-		const { cx, cy, rad } = badgeGeometry(100, 200, s);
-		expect(rad).toBeGreaterThanOrEqual(7);
-		expect(cx - rad).toBeGreaterThanOrEqual(100);
-		expect(cx + rad).toBeLessThanOrEqual(100 + s);
-		expect(cy - rad).toBeGreaterThanOrEqual(200);
-		expect(cy + rad).toBeLessThanOrEqual(200 + s);
+		expect(rad).toBeCloseTo(Math.max(7, 0.17 * u));
+		expect(cx - 100).toBeCloseTo(0.36 * u);
+		expect(cy - 200).toBeCloseTo(-0.38 * u);
 	}
 });
 

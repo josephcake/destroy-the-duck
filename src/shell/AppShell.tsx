@@ -10,7 +10,7 @@ import { Board, Weight } from '../model/board';
 import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
-import { CellSet, Chrome, PALETTES, weightColor } from '../canvas/palette';
+import { CellSet, Chrome, PALETTES, migrateCellSet, weightColor } from '../canvas/palette';
 import { searchAsync } from '../engine/runner';
 import { FindMode, Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
@@ -39,12 +39,12 @@ const PREFS_KEY = 'dtd.ui.v1';
 // board takes minutes). The new UI starts at Fast and remembers the choice.
 export const DEFAULT_SPEED: SpeedName = 'fast';
 const loadPrefs = (): Prefs => {
-	const fallback: Prefs = { chrome: 'light', cells: 'pond', speed: DEFAULT_SPEED }; // decision 7: Pond is the default
+	const fallback: Prefs = { chrome: 'light', cells: 'paper', speed: DEFAULT_SPEED }; // Paper v2.1 is the default (was Pond)
 	try {
 		const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
 		return {
 			chrome: p.chrome === 'dark' ? 'dark' : 'light',
-			cells: p.cells === 'classic' ? 'classic' : 'pond',
+			cells: migrateCellSet(p.cells),
 			speed: SPEEDS.some((s) => s.name === p.speed) ? p.speed : DEFAULT_SPEED,
 		};
 	} catch {
@@ -663,9 +663,9 @@ export default function AppShell() {
 							))}
 						</div>
 						<div className="seg" role="group" aria-label="Cells" style={{ marginTop: 6 }}>
-							{(['pond', 'classic'] as CellSet[]).map((c) => (
+							{(['paper', 'classic'] as CellSet[]).map((c) => (
 								<button key={c} aria-pressed={prefs.cells === c} data-testid={`cells-${c}`} onClick={() => setPrefs({ ...prefs, cells: c })}>
-									{c === 'pond' ? 'Pond' : 'Classic'}
+									{c === 'paper' ? 'Paper' : 'Classic'}
 								</button>
 							))}
 						</div>
