@@ -77,7 +77,18 @@ test('at the new default speed (Fast) the visit order is the same as the golden'
 	localStorage.clear();
 	const { run } = runBfs();
 	const golden = JSON.parse(fs.readFileSync('src/__tests__/golden/controller/breadthFirstSearch/open.json', 'utf8'));
-	const flat = (ticks) => ticks.join(' ').split(' ');
+	// Every real class change, in order. A write that repeats a cell's current
+	// class (the Arrow's '_starting' re-set) is a no-op and vanishes if it lands
+	// in the same tick as an earlier write, so drop no-ops on both sides.
+	const flat = (ticks) => {
+		const last = new Map();
+		return ticks.join(' ').split(' ').filter((w) => {
+			const [id, cls] = w.split('>');
+			if (last.get(id) === cls) return false;
+			last.set(id, cls);
+			return true;
+		});
+	};
 	expect(flat(run.ticks)).toEqual(flat(golden.ticks));
 	expect(screen.getByRole('group', { name: 'Speed' }).querySelector('[aria-pressed="true"]').textContent).toBe('Fast');
 });

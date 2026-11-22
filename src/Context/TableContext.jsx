@@ -12,6 +12,7 @@ import { dijkstraHelper } from './algorithms/dijkstraHelper';
 import { bidirectionalSpreadHelper } from './algorithms/bidirectionalSpreadHelper';
 import { randomHelper } from './algorithms/randomHelper';
 import { VISITED, UNVISITED, WALL, LIGHT, DARK } from '../lib/constants';
+import { FAST_CELLS } from '../lib/speed';
 
 export const TableContext = createContext();
 export class TableContextProvider extends Component {
@@ -223,7 +224,7 @@ export class TableContextProvider extends Component {
 	// pin Norm). Chained timeouts are clamped to about 4 ms in browsers, so one
 	// cell a tick capped Fast near 10 ms a cell (BFS on 35x80 took ~20 s) and
 	// Light near 4 ms. Batching keeps the visit order and only groups ticks.
-	cellsPerTick = () => (this.state.speedText === LIGHT ? 40 : this.state.speedText === 'fast' ? 4 : 1);
+	cellsPerTick = () => (this.state.speedText === LIGHT ? 40 : this.state.speedText === 'fast' ? FAST_CELLS : 1);
 	setSpeed = (e) => {
 		let name = e.currentTarget.attributes.name.value;
 		// Partial update only: a full {...this.state} copy taken while another

@@ -1,6 +1,7 @@
 // The new app shell (Prism "Open Pond"). Phase A: the classic TableContext and
 // its 35x80 table stay mounted (hidden) and keep running the classic six
 // unchanged; this shell drives them and paints everything on the canvas.
+import { FAST_CELLS } from '../lib/speed';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // @ts-expect-error legacy JS module
 import Main from '../Main/Main';
@@ -185,8 +186,8 @@ export default function AppShell() {
 		if (!playing || !traceState) return;
 		let timer = 0;
 		let raf = 0;
-		// Same batching as the classic player: Fast takes 4 steps a tick.
-		const batch = ctx.speedText === 'fast' ? 4 : 1;
+		// Same batching as the classic player at Fast.
+		const batch = ctx.speedText === 'fast' ? FAST_CELLS : 1;
 		const step = () => {
 			let to = traceState.applied;
 			for (let k = 0; k < batch; k++) to = traceState.nextStepEnd(to);
