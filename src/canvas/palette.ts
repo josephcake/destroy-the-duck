@@ -58,14 +58,14 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(28,34,48,0.30)',
-		label: '#5f6676',
+		label: '#3a4152',
 	},
 	'pond-dark': {
 		...BASE,
 		name: 'Night Pond',
 		paper: '#0f141b',
 		home: '#151b24',
-		grid: '#1b2230',
+		grid: '#273244',
 		outerGrid: '#161c26',
 		homeLine: '#8b94a3',
 		wall: '#b6c0cf',
@@ -73,8 +73,8 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		front: '#3ed1b8',
 		path: '#ff6347',
 		ink: '#eef1f6',
-		wLo: '#2a2a22',
-		wHi: '#9a7650',
+		wLo: '#4a3f2c',
+		wHi: '#c89b5e',
 		water: '#3c86b8',
 		wEdge: ['#c9b98f', '#d9a66a', '#7fc0ea'],
 		oneway: '#1c2838',
@@ -83,7 +83,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		highlight: 'rgba(255,255,255,0.22)',
 		wallDown: 'rgba(0,0,0,0.35)',
 		shadow: 'rgba(0,0,0,0.6)',
-		label: '#a3acbb',
+		label: '#d3dae5',
 	},
 	'classic-light': {
 		...BASE,
@@ -108,7 +108,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(0,0,0,0.30)',
-		label: '#5f6676',
+		label: '#3a4152',
 	},
 	'classic-dark': {
 		...BASE,
@@ -145,8 +145,8 @@ export const weightEdge = (p: Palette, w: number) => p.wEdge[w === 2 ? 0 : w ===
 
 const EDGE_DARK: [string, string, string] = ['#6b5c3e', '#5d3d1e', '#1f5e8c'];
 const EDGE_LIGHT: [string, string, string] = ['#e6e3c8', '#f0cf9a', '#a8daf7'];
-/** Weight edge over a visited cell: dark or light set by the visited colour (>= 3:1). */
-export const coveredEdge = (p: Palette, w: number) => (luminance(p.visited) > 0.3 ? EDGE_DARK : EDGE_LIGHT)[w === 2 ? 0 : w === 5 ? 1 : 2];
+/** Weight edge over a visited cell: dark or light set by the fill under it (>= 3:1). */
+export const coveredEdge = (p: Palette, w: number, under: string = p.visited) => (luminance(under) > 0.3 ? EDGE_DARK : EDGE_LIGHT)[w === 2 ? 0 : w === 5 ? 1 : 2];
 
 export function weightColor(p: Palette, w: number) {
 	if (w === 10) return p.water;
@@ -170,9 +170,10 @@ export function luminance(color: string) {
 /** Cost label: ink 72% on light fills, white 80% on dark ones (design §4b). */
 export const labelOn = (fill: string) => (luminance(fill) > 0.35 ? 'rgba(28,34,48,0.72)' : 'rgba(255,255,255,0.8)');
 
+const rgb = (c: string) => (c.startsWith('#') ? hex(c) : (c.match(/\d+/g) ?? ['0', '0', '0']).slice(0, 3).map(Number));
 export function mix(c1: string, c2: string, t: number) {
-	const a = hex(c1);
-	const b = hex(c2);
+	const a = rgb(c1);
+	const b = rgb(c2);
 	const m = a.map((x, i) => Math.round(x + (b[i] - x) * t));
 	return `rgb(${m[0]},${m[1]},${m[2]})`;
 }

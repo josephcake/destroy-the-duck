@@ -140,11 +140,11 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		else { ctx.lineTo(x0, y0 + tl); if (tl) ctx.arcTo(x0, y0, x0 + tl, y0, tl); }
 		ctx.closePath();
 	};
-	const weightDecor = (r: number, c: number, cost: Weight, covered: string | null) => {
+	const weightDecor = (r: number, c: number, cost: Weight, covered: string | null, inset = 0) => {
 		if (view.zoom < 0.35) return;
-		const edge = covered ? coveredEdge(p, cost) : weightEdge(p, cost);
+		const edge = covered ? coveredEdge(p, cost, covered) : weightEdge(p, cost);
 		const lw = Math.max(1, Math.min(2, 0.08 * s));
-		const g = wGeom(r, c, cost, lw / 2);
+		const g = wGeom(r, c, cost, inset + lw / 2);
 		const [tl, tr, br, bl] = g.rad;
 		ctx.beginPath();
 		if (!g.n) { ctx.moveTo(g.x0 + tl, g.y0); ctx.lineTo(g.x1 - tr, g.y0); if (tr) ctx.arcTo(g.x1, g.y0, g.x1, g.y0 + tr, tr); }
@@ -161,15 +161,15 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.strokeStyle = edge;
 		ctx.lineWidth = lw;
 		ctx.stroke();
-		if (view.zoom < 2) return;
+		if (view.zoom < 1.5) return;
 		const { x, y } = g;
-		ctx.fillStyle = labelOn(covered ?? weightColor(p, cost));
+		ctx.fillStyle = labelOn(weightColor(p, cost));
 		ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
 		ctx.fillText(String(cost), x + s / 2, y + s / 2 + 0.02 * s);
 		ctx.textAlign = 'left';
-		if (view.zoom < 3) return; // texture only up close (design: >= 300%)
+		if (view.zoom < 2) return; // texture from 200% (Mochi fix 5; was 300%)
 		ctx.strokeStyle = ctx.fillStyle = cost === 10 ? 'rgba(255,255,255,0.45)' : edge;
 		if (cost === 10) {
 			ctx.beginPath();
@@ -267,7 +267,16 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
 		const covered = (inHome(r, c) && m.at(r, c) === K.Visited) || !!tr?.visited.has(idOf(r, c));
-		if (covered) weightDecor(r, c, t.cost, p.visited);
+		if (!covered) continue;
+		// Mochi fix 5: a visited weight keeps its own fill (tan mud, blue water),
+		// inset so a band of the visited colour around it shows it was reached,
+		// instead of shrinking to an outline.
+		const fill = weightColor(p, t.cost);
+		ctx.beginPath();
+		blobCellPath(wGeom(r, c, t.cost, 0.1 * s));
+		ctx.fillStyle = fill;
+		ctx.fill();
+		weightDecor(r, c, t.cost, p.visited, 0.1 * s); // edge sits on the visited band
 	}
 
 	// Phase C nodes: one-way lanes and teleporter pads, drawn over visited cells

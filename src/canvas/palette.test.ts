@@ -66,3 +66,12 @@ describe.each(Object.entries(PALETTES))('%s Phase C nodes', (_n, p) => {
 		expect(contrast(p.pad, p.home)).toBeGreaterThanOrEqual(3);
 	});
 });
+
+test('Mochi fix 5: Night Pond mud is a visible tan and the unvisited grid shows', () => {
+	const p = PALETTES['pond-dark'];
+	const mud = toHex(parse(weightColor(p, 5)));
+	const [r, g, b] = parse(mud);
+	expect(r > g && g > b).toBe(true); // tan: warm, red > green > blue
+	expect(contrast(mud, p.home)).toBeGreaterThanOrEqual(3);
+	expect(contrast(p.grid, p.home)).toBeGreaterThanOrEqual(1.3);
+});
