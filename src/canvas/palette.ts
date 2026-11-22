@@ -21,7 +21,9 @@ export type Palette = {
 	water: string;
 	/** Weight cell edges (2, 5, 10): >= 3:1 against `home` (WCAG 1.4.11). */
 	wEdge: [string, string, string];
-	highlight: string; // wall top highlight
+	highlight: string; // wall top highlight (1dp, up-facing edges)
+	wallDown: string; // wall inner down edge (1dp)
+	wallOutline?: string; // optional 1dp outline (Classic Dark)
 	shadow: string;
 	label: string;
 };
@@ -47,7 +49,8 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		water: '#3483b7',
 		wEdge: ['#b08750', '#8a5a2b', '#2d73a8'],
 		highlight: 'rgba(255,255,255,0.55)',
-		shadow: 'rgba(0,0,0,0.18)',
+		wallDown: 'rgba(0,0,0,0.28)',
+		shadow: 'rgba(28,34,48,0.30)',
 		label: '#5f6676',
 	},
 	'pond-dark': {
@@ -58,7 +61,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		grid: '#1b2230',
 		outerGrid: '#161c26',
 		homeLine: '#8b94a3',
-		wall: '#cfd6e2',
+		wall: '#b6c0cf',
 		visited: '#235a54',
 		front: '#3ed1b8',
 		path: '#ff6347',
@@ -68,7 +71,8 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		water: '#3c86b8',
 		wEdge: ['#c9b98f', '#d9a66a', '#7fc0ea'],
 		highlight: 'rgba(255,255,255,0.22)',
-		shadow: 'rgba(0,0,0,0.45)',
+		wallDown: 'rgba(0,0,0,0.35)',
+		shadow: 'rgba(0,0,0,0.6)',
 		label: '#a3acbb',
 	},
 	'classic-light': {
@@ -89,7 +93,8 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		water: '#3483b7',
 		wEdge: ['#7a6a4a', '#5d3d1e', '#1f5e8c'],
 		highlight: 'rgba(255,255,255,0.55)',
-		shadow: 'rgba(0,0,0,0.18)',
+		wallDown: 'rgba(0,0,0,0.28)',
+		shadow: 'rgba(0,0,0,0.30)',
 		label: '#5f6676',
 	},
 	'classic-dark': {
@@ -110,6 +115,8 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		water: '#3c86b8',
 		wEdge: ['#e6e3c8', '#f0cf9a', '#a8daf7'],
 		highlight: 'rgba(255,255,255,0.22)',
+		wallOutline: 'rgba(255,255,255,0.14)',
+		wallDown: 'rgba(0,0,0,0.35)',
 		shadow: 'rgba(0,0,0,0.45)',
 		label: '#a3acbb',
 	},

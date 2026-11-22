@@ -4,6 +4,7 @@ import { Board, Weight } from '../model/board';
 import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
+import { WallCache, drawWalls } from './walls';
 import { Palette, labelOn, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
@@ -35,6 +36,7 @@ export type Scene = {
 };
 
 const ENTER_MS = 480;
+const wallCaches = new WeakMap<CanvasRenderingContext2D, WallCache>();
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 export function isWallAt(scene: Scene, r: number, c: number) {
@@ -202,33 +204,14 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 	for (const [r, c, w] of weightCells) weightDecor(r, c, w, null);
 
-	// Walls: merged look, outer corners rounded where both neighbours are open
-	const walls: [number, number][] = [];
-	for (let r = Math.max(0, vb.r0); r <= Math.min(HOME.r1, vb.r1); r++)
-		for (let c = Math.max(0, vb.c0); c <= Math.min(HOME.c1, vb.c1); c++)
-			if (scene.mirror.at(r, c) === K.Wall) walls.push([r, c]);
-	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'wall' && !inHome(r, c)) walls.push([r, c]);
-	const fancy = view.zoom >= 0.5;
-	if (fancy && !scene.reducedMotion) {
-		ctx.save();
-		ctx.shadowColor = p.shadow;
-		ctx.shadowBlur = 0.22 * s;
-		ctx.shadowOffsetY = 0.1 * s;
-	}
-	ctx.fillStyle = p.wall;
-	ctx.beginPath();
-	for (const [r, c] of walls) {
-		const { x, y } = cellToScreen(view, r, c);
-		const up = isWallAt(scene, r - 1, c);
-		const dn = isWallAt(scene, r + 1, c);
-		const lf = isWallAt(scene, r, c - 1);
-		const rt = isWallAt(scene, r, c + 1);
-		const R = fancy ? 0.28 * s : 0;
-		const rad = [!up && !lf ? R : 0, !up && !rt ? R : 0, !dn && !rt ? R : 0, !dn && !lf ? R : 0];
-		roundRectPath(ctx, x - 0.25, y - 0.25, s + 0.5, s + 0.5, rad);
-	}
-	ctx.fill();
-	if (fancy && !scene.reducedMotion) ctx.restore();
+	// Walls: raised slabs from per-chunk cached bitmaps (walls.ts)
+	let cache = wallCaches.get(ctx);
+	if (!cache) wallCaches.set(ctx, (cache = new WallCache()));
+	const wallSrc = {
+		isWall: (r: number, c: number) => isWallAt(scene, r, c),
+		changedAt: (r: number, c: number) => (inHome(r, c) ? scene.mirror.changedAt[r * HOME_COLS + c] : 0),
+	};
+	if (drawWalls(ctx, wallSrc, view, vb, p, dpr, scene.now, scene.reducedMotion, cache)) animating = true;
 
 	// Visited: classic (mirror) and traced, entering at the frontier colour
 	const visitedCell = (r: number, c: number, born: number, fade: number) => {
