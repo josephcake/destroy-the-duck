@@ -27,6 +27,7 @@ import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import { applyGenerator } from './generate';
+import { PORTRAIT_PHONE, RotatePrompt } from './RotatePrompt';
 import { GENERATORS, GenId } from '../model/generators';
 import '../vendor/paper-kit/tokens.css';
 import '../vendor/paper-kit/paper-kit.css';
@@ -251,10 +252,12 @@ export default function AppShell() {
 
 	const phone = useMedia(PHONE);
 	const landscapePhone = useMedia(LANDSCAPE_PHONE);
+	const portraitPhone = useMedia(PORTRAIT_PHONE);
+	const small = phone || landscapePhone;
 
 	// Phone: the panel is a bottom sheet; get it out of the way once a search starts.
 	const closeSheetOnPhone = () => {
-		if (typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches) setPanelOpen(false);
+		if (typeof window.matchMedia === 'function' && (window.matchMedia(PHONE).matches || window.matchMedia(LANDSCAPE_PHONE).matches)) setPanelOpen(false);
 	};
 
 	const startTrace = async (which: TracedAlgo, autoplay: boolean) => {
@@ -380,7 +383,10 @@ export default function AppShell() {
 	const tr = traceState;
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
-	const insets = phone
+	const safe = small ? 12 : 0; // landscape notch side; env(safe-area-inset-*) is applied in CSS, this keeps framing clear of it
+	const insets = landscapePhone
+		? { top: 64, right: 12 + safe, bottom: 64, left: 12 + safe }
+		: phone
 		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	// Home (H) frames the Arrow and Duck 1 with 3 cells around them. Phones
@@ -390,18 +396,23 @@ export default function AppShell() {
 		const a = mirror.cellAt(mirror.start), d = mirror.cellAt(mirror.end);
 		return { r0: Math.min(a.r, d.r) - 3, c0: Math.min(a.c, d.c) - 3, r1: Math.max(a.r, d.r) + 3, c1: Math.max(a.c, d.c) + 3 };
 	};
-	const homeMinZoom = phone || landscapePhone ? PHONE_MIN_ZOOM : 0.5;
+	const homeMinZoom = small ? PHONE_MIN_ZOOM : 0.5;
 	const fitBounds = (): Bounds => contentBox(board, mirror) ?? mirror.window;
 	// First load on a small screen: if the classic Arrow-Duck gap (49 columns)
 	// can't fit at a tappable zoom, bring Duck 1 closer, once, with the table's
 	// own drag (the classic six are unchanged; only the starting spot moves).
 	const phoneFramed = useRef(false);
 	useEffect(() => {
-		if (phoneFramed.current || mirror.start < 0 || mirror.end < 0) return;
+		// wait until the table has taken the saved speed: its handlers copy the whole
+		// state ({...this.state}), so a drag before that commits rolled the speed back
+		if (phoneFramed.current || mirror.start < 0 || mirror.end < 0 || ctx.speedText !== prefs.speed) return;
 		phoneFramed.current = true;
 		const gap = closerDuckGap(window.innerWidth);
-		if (gap !== null && ctx.starting === '17-15' && ctx.ending === '17-64') dragTableCell('17-64', `17-${15 + gap}`);
-		stage.current?.home();
+		if (gap === null || ctx.starting !== '17-15' || ctx.ending !== '17-64') return void stage.current?.home();
+		setTimeout(() => {
+			dragTableCell('17-64', `17-${15 + gap}`);
+			requestAnimationFrame(() => stage.current?.home()); // after the mirror has read the move
+		}, 0);
 	});
 	const onEndpointDrop = (which: 'start' | 'end', cell: { r: number; c: number }) => {
 		reset();
@@ -469,6 +480,7 @@ export default function AppShell() {
 
 	return (
 		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-pk-theme={prefs.chrome === 'dark' ? 'night-paper' : 'paper'} data-pk-flat={prefs.cells === 'classic' ? '' : undefined} data-panel={panelOpen ? 'open' : 'closed'}>
+			<RotatePrompt portraitPhone={portraitPhone} />
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
 				<Main rows={HOME_ROWS} cols={HOME_COLS} />
@@ -747,7 +759,7 @@ export default function AppShell() {
 						) : (
 							goButton(true)
 						)}
-						{TOOLS.filter((t) => !phone || ['wall', 'erase', 'pan'].includes(t.id) || t.id === tool).map((t) => (
+						{TOOLS.filter((t) => !small || ['wall', 'erase', 'pan'].includes(t.id) || t.id === tool).map((t) => (
 							<button key={t.id} className="icon-btn" aria-pressed={tool === t.id} aria-label={t.label} title={t.label} onClick={() => setTool(t.id)} style={tool === t.id ? { background: 'var(--raised)' } : undefined}>
 								<t.icon />
 							</button>

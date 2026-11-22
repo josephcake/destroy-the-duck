@@ -1,7 +1,7 @@
 // The infinite board: placement anywhere, the classic window following the
 // Arrow and Duck, and Home framing on small screens.
 import { createRef } from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 // @ts-expect-error legacy JS module
 import { TableContextProvider } from '../Context/TableContext';
 import AppShell, { closerDuckGap } from './AppShell';
@@ -195,4 +195,22 @@ test('the Hand tool: one finger pans', async () => {
 	act(() => void fireEvent.pointerDown(canvas, touch(2, 13 * 20 + 10, 10 * 20 + 10)));
 	act(() => void fireEvent.pointerUp(canvas, touch(2, 13 * 20 + 10, 10 * 20 + 10)));
 	expect(document.getElementById('8-10')!.className).toMatch(/_wall/);
+});
+
+test('a 390 px screen: Duck 1 starts 17 columns from the Arrow, and the saved speed survives the move', async () => {
+	localStorage.setItem('dtd.ui.v1', JSON.stringify({ chrome: 'light', cells: 'paper', speed: 'light' }));
+	const w = window.innerWidth;
+	window.innerWidth = 390;
+	try {
+		shell();
+		await flush();
+		await flush();
+		expect(document.getElementById('17-32')!.className).toMatch(/_ending/);
+		expect(document.querySelectorAll('.legacy-mirror td[class*="_ending"]')).toHaveLength(1);
+		expect(within(screen.getByRole('group', { name: 'Speed', hidden: true })).getByRole('button', { name: 'Light', hidden: true }).getAttribute('aria-pressed')).toBe('true');
+		expect(document.querySelector('.legacy-mirror td[class*="light_"]')).toBeNull(); // the classic theme was not rolled back either
+	} finally {
+		window.innerWidth = w;
+		localStorage.clear();
+	}
 });
