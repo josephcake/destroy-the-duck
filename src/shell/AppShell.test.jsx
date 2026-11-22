@@ -105,3 +105,23 @@ test('. and , step from anywhere, including the focused scrubber, but not while 
 	fireEvent.keyDown(text, { key: '.' });
 	expect(count()).toBe('2');
 });
+
+test('the new UI starts at Fast and remembers the chosen speed', () => {
+	localStorage.clear();
+	const { unmount } = render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const speed = () => screen.getByRole('group', { name: 'Speed' }).querySelector('[aria-pressed="true"]').textContent;
+	expect(speed()).toBe('Fast');
+	fireEvent.click(screen.getByRole('group', { name: 'Speed' }).querySelector('[title="light speed"]'));
+	expect(speed()).toBe('Light');
+	unmount();
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	expect(speed()).toBe('Light');
+});

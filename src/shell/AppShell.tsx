@@ -15,20 +15,28 @@ import { Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, BUDGET } from './snapshot';
 import { classicBestPath } from './classicBest';
-import { CLASSIC, MAZES, SPEEDS, speedEvent, useLegacy } from './legacy';
+import { CLASSIC, MAZES, SPEEDS, SpeedName, speedEvent, useLegacy } from './legacy';
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import './shell.css';
 
-type Prefs = { chrome: Chrome; cells: CellSet };
+type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
 const PREFS_KEY = 'dtd.ui.v1';
+// The classic player's own default is Norm (100 ms a cell: BFS on an open
+// board takes minutes). The new UI starts at Fast and remembers the choice.
+export const DEFAULT_SPEED: SpeedName = 'fast';
 const loadPrefs = (): Prefs => {
+	const fallback: Prefs = { chrome: 'light', cells: 'pond', speed: DEFAULT_SPEED }; // decision 7: Pond is the default
 	try {
 		const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
-		return { chrome: p.chrome === 'dark' ? 'dark' : 'light', cells: p.cells === 'classic' ? 'classic' : 'pond' };
+		return {
+			chrome: p.chrome === 'dark' ? 'dark' : 'light',
+			cells: p.cells === 'classic' ? 'classic' : 'pond',
+			speed: SPEEDS.some((s) => s.name === p.speed) ? p.speed : DEFAULT_SPEED,
+		};
 	} catch {
-		return { chrome: 'light', cells: 'pond' }; // decision 7: Pond is the default
+		return fallback;
 	}
 };
 
@@ -111,6 +119,10 @@ export default function AppShell() {
 		};
 	}, [board, mirror, scheduleRender]);
 
+	useEffect(() => {
+		if (ctx.speedText !== prefs.speed) ctx.setSpeed(speedEvent(prefs.speed));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [prefs.speed]);
 	useEffect(() => {
 		localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 		stage.current?.invalidate();
@@ -397,7 +409,7 @@ export default function AppShell() {
 						<h2 className="section__title">Speed</h2>
 						<div className="seg" role="group" aria-label="Speed">
 							{SPEEDS.map((s) => (
-								<button key={s.name} aria-pressed={ctx.speedText === s.name} title={s.title} onClick={() => ctx.setSpeed(speedEvent(s.name))}>
+								<button key={s.name} aria-pressed={ctx.speedText === s.name} title={s.title} onClick={() => setPrefs({ ...prefs, speed: s.name })}>
 									{s.label}
 								</button>
 							))}

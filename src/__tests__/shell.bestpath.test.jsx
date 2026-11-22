@@ -6,6 +6,7 @@ import { TableContextProvider } from '../Context/TableContext';
 import AppShell from '../shell/AppShell';
 import { mountLegacy, drain, act, T } from '../testing/legacyController';
 import { expectGolden } from '../testing/golden';
+import fs from 'fs';
 
 const Shell = ({ children }) => (
 	<TableContextProvider>
@@ -21,6 +22,10 @@ const stat = (name) => {
 beforeEach(() => {
 	T.useFakeTimers();
 	localStorage.clear();
+	// The goldens were recorded at the classic default speed (Norm); tick
+	// grouping under fake timers depends on it. Visit order does not (see
+	// shell.bestpath 'default speed' test).
+	localStorage.setItem('dtd.ui.v1', JSON.stringify({ speed: 'norm' }));
 });
 afterEach(() => T.useRealTimers());
 
@@ -66,4 +71,13 @@ test('no best path (and no stats) when the duck cannot be reached', () => {
 	drain(ref);
 	act(() => T.runOnlyPendingTimers());
 	expect(stat('Path')).toBe('–');
+});
+
+test('at the new default speed (Fast) the visit order is the same as the golden', () => {
+	localStorage.clear();
+	const { run } = runBfs();
+	const golden = JSON.parse(fs.readFileSync('src/__tests__/golden/controller/breadthFirstSearch/open.json', 'utf8'));
+	const flat = (ticks) => ticks.join(' ').split(' ');
+	expect(flat(run.ticks)).toEqual(flat(golden.ticks));
+	expect(screen.getByRole('group', { name: 'Speed' }).querySelector('[aria-pressed="true"]').textContent).toBe('Fast');
 });
