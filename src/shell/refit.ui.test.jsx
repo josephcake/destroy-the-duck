@@ -26,7 +26,7 @@ const resize = (width, height) => {
 	size = { width, height };
 	act(() => observers.forEach((o) => o.cb([])));
 };
-const pct = () => parseInt(screen.getByLabelText('Reset zoom to 100%').textContent, 10);
+const pct = () => parseInt(screen.getByLabelText('Zoom to 100%').textContent, 10);
 
 test('resize refits Home until the user zooms; Home re-arms it', () => {
 	render(

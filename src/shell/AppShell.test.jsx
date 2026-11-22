@@ -201,3 +201,17 @@ test("Mochi check 3: a classic maze shows 'Generating maze…' while the picker 
 	expect(screen.queryByTestId('maze-status')).toBeNull();
 	vi.useRealTimers();
 });
+
+test("Mochi check 3: exactly one button is named 'Reset' (the run Reset), and it says what it clears", () => {
+	localStorage.clear();
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const all = screen.getAllByRole('button', { name: /reset/i });
+	expect(all).toHaveLength(1);
+	expect(all[0]).toHaveAccessibleName('Reset');
+	expect(all[0]).toHaveAttribute('title', 'Reset (clear path)');
+	expect(screen.getByRole('button', { name: 'Zoom to 100%' })).toBeInTheDocument();
+});

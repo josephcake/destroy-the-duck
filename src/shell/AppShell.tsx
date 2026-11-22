@@ -756,7 +756,7 @@ export default function AppShell() {
 
 				<div className="float zoom" role="toolbar" aria-label="Zoom">
 					<button className="icon-btn" aria-label="Zoom out" onClick={() => stage.current?.zoomStep(-1)}><Icon.minus /></button>
-					<button className="zoom__pct" aria-label="Reset zoom to 100%" onClick={() => stage.current?.zoomTo(1)}>{Math.round(zoom * 100)}%</button>
+					<button className="zoom__pct" aria-label="Zoom to 100%" onClick={() => stage.current?.zoomTo(1)}>{Math.round(zoom * 100)}%</button>
 					<button className="icon-btn" aria-label="Zoom in" onClick={() => stage.current?.zoomStep(1)}><Icon.plus /></button>
 					<button className="icon-btn" aria-label="Fit" title="Fit (F)" onClick={() => stage.current?.fit()}><Icon.fit /></button>
 					<button className="icon-btn" aria-label="Home" title="Home (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
