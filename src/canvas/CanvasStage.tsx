@@ -78,6 +78,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	const setView = (v: View) => {
 		const zoomChanged = v.zoom !== view.current.zoom;
+		// the cell under a still pointer changes with the view; drop the stale outline
+		if (zoomChanged || v.panX !== view.current.panX || v.panY !== view.current.panY) hover.current = null;
 		view.current = v;
 		dirty.current = true;
 		if (zoomChanged) live.current.onZoom(v.zoom);

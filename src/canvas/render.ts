@@ -341,9 +341,10 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	if (scene.hover) {
 		const { x, y } = cellToScreen(view, scene.hover.r, scene.hover.c);
 		ctx.strokeStyle = p.ink;
-		ctx.globalAlpha = 0.5;
+		ctx.globalAlpha = 0.35;
 		ctx.lineWidth = 1.5;
-		ctx.strokeRect(x + 0.75, y + 0.75, s - 1.5, s - 1.5);
+		roundRect(ctx, x + 0.06 * s, y + 0.06 * s, s - 0.12 * s, s - 0.12 * s, 0.22 * s);
+		ctx.stroke();
 		ctx.globalAlpha = 1;
 	}
 	return animating;
