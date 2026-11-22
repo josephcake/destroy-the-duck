@@ -1,11 +1,6 @@
 import React from 'react';
-import {
-	algorithmOptions,
-	mazeOptions,
-	clearButtons,
-	themeOptions,
-} from './constants';
-import { NavOptions, NavSettings, NavThemes } from './NavItems';
+import { algorithmOptions, mazeOptions, clearButtons } from './constants';
+import { NavOptions, NavSettings } from './NavItems';
 
 const Nav = ({
 	go,

@@ -11,7 +11,7 @@ import { spreadHelper } from './algorithms/spreadHelper';
 import { dijkstraHelper } from './algorithms/dijkstraHelper';
 import { bidirectionalSpreadHelper } from './algorithms/bidirectionalSpreadHelper';
 import { randomHelper } from './algorithms/randomHelper';
-import { VISITED, UNVISITED, WALL, LIGHT, DARK, NEON } from '../lib/constants';
+import { VISITED, UNVISITED, WALL, LIGHT, DARK } from '../lib/constants';
 
 export const TableContext = createContext();
 export class TableContextProvider extends Component {
