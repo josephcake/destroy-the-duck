@@ -13,7 +13,7 @@ import { padLabel } from '../model/nodes';
 import { Palette, weightColor, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 import {
-	CellRef, DURATION, EASE, Shadow, bezier, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
+	CellRef, DURATION, EASE, Shadow, bezier, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker,
 } from '../vendor/paper-kit/paper-kit';
 
 
@@ -45,7 +45,61 @@ export type Scene = {
 	/** ms of the last change (edit, view, search step); the duck bob runs 3 cycles after it */
 	activeAt: number;
 	reducedMotion: boolean;
+	/** the tab is hidden: the path flow stops asking for frames (it resumes on visibility) */
+	hidden?: boolean;
 };
+
+/**
+ * Path dots (Joseph 2026-11-22): the found path is a row of dots that march from
+ * the Arrow to the Duck, so its direction reads at a glance. Visited cells stay
+ * dashes. The march is a perpetual animation, so it is cheap: one halo fill and
+ * one dot fill per frame, at most ~30 fps (frameHint.minGap), none while hidden.
+ */
+export const PATH_DOT = {
+	/** dot radius, in cells (floored in px), and the halo ring around it */
+	r: 0.17, rMin: 1.8, halo: 0.07, haloMin: 1,
+	/** spacing between dots, in cells (two per cell), floored at 2.6 radii so they never merge */
+	gap: 0.5,
+	/** march speed, cells per second */
+	speed: 2,
+	/** ~30 fps while only the march is moving */
+	frameMs: 33,
+	/** reduced motion: static dots grow from Arrow to Duck */
+	rmFrom: 0.55, rmTo: 1.35,
+};
+/** Set by render(): when > 0, the only thing moving is the path march; the frame loop may wait this long. */
+export const frameHint = { minGap: 0 };
+
+/**
+ * Dots along a path, ordered from its first point (the Arrow) to its last (the Duck).
+ * `pts` may hold nulls (teleporter jumps: the arc continues on the far side).
+ * Dots sit at arc length phase + k * spacing, up to `upTo` (the trace-in progress).
+ */
+export function pathDots(pts: (Pt | null)[], spacing: number, phase: number, upTo = Infinity): { x: number; y: number; u: number; len: number }[] {
+	const segs: [Pt, Pt, number, number][] = []; // a, b, u at a, length
+	let L = 0;
+	for (let i = 1; i < pts.length; i++) {
+		const a = pts[i - 1], b = pts[i];
+		if (!a || !b) continue;
+		const d = Math.hypot(b.x - a.x, b.y - a.y);
+		if (d <= 0) continue;
+		segs.push([a, b, L, d]);
+		L += d;
+	}
+	const out: { x: number; y: number; u: number; len: number }[] = [];
+	if (!segs.length || spacing <= 0) return out;
+	const end = Math.min(L, upTo);
+	let j = 0;
+	for (let u = ((phase % spacing) + spacing) % spacing; u <= end + 1e-6; u += spacing) {
+		while (j < segs.length - 1 && u > segs[j][2] + segs[j][3]) j++;
+		const [a, b, u0, d] = segs[j];
+		const k = Math.max(0, Math.min(1, (u - u0) / d));
+		out.push({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, u, len: L });
+	}
+	return out;
+}
+/** Reduced motion: dot radius scale at arc position u of L (small at the Arrow, large at the Duck). */
+export const rmDotScale = (u: number, L: number) => PATH_DOT.rmFrom + (PATH_DOT.rmTo - PATH_DOT.rmFrom) * (L > 0 ? Math.min(1, Math.max(0, u / L)) : 1);
 
 const BOB_MS = DURATION.bob; // 2400
 const CHUNK = 16;
@@ -232,7 +286,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 
 	// §4.10 paths: the thread pulls from the Arrow to the Duck (motion spec §3)
 	const arrivals = new Map<string, number>();
-	const drawLeg = (cells: { r: number; c: number }[], leg: Leg | null) => {
+	let pathFlow = false;
+	const drawLeg = (cells: { r: number; c: number }[], leg: Leg | null, flow = true) => {
 		if (cells.length < 1) return;
 		let k = 1, tug = 0, needle = 0;
 		let jumpsT: number[] | null = null;
@@ -277,10 +332,24 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			pts.push(pt);
 		});
 		if (cells.length === 1) pts.push({ x: pts[0]!.x + 0.01, y: pts[0]!.y });
-		threadPath(ctx, pts, {
-			color: p.path, halo: p.home, width: lw, dash: [Math.max(4, 0.34 * s), Math.max(2.5, 0.17 * s)], progress: k, tug,
-			knot: s >= 20, holes: s >= 20 ? { color: p.hole } : null, shadow: { color: p.contact, dx: 0.4, dy: Math.max(1, 0.045 * s), blur: Math.max(1, 0.06 * s) }, dpr,
-		});
+		// path dots: laid in order during the trace-in, then marching Arrow -> Duck
+		const r = Math.max(PATH_DOT.rMin, PATH_DOT.r * s);
+		const gap = Math.max(PATH_DOT.gap * s, 2.6 * r);
+		let L = 0;
+		for (let i = 1; i < pts.length; i++) if (pts[i] && pts[i - 1]) L += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+		const flowFrom = leg ? leg.start + leg.dur + NEEDLE_RETRACT + DURATION.tug : -Infinity;
+		const flowing = motion && flow && !!leg && tug >= 1 && scene.now >= flowFrom;
+		const phase = flowing ? (((scene.now - flowFrom) / 1000) * PATH_DOT.speed * s) % gap : 0;
+		if (flowing) pathFlow = true;
+		const dots = pathDots(pts, gap, phase, k * L + 1e-6);
+		const ramp = !motion && flow;
+		const rOf = (u: number) => {
+			if (ramp) return r * rmDotScale(u, L);
+			if (!flowing) return r;
+			// marching: the dot entering at the Arrow and the one leaving at the Duck grow / shrink
+			return r * Math.max(0, Math.min(1, u / gap, (L - u) / gap + 0.5));
+		};
+		drawDots(ctx, dots, rOf, p.path, p.home, Math.max(PATH_DOT.haloMin, PATH_DOT.halo * s), width, height);
 		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.path);
 		jumps.forEach(([a, b, col], j) => {
 			// §4.4: fold trail in the pair colour; the paper plane flies once (420 ms) when the head reaches the pad
@@ -295,7 +364,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const cells = m.previewOrder.map((i) => m.cellAt(i));
 		const a = m.startCell();
 		if (a) cells.unshift(a);
-		drawLeg(cells, null); // the classic player already animates it
+		drawLeg(cells, null, false); // the classic player already animates it
 	}
 
 	// Pair letters sit above paths (a jump starts and ends on a pad)
@@ -391,7 +460,28 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.stroke();
 		ctx.restore();
 	}
-	return animating;
+	// the path march wants frames only while it shows and the tab is visible; alone, ~30 fps
+	const march = pathFlow && !scene.hidden;
+	frameHint.minGap = march && !animating ? PATH_DOT.frameMs : 0;
+	return animating || march;
+}
+
+/** One halo fill, then one dot fill (culled to the viewport). */
+function drawDots(ctx: CanvasRenderingContext2D, dots: { x: number; y: number; u: number }[], rOf: (u: number) => number, color: string, halo: string, hw: number, w: number, h: number) {
+	if (!dots.length) return;
+	for (const pass of [0, 1]) {
+		ctx.beginPath();
+		for (const d of dots) {
+			const rr = rOf(d.u);
+			if (rr <= 0.2) continue;
+			const R = pass ? rr : rr + hw;
+			if (d.x < -R || d.y < -R || d.x > w + R || d.y > h + R) continue;
+			ctx.moveTo(d.x + R, d.y);
+			ctx.arc(d.x, d.y, R, 0, Math.PI * 2);
+		}
+		ctx.fillStyle = pass ? color : halo;
+		ctx.fill();
+	}
 }
 
 // ------------------------------------------------------------------ grid
@@ -1265,7 +1355,7 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			drawPad(ctx, Z / 2, Z / 2, 20, p.pads[0], false, p, dpr);
 			return;
 		case 'path':
-			threadPath(ctx, [{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], { color: p.path, halo: p.home, width: 2, dash: [4, 2.5], progress: 1, dpr });
+			drawDots(ctx, pathDots([{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], 4.4, 0), (u) => 1.1 + 0.9 * (u / 26), p.path, p.home, 1, Z, Z);
 			return;
 		case 'start':
 			drawStart(ctx, Z / 2, Z / 2, 13.3, 0, p, dpr);

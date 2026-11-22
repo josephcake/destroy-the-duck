@@ -8,7 +8,7 @@ import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
-import { bestPathScheduled, delayBestPath, delayTrace, duckMarkers, render, Scene, traceScheduled } from './render';
+import { bestPathScheduled, delayBestPath, delayTrace, duckMarkers, frameHint, render, Scene, traceScheduled } from './render';
 import { DURATION, EASE } from '../vendor/paper-kit/paper-kit';
 import { parseId } from '../model/cell';
 import { Chip, offscreenChips } from './chips';
@@ -299,6 +299,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
 		ro?.observe(canvas.parentElement!);
 		let raf = 0;
+		let timer = 0;
 		let animating = false;
 		// render-time probe for QA: localStorage['qh.perf'] = '1' collects ms per render() in window.__qhRender
 		let perf: number[] | null = null;
@@ -328,6 +329,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				tapDir: live.current.dir ?? 1,
 				now,
 				activeAt: activeAt.current,
+				hidden: typeof document !== 'undefined' && document.hidden,
 			};
 			if (perf) {
 				const t0 = performance.now();
@@ -337,17 +339,35 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			} else animating = render(ctx, scene);
 			if (camMoving || cam.current) animating = true;
 			updateChips();
-			if (animating) raf = requestAnimationFrame(loop);
+			if (!animating) return;
+			// only the path march is moving: ~30 fps (a timer, then the next frame)
+			const gap = camMoving || cam.current ? 0 : frameHint.minGap;
+			if (gap > 0) timer = window.setTimeout(() => {
+				timer = 0;
+				if (!raf) raf = requestAnimationFrame(loop);
+			}, Math.max(0, gap - (performance.now() - now) - 4));
+			else raf = requestAnimationFrame(loop);
 		};
 		wake.current = () => {
+			if (timer) {
+				clearTimeout(timer);
+				timer = 0;
+			}
 			if (!raf) raf = requestAnimationFrame(loop);
 		};
+		// a hidden tab stops the march (render sees document.hidden); showing it again resumes
+		const onVis = () => {
+			if (!document.hidden) dirty.current = true;
+		};
+		document.addEventListener('visibilitychange', onVis);
 		raf = requestAnimationFrame(loop);
 		// canvas text (stamps, letters, badges) uses web fonts: repaint once they load
 		document.fonts?.ready.then(() => (dirty.current = true)).catch(() => {});
 		return () => {
 			wake.current = () => {};
 			cancelAnimationFrame(raf);
+			clearTimeout(timer);
+			document.removeEventListener('visibilitychange', onVis);
 			ro?.disconnect();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps

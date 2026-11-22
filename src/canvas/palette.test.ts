@@ -1,7 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
-import { FLOW_WAVE_ALPHA, VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
+import { FLOW_WAVE_ALPHA, PATH_DOT, VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -146,5 +146,24 @@ test('Classic palettes: no band tint (= visited), flow = the existing onewayFg',
 	for (const p of [CL, CD]) {
 		expect(p.visitedBand).toBe(p.visited);
 		expect(p.flow).toBe(p.onewayFg);
+	}
+});
+
+// Path dots (Joseph 2026-11-22): a path-colour dot in a home-colour halo, over the visited dashes.
+// The dot reads against its halo (= the board) and the halo edge reads against the dash it sits on;
+// path vs dash directly is a hue difference (listed, not gated), carried by the halo and the size.
+describe.each([['Paper', P, 5.81, 3.45], ['Night', NP, 6.39, 3.33], ['Classic Light', CL, 3.58, 3.23], ['Classic Dark', CD, 5.24, 3.37]] as const)('path dots: %s', (_n, p, dotOnBoard, haloOnDash) => {
+	const dash = blend(p.visited, p.home, visitedAlphaOf(p));
+	test('dot vs board (its halo) and halo vs the visited dash are both >= 3:1', () => {
+		expect(contrast(p.path, p.home)).toBeCloseTo(dotOnBoard, 1);
+		expect(contrast(p.home, dash)).toBeCloseTo(haloOnDash, 1);
+		expect(Math.min(contrast(p.path, p.home), contrast(p.home, dash))).toBeGreaterThanOrEqual(3);
+	});
+});
+test('path dots stay clearly bigger than the visited dash width, at desktop 56 % and phone 75 %', () => {
+	for (const s of [20 * 0.56, 20 * 0.75, 20]) {
+		const dotD = 2 * Math.max(PATH_DOT.rMin, PATH_DOT.r * s);
+		const dashW = Math.max(1.5, 0.1 * s);
+		expect(dotD).toBeGreaterThanOrEqual(2.3 * dashW);
 	}
 });

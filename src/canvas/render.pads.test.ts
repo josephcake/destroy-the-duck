@@ -40,7 +40,7 @@ test('pad letters (A, A′, lone C) draw after the path line, white in the punch
 	const at = (t: string) => calls.findIndex((c) => c.op === 'fillText' && c.text === t);
 	expect(texts.map((c) => c.text)).toEqual(expect.arrayContaining(['A', 'A′', 'C']));
 	const firstLetter = Math.min(at('A'), at('A′'), at('C'));
-	const pathStrokes = calls.flatMap((c, i) => (c.op === 'stroke' && c.stroke === p.path ? [i] : []));
+	const pathStrokes = calls.flatMap((c, i) => ((c.op === 'stroke' && c.stroke === p.path) || (c.op === 'fill' && c.fill === p.path) ? [i] : [])); // path dots are one fill
 	expect(pathStrokes.length).toBeGreaterThan(0);
 	expect(Math.max(...pathStrokes)).toBeLessThan(firstLetter);
 	expect(texts.find((c) => c.text === 'A')!.fill).toBe('#ffffff');
