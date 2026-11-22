@@ -80,3 +80,28 @@ test('the collapsed bar names the algorithm of the visible tab', () => {
 	fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }));
 	expect(screen.getByTestId('mini-algo').textContent).toBe('Dijkstra · weighted');
 });
+
+test('. and , step from anywhere, including the focused scrubber, but not while typing', async () => {
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	fireEvent.click(screen.getByTestId('tab-learn'));
+	fireEvent.click(screen.getByTestId('learn-start'));
+	await screen.findByTestId('step-forward');
+	const count = () => screen.getByTestId('step-count').textContent.split(' / ')[0];
+	fireEvent.keyDown(document.body, { key: '.' });
+	expect(count()).toBe('1');
+	const scrub = screen.getByRole('slider', { name: 'Scrub steps' });
+	scrub.focus();
+	fireEvent.keyDown(scrub, { key: '.' });
+	fireEvent.keyDown(scrub, { key: '.' });
+	expect(count()).toBe('3');
+	fireEvent.keyDown(scrub, { key: ',' });
+	expect(count()).toBe('2');
+	const text = document.createElement('input');
+	document.body.appendChild(text);
+	fireEvent.keyDown(text, { key: '.' });
+	expect(count()).toBe('2');
+});

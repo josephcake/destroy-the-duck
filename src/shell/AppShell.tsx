@@ -40,6 +40,14 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
+/** Shortcuts stay live everywhere except where the user is typing text. */
+export function isTyping(t: EventTarget | null) {
+	if (!(t instanceof HTMLElement)) return false;
+	if (t.isContentEditable || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return true;
+	if (!(t instanceof HTMLInputElement)) return false;
+	return !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color'].includes(t.type);
+}
+
 export default function AppShell() {
 	const ctx = useLegacy();
 	const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
@@ -234,7 +242,7 @@ export default function AppShell() {
 	// ---------- keyboard ----------
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
-			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.metaKey || e.ctrlKey) return;
+			if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
 			const k = e.key.toLowerCase();
 			if (k === '[') setPanelOpen((o) => !o);
 			else if (k === 'h') stage.current?.home();
