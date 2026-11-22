@@ -5,7 +5,7 @@ import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls } from './walls';
-import { Palette, labelOn, mix, weightColor, weightEdge } from './palette';
+import { Palette, coveredEdge, labelOn, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
 const FRONTIER_PULSE_MAX = 2000;
@@ -141,7 +141,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	};
 	const weightDecor = (r: number, c: number, cost: Weight, covered: string | null) => {
 		if (view.zoom < 0.35) return;
-		const edge = weightEdge(p, cost);
+		const edge = covered ? coveredEdge(p, cost) : weightEdge(p, cost);
 		const lw = Math.max(1, Math.min(2, 0.08 * s));
 		const g = wGeom(r, c, cost, lw / 2);
 		const [tl, tr, br, bl] = g.rad;

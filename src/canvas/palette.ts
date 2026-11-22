@@ -127,6 +127,11 @@ const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 /** Weight tint: log2(w)/log2(20) along wLo -> wHi; water (10) has its own colour. */
 export const weightEdge = (p: Palette, w: number) => p.wEdge[w === 2 ? 0 : w === 5 ? 1 : 2];
 
+const EDGE_DARK: [string, string, string] = ['#6b5c3e', '#5d3d1e', '#1f5e8c'];
+const EDGE_LIGHT: [string, string, string] = ['#e6e3c8', '#f0cf9a', '#a8daf7'];
+/** Weight edge over a visited cell: dark or light set by the visited colour (>= 3:1). */
+export const coveredEdge = (p: Palette, w: number) => (luminance(p.visited) > 0.3 ? EDGE_DARK : EDGE_LIGHT)[w === 2 ? 0 : w === 5 ? 1 : 2];
+
 export function weightColor(p: Palette, w: number) {
 	if (w === 10) return p.water;
 	const t = Math.log2(w) / Math.log2(20);

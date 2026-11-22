@@ -51,3 +51,10 @@ describe.each(Object.entries(PALETTES))('%s weight labels', (_n, p) => {
 		expect(contrast(over(labelOn(fill), fill), fill)).toBeGreaterThanOrEqual(3);
 	});
 });
+
+import { coveredEdge } from './palette';
+describe.each(Object.entries(PALETTES))('%s weights under visited', (_n, p) => {
+	test.each([2, 5, 10])('weight %i edge reads over visited (3:1)', (w) => {
+		expect(contrast(coveredEdge(p, w), p.visited)).toBeGreaterThanOrEqual(3);
+	});
+});
