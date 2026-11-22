@@ -1,16 +1,17 @@
-// The new app shell (Prism "Open Pond"). Phase A: the classic TableContext and
+// The new app shell (Prism Paper Cutout v2.1; was "Open Pond"). Phase A: the classic TableContext and
 // its 35x80 table stay mounted (hidden) and keep running the classic six
 // unchanged; this shell drives them and paints everything on the canvas.
 import { FAST_CELLS } from '../lib/speed';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // @ts-expect-error legacy JS module
 import Main from '../Main/Main';
-import duckImage from '../Images/duck.png';
 import { Board, Weight } from '../model/board';
 import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
-import { CellSet, Chrome, PALETTES, migrateCellSet, weightColor } from '../canvas/palette';
+import { CellSet, Chrome, PALETTES, migrateCellSet } from '../canvas/palette';
+import { SwatchKind } from '../canvas/render';
+import { Swatch } from './Swatch';
 import { searchAsync } from '../engine/runner';
 import { FindMode, Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
@@ -26,6 +27,8 @@ import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import { applyGenerator } from './generate';
 import { GENERATORS, GenId } from '../model/generators';
+import '../vendor/paper-kit/tokens.css';
+import '../vendor/paper-kit/paper-kit.css';
 import './shell.css';
 
 // Generator seeds never touch Math.random: Random Search (and its seeded
@@ -59,7 +62,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
 	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
-	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless pond.' },
+	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless table.' },
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
@@ -420,43 +423,44 @@ export default function AppShell() {
 
 	const legend = (
 		<div className="legend">
-			<span><i style={{ background: palette.start }} />Arrow</span>
-			<span><i style={{ background: palette.duck }} />Duck</span>
-			<span><i style={{ background: palette.path }} />Path</span>
-			<span><i style={{ background: palette.wall }} />Wall</span>
-			<span><i style={{ background: palette.visited }} />Visited</span>
-			<span><i style={{ background: palette.home, borderColor: palette.homeLine }} />Unvisited</span>
-			{tr && <span><i style={{ background: 'transparent', border: `2px solid ${palette.front}` }} />Frontier</span>}
+			<span><Swatch kind="start" palette={palette} />Arrow</span>
+			<span><Swatch kind="duck" palette={palette} />Duck</span>
+			<span><Swatch kind="path" palette={palette} />Path</span>
+			<span><Swatch kind="wall" palette={palette} />Wall</span>
+			<span><Swatch kind="visited" palette={palette} />Visited</span>
+			<span><Swatch kind="unvisited" palette={palette} />Unvisited</span>
+			{tr && <span><Swatch kind="frontier" palette={palette} />Frontier</span>}
 			{([2, 5, 10] as Weight[]).filter((w) => weights.some(([, , t]) => t.kind === 'weight' && t.cost === w)).map((w) => (
-				<span key={w}><i style={{ background: weightColor(palette, w) }} />Weight {WEIGHT_NAMES[w]}</span>
+				<span key={w}><Swatch kind={`weight${w}` as SwatchKind} palette={palette} />Weight {WEIGHT_NAMES[w]}</span>
 			))}
-			{oneways > 0 && <span><i style={{ background: palette.oneway, borderColor: palette.onewayFg }} />One-way</span>}
-			{pads > 0 && <span><i style={{ background: 'transparent', border: `2px solid ${palette.pad}`, borderRadius: 99 }} />Teleport</span>}
+			{oneways > 0 && <span><Swatch kind="oneway" palette={palette} />One-way</span>}
+			{pads > 0 && <span><Swatch kind="pad" palette={palette} />Teleport</span>}
 			<span className="legend__goal">Hunt the Quack!!</span>
 		</div>
 	);
 
 	return (
-		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-panel={panelOpen ? 'open' : 'closed'}>
+		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-pk-theme={prefs.chrome === 'dark' ? 'night-paper' : 'paper'} data-pk-flat={prefs.cells === 'classic' ? '' : undefined} data-panel={panelOpen ? 'open' : 'closed'}>
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
 				<Main rows={HOME_ROWS} cols={HOME_COLS} />
 			</div>
 
 			{panelOpen && <button className="sheet-scrim" aria-label="Close panel" tabIndex={-1} onClick={() => setPanelOpen(false)} />}
-			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
-				<div className="panel__head">
-					<div className="brand">
-						<img src={duckImage} alt="" /> Destroy the Duck
+			<div className="panel-lift pk-lifted" data-open={panelOpen}>
+			<nav className="panel pk-panel pk-torn-right" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
+				<div className="panel__head pk-strip pk-torn-bottom">
+					<div className="brand pk-display-m">
+						<Swatch kind="duck" palette={palette} size={34} className="brand__duck" /> Destroy the Duck
 					</div>
 					<button className="icon-btn" aria-label="Collapse panel" title="Collapse panel ([)" onClick={() => setPanelOpen(false)}>
 						<Icon.collapse />
 					</button>
 				</div>
 				<div className="panel__scroll">
-					<div className="tabs" role="tablist">
-						<button role="tab" aria-selected={tab === 'sandbox'} onClick={() => setTab('sandbox')}>Sandbox</button>
-						<button role="tab" aria-selected={tab === 'learn'} data-testid="tab-learn" onClick={() => setTab('learn')}>Learn</button>
+					<div className="tabs pk-tabs" role="tablist">
+						<button className="pk-btn" role="tab" aria-selected={tab === 'sandbox'} onClick={() => setTab('sandbox')}>Sandbox</button>
+						<button className="pk-btn" role="tab" aria-selected={tab === 'learn'} data-testid="tab-learn" onClick={() => setTab('learn')}>Learn</button>
 					</div>
 
 					{tab === 'sandbox' ? (
@@ -508,7 +512,7 @@ export default function AppShell() {
 								{algo && <span className="chip chip--mono" data-testid="order-chip">order {classic ? `classic: ${classic.order}` : 'N · E · S · W'}</span>}
 								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
 								{classic && outside && <span className="chip">Classic algorithms search Home only</span>}
-								{algo && isTraced(algo) && <span className="chip">Searches the whole pond (budget {BUDGET / 1000}k)</span>}
+								{algo && isTraced(algo) && <span className="chip">Searches the whole table (budget {BUDGET / 1000}k)</span>}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
 								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
@@ -636,10 +640,10 @@ export default function AppShell() {
 					<section className="section">
 						<h2 className="section__title">Stats</h2>
 						<div className="stats" data-testid="stats">
-							<div className="stat"><b>{tr ? tr.visited.size : mirror.visitedCount}</b><span>Visited</span></div>
-							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : !tr && bestPath ? bestPath.length : '–'}</b><span>Path</span></div>
-							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
-							<div className="stat" title={tr ? 'Engine time' : 'Run time, Go to last cell'}><b>{tr ? `${Math.round(tr.trace.result.engineMs)}` : classicMs !== null ? `${Math.round(classicMs)}` : '–'}</b><span>ms</span></div>
+							<div className="stat pk-well"><b className="pk-number">{tr ? tr.visited.size : mirror.visitedCount}</b><span>Visited</span></div>
+							<div className="stat pk-well"><b className="pk-number">{tr && tr.path.length ? tr.path.length : !tr && bestPath ? bestPath.length : '–'}</b><span>Path</span></div>
+							<div className="stat pk-well"><b className="pk-number">{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
+							<div className="stat pk-well" title={tr ? 'Engine time' : 'Run time, Go to last cell'}><b className="pk-number">{tr ? `${Math.round(tr.trace.result.engineMs)}` : classicMs !== null ? `${Math.round(classicMs)}` : '–'}</b><span>ms</span></div>
 						</div>
 					</section>
 
@@ -673,10 +677,13 @@ export default function AppShell() {
 				</div>
 				<footer className="panel__foot">
 					<span>Joseph Cake</span>
+					<span aria-hidden="true">·</span>
 					<a href="https://www.linkedin.com/in/jocake" target="_blank" rel="noreferrer">LinkedIn</a>
+					<span aria-hidden="true">·</span>
 					<a href="https://www.github.com/josephcake" target="_blank" rel="noreferrer">GitHub</a>
 				</footer>
 			</nav>
+			</div>
 
 			<main className="stage">
 				<CanvasStage
@@ -719,9 +726,9 @@ export default function AppShell() {
 
 				{landing && (
 					<div className="float landing" data-testid="landing">
-						<img src={duckImage} alt="" />
+						<Swatch kind="duck" palette={palette} size={48} className="landing__duck" />
 						<h1>Hunt the quack.</h1>
-						<p>Draw walls, pick a search, and watch it find the duck. The pond is endless; the dashed box is the classic board.</p>
+						<p>Draw walls, pick a search, and watch it find the duck. The table is endless; the {prefs.cells === 'classic' ? 'dashed box' : 'paper sheet'} is the classic board.</p>
 						<div className="row">
 							<button className="go" onClick={() => { setPanelOpen(true); setTab('sandbox'); setPickerOpen(true); setLanding(false); }}>
 								Pick an algorithm
@@ -756,6 +763,7 @@ export default function AppShell() {
 				)}
 
 				<div className="float zoom" role="toolbar" aria-label="Zoom">
+					<span className="pk-tape zoom__tape" aria-hidden="true" />
 					<button className="icon-btn" aria-label="Zoom out" onClick={() => stage.current?.zoomStep(-1)}><Icon.minus /></button>
 					<button className="zoom__pct" aria-label="Zoom to 100%" onClick={() => stage.current?.zoomTo(1)}>{Math.round(zoom * 100)}%</button>
 					<button className="icon-btn" aria-label="Zoom in" onClick={() => stage.current?.zoomStep(1)}><Icon.plus /></button>

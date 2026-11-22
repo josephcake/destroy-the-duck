@@ -227,3 +227,31 @@ test('Paper v2.1 §9 #3: a stored Pond preference opens as Paper', () => {
 	expect(document.querySelector('.app').getAttribute('data-cells')).toBe('paper');
 	expect(screen.getByTestId('cells-paper')).toBeInTheDocument();
 });
+
+test('Paper v2.1 §6 shell: kit themes, one tape, torn panel, sprite legend, footer', () => {
+	localStorage.clear();
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const app = document.querySelector('.app');
+	expect(app.getAttribute('data-pk-theme')).toBe('paper');
+	expect(app.hasAttribute('data-pk-flat')).toBe(false);
+	fireEvent.click(screen.getByRole('group', { name: 'Chrome' }).querySelectorAll('button')[1]);
+	expect(app.getAttribute('data-pk-theme')).toBe('night-paper');
+	fireEvent.click(screen.getByTestId('cells-classic'));
+	expect(app.hasAttribute('data-pk-flat')).toBe(true);
+	// exactly one tape strip, on the zoom toolbar
+	expect(document.querySelectorAll('.pk-tape')).toHaveLength(1);
+	expect(document.querySelector('.pk-tape').closest('[aria-label="Zoom"]')).not.toBeNull();
+	// torn edges: panel right (desktop) and header bottom
+	expect(document.querySelector('.pk-lifted > nav.panel.pk-panel.pk-torn-right')).not.toBeNull();
+	expect(document.querySelector('.panel__head.pk-strip.pk-torn-bottom')).not.toBeNull();
+	// legend swatches are canvas sprites (img), and the board is the only <canvas>
+	expect(document.querySelectorAll('.legend img.swatch[data-swatch]').length).toBeGreaterThanOrEqual(6);
+	expect(document.querySelectorAll('.legend i')).toHaveLength(0);
+	expect(document.querySelectorAll('canvas')).toHaveLength(1);
+	expect(document.querySelector('.panel__foot').textContent.replace(/\s+/g, ' ').trim()).toBe('Joseph Cake·LinkedIn·GitHub');
+	expect(document.body.textContent).not.toMatch(/pond/i);
+});

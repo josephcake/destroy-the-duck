@@ -6,7 +6,7 @@ import { Board, Weight } from '../model/board';
 import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
-import { WallCache, drawWalls } from './walls';
+import { WallCache, drawWalls, paintWalls } from './walls';
 import { padLabel } from '../model/nodes';
 import { Palette, weightColor, weightTier, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
@@ -327,7 +327,7 @@ function drawPencilGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnTyp
 			ctx.rect(home.x, home.y, hw, hh);
 		}
 		ctx.clip(inside ? 'nonzero' : 'evenodd');
-		ctx.globalAlpha = ga * (inside ? 1 : 0.7);
+		ctx.globalAlpha = ga * (inside ? 1 : 0.35); // the table outside Home: a faint guide only
 		if (tile * dpr <= BAKE_CAP) {
 			for (let cr = Math.floor(vb.r0 / CHUNK); cr <= Math.floor(vb.r1 / CHUNK); cr++)
 				for (let cc = Math.floor(vb.c0 / CHUNK); cc <= Math.floor(vb.c1 / CHUNK); cc++) {
@@ -897,4 +897,64 @@ function roundRectPath(ctx: Ctx2D, x: number, y: number, w: number, h: number, r
 	if (tl) ctx.arcTo(x, y, x + tl, y, tl);
 	else ctx.lineTo(x, y);
 	ctx.closePath();
+}
+
+// ------------------------------------------------------------------ legend swatches
+export type SwatchKind = 'start' | 'duck' | 'path' | 'wall' | 'visited' | 'unvisited' | 'frontier' | 'weight2' | 'weight5' | 'weight10' | 'oneway' | 'pad';
+/** §6: legend swatches are the real canvas sprites, drawn into a 22 px square (CSS px). */
+export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: Palette, dpr: number, size = 22) {
+	const Z = 22;
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+	ctx.setTransform((dpr * size) / Z, 0, 0, (dpr * size) / Z, 0, 0);
+	const s = 16, x = (Z - s) / 2, y = (Z - s) / 2;
+	const cell = (): CellRef => ({ x, y, r: 0, c: 0, mask: 0 });
+	switch (kind) {
+		case 'unvisited':
+			ctx.fillStyle = p.home;
+			ctx.fillRect(x, y, s, s);
+			ctx.strokeStyle = p.homeLine;
+			ctx.lineWidth = 1;
+			ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
+			return;
+		case 'wall':
+			paintWalls(ctx, [cell()], s, p, 'shadow', dpr);
+			paintWalls(ctx, [cell()], s, p, 'body', dpr);
+			return;
+		case 'weight2':
+		case 'weight5':
+		case 'weight10': {
+			const cost = kind === 'weight2' ? 2 : kind === 'weight5' ? 5 : 10;
+			const tier = weightTier(cost);
+			sheetPile(ctx, { x: 1, y: 2, r: 0, c: cost, mask: 0 }, 19, { layers: p.classic ? 1 : W_LAYERS[tier], fills: [weightColor(p, cost), weightUnder(p, cost)], edge: p.wEdge, contact: contactOf(p, 19), dpr, rotate: 0.06, tintVar: 0.06 });
+			return;
+		}
+		case 'visited':
+			if (p.classic) {
+				ctx.fillStyle = p.visited;
+				ctx.fillRect(x, y, s, s);
+			} else punchDot(ctx, Z / 2, Z / 2, 6.5, { fill: p.vis[1], contact: { color: p.contact, dx: 0.3, dy: 0.8, blur: 1 }, dpr });
+			return;
+		case 'frontier':
+			if (p.classic) {
+				ctx.fillStyle = p.front;
+				ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
+			} else liftedCard(ctx, Z / 2, Z / 2, 14, { fill: p.front, edge: p.frontEdge, lift: 0.5, rotate: -0.06, shadow: p.shadow, dpr });
+			return;
+		case 'oneway':
+			drawOneWay(ctx, 0, 0, Z, 1, p, dpr);
+			return;
+		case 'pad':
+			drawPad(ctx, Z / 2, Z / 2, 20, p.pads[0], false, p, dpr);
+			return;
+		case 'path':
+			threadPath(ctx, [{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], { color: p.path, halo: p.home, width: 2, dash: [4, 2.5], progress: 1, dpr });
+			return;
+		case 'start':
+			drawStart(ctx, Z / 2, Z / 2, 13.3, 0, p, dpr);
+			return;
+		case 'duck':
+			drawDuck(ctx, Z / 2 + 0.5, Z / 2 + 1, 12.3, p, dpr);
+			return;
+	}
 }

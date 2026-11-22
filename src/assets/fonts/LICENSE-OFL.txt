@@ -1,1 +1,1 @@
-Bricolage Grotesque, Instrument Sans and DM Mono are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org). Subset to Latin for the web.
+Fraunces, Figtree and DM Mono are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org). Latin subsets (Fraunces and Figtree are the Google Fonts variable woff2 files).
