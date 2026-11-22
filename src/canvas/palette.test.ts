@@ -1,7 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
-import { VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
+import { FLOW_WAVE_ALPHA, VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -131,6 +131,16 @@ describe.each([['Paper', P, 4.91, 4.42], ['Night Paper', NP, 8.81, 6.91]] as con
 		expect(contrast(p.flow, tile)).toBeCloseTo(onTile, 1);
 		expect(Math.min(contrast(p.flow, p.home), contrast(p.flow, tile))).toBeGreaterThanOrEqual(3);
 	});
+	test('during a wave the chevrons step back to FLOW_WAVE_ALPHA and still hold 3:1 on the tile and on home', () => {
+		const tile = blend(p.oneway, p.home, 0.45);
+		expect(contrast(blend(p.flow, tile, FLOW_WAVE_ALPHA), tile)).toBeGreaterThanOrEqual(3);
+		expect(contrast(blend(p.flow, p.home, FLOW_WAVE_ALPHA), p.home)).toBeGreaterThanOrEqual(3);
+	});
+});
+test('Paper wave chevrons at the gate figures: 3.11 on the tile, 3.35 on home (Prism gate must-fix 3)', () => {
+	const tile = blend(P.oneway, P.home, 0.45);
+	expect(contrast(blend(P.flow, tile, FLOW_WAVE_ALPHA), tile)).toBeCloseTo(3.11, 1);
+	expect(contrast(blend(P.flow, P.home, FLOW_WAVE_ALPHA), P.home)).toBeCloseTo(3.35, 1);
 });
 test('Classic palettes: no band tint (= visited), flow = the existing onewayFg', () => {
 	for (const p of [CL, CD]) {

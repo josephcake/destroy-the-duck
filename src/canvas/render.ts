@@ -79,6 +79,9 @@ export function isWallAt(scene: Scene, r: number, c: number) {
 }
 
 /** True while something is still animating. */
+/** Lane chevrons step back to this alpha while a wave runs (Prism gate must-fix 3: .8 keeps Paper at 3.11:1 on the tile). */
+export const FLOW_WAVE_ALPHA = 0.8;
+
 export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const { view, width, height, dpr, palette: p } = scene;
 	const motion = !scene.reducedMotion;
@@ -767,7 +770,7 @@ function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: n
 			}
 		}
 	}
-	const waveA = o.wave ? 0.7 : 1;
+	const waveA = o.wave ? FLOW_WAVE_ALPHA : 1;
 	ctx.save();
 	if (!small) {
 		ctx.globalAlpha = 0.45;
