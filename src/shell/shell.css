@@ -208,7 +208,10 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 70px; padding: 4px; gap: 0; }
 	.stepbar input[type='range'] { min-width: 40px; height: 44px; }
 	.stepbar__count { min-width: 0; font-size: 12px; }
-	.landing { top: 68px; }
+	/* the 75% start view puts board rows right under the quick bar: keep the first-run card to the strip above them (Prism re-gate nit) */
+	.landing { top: 64px; padding: 10px 14px; }
+	.landing__duck, .landing p { display: none; }
+	.landing h1 { font-size: 22px; line-height: 28px; margin: 0 0 6px; }
 	.zoom { bottom: 8px; right: 8px; }
 	.toast { bottom: 120px; }
 	.legend-pin { display: none; }
