@@ -1,9 +1,9 @@
 // Learn mode MVP: step bar + inspector (narration, heap, order).
 import { narrate } from '../engine/narrate';
-import { ALGO_INFO } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { parseId } from '../model/cell';
 import { Icon } from './icons';
+import { algoLabel } from './AlgoPicker';
 
 const at = (id: string) => {
 	const { r, c } = parseId(id);
@@ -59,7 +59,7 @@ export function Inspector({ state }: { state: TraceState }) {
 	const rows = state.frontierSorted(8);
 	return (
 		<aside className="float inspector" aria-label="Inspector">
-			<h3>{ALGO_INFO[algo].label} · step {e ? e.step : 0}</h3>
+			<h3>{algoLabel(algo)} · step {e ? e.step : 0}</h3>
 			<p className="narration" aria-live="polite" data-testid="narration">
 				{e ? narrate(e, algo) : 'Press Step to begin. Each step is one thing the algorithm does.'}
 			</p>

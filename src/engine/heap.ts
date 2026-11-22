@@ -37,6 +37,9 @@ export class Heap<T> {
 		}
 		return top;
 	}
+	peek(): T | undefined {
+		return this.items[0];
+	}
 	/** Items in heap order (not sorted); for inspection only. */
 	toArray() {
 		return this.items.slice();
