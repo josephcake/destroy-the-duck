@@ -42,9 +42,9 @@ export const CLASSIC: { id: ClassicAlgo; label: string; blurb: string; order: st
 	{ id: 'dijkstra', label: 'Dijkstra', blurb: 'Draws the shortest path it found.', order: 'up, down, left, right' },
 	{ id: 'linearSearch', label: 'Linear Search', blurb: 'One walker with a fixed preference order.', order: 'left, then up, down, right' },
 	{ id: 'breadthFirstSearch', label: 'Breadth First Search', blurb: 'Ring-by-ring spread from the Arrow.', order: 'left, right, down, up' },
-	{ id: 'depthFirstSearch', label: 'Depth First Search', blurb: 'Spreads from the duck back to the Arrow.', order: 'left, right, down, up' },
+	{ id: 'depthFirstSearch', label: 'Depth First Search', blurb: 'Spreads from Quack back to the Arrow.', order: 'left, right, down, up' },
 	{ id: 'bidirectionalSearch', label: 'Bidirectional Search', blurb: 'Two waves meeting in the middle.', order: 'left, right, down, up' },
-	{ id: 'randomSearch', label: 'Random Search', blurb: 'A random walk that bumps into the duck.', order: 'random' },
+	{ id: 'randomSearch', label: 'Random Search', blurb: 'A random walk that bumps into Quack.', order: 'random' },
 ];
 
 export const SPEEDS: { name: SpeedName; label: string; title?: string }[] = [

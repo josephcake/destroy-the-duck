@@ -8,9 +8,9 @@ const at = (id: string) => {
 };
 const dirName: Record<string, string> = { N: 'north', E: 'east', S: 'south', W: 'west', J: 'through the teleporter' };
 const look = (e: TraceEvent) => (e.via === 'jump' ? 'Jump through the teleporter (cost 0)' : `Look ${dirName[String(e.params?.dir)] ?? ''}`);
-const sideName = (e: TraceEvent) => (e.side === 'bwd' ? 'Duck side: ' : e.side === 'fwd' ? 'Arrow side: ' : '');
+const sideName = (e: TraceEvent) => (e.side === 'bwd' ? 'Quack side: ' : e.side === 'fwd' ? 'Arrow side: ' : '');
 
-const who = (e: TraceEvent) => (e.side === 'bwd' ? `duck ${e.duck ?? 1}` : e.leg ? 'the last duck' : 'the Arrow');
+const who = (e: TraceEvent) => (e.side === 'bwd' ? `Quack ${e.duck ?? 1}` : e.leg ? 'the last Quack' : 'the Arrow');
 
 export function narrate(e: TraceEvent, algo: AlgoId): string {
 	const withH = isTraced(algo) && algo !== 'dijkstraW' && algo !== 'dfsStack' && algo !== 'bellmanFord';
@@ -30,7 +30,7 @@ export function narrate(e: TraceEvent, algo: AlgoId): string {
 		case 'POP_MIN_F':
 			return `${s}Pop ${at(e.node)}: smallest f = g + h = ${e.g} + ${e.h} = ${e.f}. Ties go to the smaller h, then the oldest entry.`;
 		case 'POP_MIN_H':
-			return `Pop ${at(e.node)}: it looks closest to the duck (h = ${e.h}). Greedy ignores the cost so far (g = ${e.g}).`;
+			return `Pop ${at(e.node)}: it looks closest to Quack (h = ${e.h}). Greedy ignores the cost so far (g = ${e.g}).`;
 		case 'POP_STACK':
 			return algo === 'idaStar'
 				? `Dive into ${at(e.node)}: f = ${e.f} is within the bound ${e.params?.bound}.`
@@ -54,16 +54,16 @@ export function narrate(e: TraceEvent, algo: AlgoId): string {
 		case 'ITER_BOUND':
 			return `New dive from the Arrow with f bound ${e.params?.bound}.`;
 		case 'LEG':
-			return `Leg ${(e.leg ?? 0) + 1}: search from ${at(e.node)} to duck ${e.duck}.`;
+			return `Leg ${(e.leg ?? 0) + 1}: search from ${at(e.node)} to Quack ${e.duck}.`;
 		case 'FOUND_DUCK':
-			if (e.action === 'done') return 'Done. Each path is the chain of parents from a duck back to its start.';
-			return `Reached duck ${e.duck ?? 1} at ${at(e.node)} with total cost ${e.g}.${e.params?.left ? ` ${e.params.left} more to find.` : ''}`;
+			if (e.action === 'done') return 'Done. Each path is the chain of parents from a Quack back to its start.';
+			return `Reached Quack ${e.duck ?? 1} at ${at(e.node)} with total cost ${e.g}.${e.params?.left ? ` ${e.params.left} more to find.` : ''}`;
 		case 'PATH':
-			return `Path: ${at(e.node)}${e.duck ? ` (to duck ${e.duck})` : ''}.`;
+			return `Path: ${at(e.node)}${e.duck ? ` (to Quack ${e.duck})` : ''}.`;
 		case 'NOT_FOUND':
-			return 'Nothing left to explore. The duck cannot be reached.';
+			return 'Nothing left to explore. Quack cannot be reached.';
 		case 'BUDGET_EXHAUSTED':
-			return 'Stopped: the search hit its visit budget before reaching the duck.';
+			return 'Stopped: the search hit its visit budget before reaching Quack.';
 		case 'CLASSIC_VISIT':
 			return `${s}Paint ${at(e.node)}, the next cell in the classic queue.`;
 		case 'CLASSIC_FALLBACK':

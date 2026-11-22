@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { INTRO, INTRO_SHORT } from '../story';
 import { TableContextProvider } from '../Context/TableContext';
 import AppShell from './AppShell';
 
@@ -12,6 +13,9 @@ test('shell mounts the hidden classic grid with Arrow and Duck, panel and landin
 	expect(document.getElementById('17-15').className).toMatch(/_starting/);
 	expect(document.getElementById('17-64').className).toMatch(/_ending/);
 	expect(screen.getByTestId('landing')).toBeInTheDocument();
+	// the story intro (story.ts): long on desktop, one short line on portrait phones (CSS picks)
+	expect(screen.getByTestId('landing-story').textContent).toBe(INTRO);
+	expect(screen.getByTestId('landing-story-short').textContent).toBe(INTRO_SHORT);
 	expect(screen.getByText('Quack Hunt')).toBeInTheDocument();
 	expect(screen.getByTestId('go')).toBeInTheDocument();
 });

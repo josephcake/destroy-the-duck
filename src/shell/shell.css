@@ -146,13 +146,17 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .mini { left: 12px; top: 12px; display: flex; align-items: center; gap: 4px; padding: 4px; }
 .mini .go { height: 36px; padding: 0 14px; font-size: 15px; flex: none; margin-bottom: 0; }
 .mini__algo { font: 600 12.5px/18px var(--f-ui); padding: 0 8px; color: var(--ink-2); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pill { right: 16px; top: 16px; padding: 6px 12px; font: var(--pk-type-data); display: flex; gap: 12px; }
+.pill { right: 16px; top: 16px; padding: 6px 12px; font: var(--pk-type-data); display: flex; flex-wrap: wrap; gap: 2px 12px; max-width: min(360px, calc(100% - 32px)); }
+/* the story line after a run (story.ts): its own row, body type, never wider than the pill */
+.pill__story { flex-basis: 100%; font-size: 13px; line-height: 18px; font-family: inherit; color: var(--ink-2); }
 /* gate (1280): the card sits over the board's top rows; only its buttons take the pointer,
    so a click anywhere else on it lands on the canvas, paints, and dismisses it */
 .landing { left: 50%; top: 24px; transform: translateX(-50%); width: min(400px, calc(100% - 32px)); padding: var(--s-5); pointer-events: none; }
 .landing button, .landing a { pointer-events: auto; }
 .landing h1 { font: var(--pk-type-display-l); font-variation-settings: var(--pk-type-display-l-axes); margin: 8px 0 6px; letter-spacing: -.01em; }
 .landing p { margin: 0 0 var(--s-4); color: var(--ink-2); }
+.landing .landing__story { margin-bottom: var(--s-2); color: var(--ink); }
+.landing .landing__story-short { display: none; }
 .landing__duck { width: 48px; height: 48px; display: block; }
 .landing .row .go { flex: none; height: 40px; font-size: 15px; padding: 0 14px; }
 .landing__dismiss { font-size: 12px; color: var(--ink-3); margin-left: auto; }
@@ -202,7 +206,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.app[data-panel='open'] .stage .float, .app[data-panel='open'] .stage .duck-chip { display: none; }
 	.mini { left: 8px; right: 8px; top: 8px; justify-content: space-between; }
 	.mini__algo { display: none; }
-	.pill { top: 68px; right: 8px; }
+	.pill { top: 68px; right: 8px; max-width: calc(100% - 16px); }
 	.inspector { left: 8px; right: 8px; width: auto; top: 68px; bottom: auto; max-height: min(34vh, calc(100% - 68px - 140px)); }
 	.narration { min-height: 0; }
 	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 70px; padding: 4px; gap: 0; }
@@ -211,6 +215,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	/* the 75% start view puts board rows right under the quick bar: keep the first-run card to the strip above them (Prism re-gate nit) */
 	.landing { top: 64px; padding: 10px 14px; }
 	.landing__duck, .landing p { display: none; }
+	.landing .landing__story-short { display: block; margin: 0 0 8px; font-size: 14px; line-height: 20px; color: var(--ink); }
 	.landing h1 { font-size: 22px; line-height: 28px; margin: 0 0 6px; }
 	.zoom { bottom: 8px; right: 8px; }
 	.toast { bottom: 120px; }
@@ -248,6 +253,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.landing__duck { display: none; }
 	.landing h1 { margin-top: 0; font-size: 22px; }
 	.landing p { margin-bottom: 8px; font-size: 13px; }
+	.landing .landing__how { display: none; }
 	.toast { bottom: calc(64px + env(safe-area-inset-bottom)); max-width: calc(100% - 140px); }
 	.legend-pin { display: none; }
 	.inspector { top: 64px; right: calc(8px + env(safe-area-inset-right)); width: 240px; max-height: calc(100% - 64px - 64px); }

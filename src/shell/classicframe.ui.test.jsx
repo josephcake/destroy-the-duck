@@ -3,6 +3,7 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TableContextProvider } from '../Context/TableContext';
 import AppShell from './AppShell';
+import { linesFor } from '../story';
 
 const size = { width: 390, height: 844 };
 let getCtx;
@@ -52,4 +53,6 @@ test('390 x 844, classic BFS at Fast: ends zoomed out below 75% with the Duck in
 	await wait(800); // the 420 ms ease
 	expect(pct()).toBeLessThan(75);
 	expect(screen.queryAllByTestId('duck-chip')).toHaveLength(0);
+	// the story line for the classic run, in the pill
+	expect(linesFor('breadthFirstSearch', 'found')).toContain(screen.getByTestId('story-line').textContent);
 }, 60000);

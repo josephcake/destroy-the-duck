@@ -36,7 +36,7 @@ test('duck tool adds duck 2 and shows Nearest / All / Tour', async () => {
 	mount();
 	expect(screen.queryByTestId('find-all')).toBeNull();
 	const canvas = document.querySelector('canvas');
-	fireEvent.click(screen.getByTitle('Duck (D)'));
+	fireEvent.click(screen.getByTitle('Quack (D)'));
 	await click(canvas, 30, 10);
 	expect(screen.getByTestId('find-all')).toHaveAttribute('aria-pressed', 'true');
 	fireEvent.click(screen.getByTestId('find-tour'));
@@ -71,7 +71,7 @@ test('Mochi check 3 + §4.5: duck numbers are legible at every zoom, on the stic
 test('Tour mode spells out the duck order', async () => {
 	mount();
 	const canvas = document.querySelector('canvas');
-	fireEvent.click(screen.getByTitle('Duck (D)'));
+	fireEvent.click(screen.getByTitle('Quack (D)'));
 	await click(canvas, 30, 10);
 	await click(canvas, 5, 40);
 	fireEvent.click(screen.getByTestId('algo-picker'));

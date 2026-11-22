@@ -131,10 +131,10 @@ export type AlgoInfo = { label: string; family: string; blurb: string; tags: str
 
 export const ALGO_INFO: Record<TracedAlgo, AlgoInfo> = {
 	dijkstraW: { label: 'Dijkstra · weighted', family: 'Shortest path', blurb: 'An even wave that slows down in mud and water.', tags: 'W ★', tieBreak: 'g, then oldest' },
-	astar: { label: 'A*', family: 'Heuristic', blurb: 'A wave that leans toward the duck.', tags: 'W ★ h', tieBreak: 'f, then h, then oldest' },
+	astar: { label: 'A*', family: 'Heuristic', blurb: 'A wave that leans toward Quack.', tags: 'W ★ h', tieBreak: 'f, then h, then oldest' },
 	weightedAstar: { label: 'Weighted A* (ε = 2)', family: 'Heuristic', blurb: 'Leans harder: fast, at most 2× the best cost.', tags: 'W h', tieBreak: 'g + 2h, then h, then oldest' },
-	greedy: { label: 'Greedy best-first', family: 'Heuristic', blurb: 'Always steps toward the duck. Fast, not shortest.', tags: 'h', tieBreak: 'h, then oldest' },
-	bidirectionalAstar: { label: 'Bidirectional A*', family: 'Two-way', blurb: 'Two A* waves, from the Arrow and from the duck.', tags: 'W ★ h', tieBreak: 'f per side, then h, then oldest' },
+	greedy: { label: 'Greedy best-first', family: 'Heuristic', blurb: 'Always steps toward Quack. Fast, not shortest.', tags: 'h', tieBreak: 'h, then oldest' },
+	bidirectionalAstar: { label: 'Bidirectional A*', family: 'Two-way', blurb: 'Two A* waves, from the Arrow and from Quack.', tags: 'W ★ h', tieBreak: 'f per side, then h, then oldest' },
 	jps4: { label: 'Jump point search', family: 'Plain grid', blurb: 'Skips straight runs and stops only where a turn matters.', tags: '★ h', tieBreak: 'f, then h, then oldest' },
 	dfsStack: { label: 'Depth-first', family: 'Uninformed', blurb: 'A true stack: dives down one corridor until stuck.', tags: '', tieBreak: 'last in, first out' },
 	bellmanFord: { label: 'Bellman-Ford', family: 'Shortest path', blurb: 'Relaxes every edge, round after round.', tags: 'W ★', tieBreak: 'row-major scan' },

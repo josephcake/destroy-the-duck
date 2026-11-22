@@ -39,7 +39,7 @@ export function RotatePrompt({ portraitPhone }: { portraitPhone: boolean }) {
 					<path d="M86 31l-2 8-7-4" />
 				</svg>
 				<h2 id="rotate-title">Turn your phone sideways</h2>
-				<p>The duck hunt has much more room in landscape. Drawing, panning and pinch-zoom work either way.</p>
+				<p>The hunt for Quack has much more room in landscape. Drawing, panning and pinch-zoom work either way.</p>
 				<button className="go" onClick={dismiss} data-testid="rotate-continue" autoFocus>
 					Continue anyway
 				</button>

@@ -1,6 +1,7 @@
 // Prism gate must-fix 1: a traced run at Light speed records its cells (dashes and
 // frontier), not only the path. The Light loop used to advance the trace itself
 // and then seek() to where it already was, so recordEvents never ran.
+import { linesFor } from '../story';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 // @ts-expect-error legacy JS module
@@ -40,5 +41,8 @@ test('Light speed: a traced A* run ends with settled cells in the motion layer',
 	// the traced run's layer (the mirror owns another one, for classic runs)
 	const most = Math.max(...made.map((a) => a.settledCount + a.liveCount));
 	expect(most).toBeGreaterThan(40); // Arrow and Duck are 49 columns apart: the visited cells are in the layer
+	// the story: the pill tells how A* found Quack (story.ts), without blocking play
+	expect(linesFor('astar', 'found')).toContain(screen.getByTestId('story-line').textContent);
+	expect((screen.getByTestId('go') as HTMLButtonElement).disabled).toBe(false);
 	localStorage.clear();
 });

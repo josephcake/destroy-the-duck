@@ -32,6 +32,7 @@ import { Icon } from './icons';
 import { applyGenerator } from './generate';
 import { PORTRAIT_PHONE, RotatePrompt } from './RotatePrompt';
 import { GENERATORS, GenId } from '../model/generators';
+import { INTRO, INTRO_SHORT, storyLine } from '../story';
 import '../vendor/paper-kit/tokens.css';
 import '../vendor/paper-kit/paper-kit.css';
 import './shell.css';
@@ -90,12 +91,12 @@ const loadPrefs = (): Prefs => {
 };
 
 const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string; title?: string }[] = [
-	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Duck to move them.' },
+	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Quack to move them.' },
 	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
 	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; tap a lane to turn it a quarter. Arrow keys set the direction for taps. Enter and leave only along the arrows.', title: 'One-way (O): drag to lay a lane in the direction you drag. Tap a lane to turn it.' },
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
-	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
-	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
+	{ id: 'duck', label: 'Quack', key: 'd', icon: Icon.duck, hint: 'click to add another Quack (Quack 2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
+	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra Quacks.' },
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the board. H shows all of it.' },
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
@@ -177,6 +178,10 @@ export default function AppShell() {
 	const [bestPath, setBestPath] = useState<string[] | null>(null);
 	scene.current.bestPath = bestPath ? bestPath.map((id) => { const q = parseId(id); return { r: q.r + mirror.origin.r, c: q.c + mirror.origin.c }; }) : null;
 	const classicRun = useRef(false);
+	const classicAlgo = useRef<ClassicAlgo | null>(null);
+	// the story line in the pill after a run (story.ts): one per finished run, round-robin
+	const [classicStory, setClassicStory] = useState<string | null>(null);
+	const storyOf = useRef<{ key: object | null; line: string | null }>({ key: null, line: null });
 	// ms stat for classic runs: wall-clock time of the animated run (Go to the
 	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
 	const classicStart = useRef(0);
@@ -186,7 +191,9 @@ export default function AppShell() {
 		classicRun.current = false;
 		setClassicMs(performance.now() - classicStart.current);
 		if (ctx.isToastVisible) return;
-		setBestPath(classicBestPath(ctx.starting, ctx.ending));
+		const found = classicBestPath(ctx.starting, ctx.ending);
+		setBestPath(found);
+		if (classicAlgo.current) setClassicStory(storyLine(classicAlgo.current, found && found.length > 1 ? 'found' : 'escaped'));
 	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
 	useEffect(() => stage.current?.invalidate(), [bestPath]);
 
@@ -362,6 +369,8 @@ export default function AppShell() {
 		clearTrace();
 		setBestPath(null);
 		classicRun.current = true;
+		classicAlgo.current = algo;
+		setClassicStory(null);
 		classicStart.current = performance.now();
 		setClassicMs(null);
 		ctx.go();
@@ -445,6 +454,8 @@ export default function AppShell() {
 	const showBestPathBtn = classic && classic.id !== 'dijkstra' && !wide;
 	const classicMazeOff = !!mirror.free && !maze.startsWith('gen:');
 	const tr = traceState;
+	if (tr && tr.done && storyOf.current.key !== tr.trace) storyOf.current = { key: tr.trace, line: storyLine(tr.trace.algo, tr.trace.result.found ? 'found' : 'escaped') };
+	const traceStory = tr && tr.done && storyOf.current.key === tr.trace ? storyOf.current.line : null;
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
 	const safe = small ? 12 : 0; // landscape notch side; env(safe-area-inset-*) is applied in CSS, this keeps framing clear of it
@@ -522,7 +533,7 @@ export default function AppShell() {
 	const legend = (
 		<div className="legend">
 			<span><Swatch kind="start" palette={palette} />Arrow</span>
-			<span><Swatch kind="duck" palette={palette} />Duck</span>
+			<span><Swatch kind="duck" palette={palette} />Quack</span>
 			<span><Swatch kind="path" palette={palette} />Path</span>
 			<span><Swatch kind="wall" palette={palette} />Wall</span>
 			<span><Swatch kind="visited" palette={palette} />Visited</span>
@@ -564,7 +575,7 @@ export default function AppShell() {
 
 					{tab === 'sandbox' ? (
 						<section className="section">
-							<h2 className="section__title">Find the duck</h2>
+							<h2 className="section__title">Find Quack</h2>
 							<AlgoPicker value={algo} open={pickerOpen} disabled={busy} onOpen={setPickerOpen} onPick={pickAlgo} blocked={blocked} />
 							{ctx.mazeRunning && (
 								<p className="chip" role="status" data-testid="maze-status" style={{ marginTop: 8 }}>
@@ -575,9 +586,9 @@ export default function AppShell() {
 								<div className="seg" role="group" aria-label="Find" style={{ marginTop: 8 }}>
 									{(
 										[
-											['nearest', 'Nearest', 'Stop at the first duck reached'],
-											['all', 'All', 'A shortest path to every duck'],
-											['tour', 'Tour', 'Visit the ducks in number order'],
+											['nearest', 'Nearest', 'Stop at the first Quack reached'],
+											['all', 'All', 'A shortest path to every Quack'],
+											['tour', 'Tour', 'Visit the Quacks in number order'],
 										] as [FindMode, string, string][]
 									).map(([m, label, title]) => (
 										<button key={m} aria-pressed={findMode === m} title={title} data-testid={`find-${m}`} disabled={busy} onClick={() => setFindMode(m)}>
@@ -703,7 +714,7 @@ export default function AppShell() {
 										</option>
 									))}
 								</optgroup>
-								<optgroup label="Classic mazes (around the Arrow and Duck)">
+								<optgroup label="Classic mazes (around the Arrow and Quack)">
 									{MAZES.map((m) => (
 										<option key={m.value} value={m.value}>
 											Maze: {m.text}
@@ -714,7 +725,7 @@ export default function AppShell() {
 							<button
 								className="btn"
 								disabled={busy || classicMazeOff}
-								title={classicMazeOff ? 'Classic mazes fill the 35 × 80 cells around the Arrow and Duck 1, which are further apart now. Pick a Fill-the-view maze.' : undefined}
+								title={classicMazeOff ? 'Classic mazes fill the 35 × 80 cells around the Arrow and Quack 1, which are further apart now. Pick a Fill-the-view maze.' : undefined}
 								aria-busy={ctx.mazeRunning || undefined}
 								onClick={() => buildMaze()}
 								data-testid="generate">
@@ -723,7 +734,7 @@ export default function AppShell() {
 						</div>
 						{classicMazeOff && (
 							<div className="chips" style={{ marginTop: 8 }}>
-								<span className="chip" data-testid="classic-maze-off">Classic mazes fill the 35 × 80 cells around the Arrow and Duck 1, which are further apart now. Pick a Fill-the-view maze.</span>
+								<span className="chip" data-testid="classic-maze-off">Classic mazes fill the 35 × 80 cells around the Arrow and Quack 1, which are further apart now. Pick a Fill-the-view maze.</span>
 							</div>
 						)}
 						{maze.startsWith('gen:') && (
@@ -852,7 +863,9 @@ export default function AppShell() {
 					<div className="float landing" data-testid="landing">
 						<Swatch kind="duck" palette={palette} size={48} className="landing__duck" />
 						<h1>Hunt the quack.</h1>
-						<p>Draw walls, pick a search, and watch it find the duck. Every search works anywhere on the board. Pinch or scroll to zoom in.</p>
+						<p className="landing__story" data-testid="landing-story">{INTRO}</p>
+						<p className="landing__story-short" data-testid="landing-story-short">{INTRO_SHORT}</p>
+						<p className="landing__how">Draw walls, pick a search, and watch it find Quack. Every search works anywhere on the board. Pinch or scroll to zoom in.</p>
 						<div className="row">
 							<button className="go" onClick={() => { setPanelOpen(true); setTab('sandbox'); setPickerOpen(true); setLanding(false); }}>
 								Pick an algorithm
@@ -870,6 +883,7 @@ export default function AppShell() {
 						<span>{algoLabel(tr.trace.algo)}</span>
 						<span>visited {tr.visited.size}</span>
 						{tr.done && tr.trace.result.found && <span>cost {tr.trace.result.pathCost}</span>}
+						{tr.done && traceStory && <span className="pill__story" data-testid="story-line">{traceStory}</span>}
 					</div>
 				)}
 
@@ -879,6 +893,7 @@ export default function AppShell() {
 						<span>{algoLabel(algo)}</span>
 						<span>visited {mirror.visitedCount}</span>
 						{bestPath && bestPath.length > 1 && <span>cost {bestPath.length - 1}</span>}
+						{!ctx.running && classicStory && <span className="pill__story" data-testid="story-line">{classicStory}</span>}
 					</div>
 				)}
 

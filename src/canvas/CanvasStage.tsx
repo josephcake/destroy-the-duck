@@ -761,8 +761,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				type="button"
 				className={`duck-chip duck-chip--${c.edge}${c.found ? ' duck-chip--found' : ''}`}
 				data-testid="duck-chip"
-				aria-label={`${c.n ? `Duck ${c.n}` : 'Duck'} is off-screen${c.found ? ', found' : ''}: show her`}
-				title={c.n ? `Duck ${c.n}` : 'Duck'}
+				aria-label={`${c.n ? `Quack ${c.n}` : 'Quack'} is off-screen${c.found ? ', found' : ''}: show her`}
+				title={c.n ? `Quack ${c.n}` : 'Quack'}
 				style={{ left: c.x - 22, top: c.y - 22 }}
 				onClick={() => {
 					const { w, h } = size.current;
