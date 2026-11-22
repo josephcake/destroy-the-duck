@@ -125,3 +125,25 @@ test('the new UI starts at Fast and remembers the chosen speed', () => {
 	);
 	expect(speed()).toBe('Light');
 });
+
+test('phone: starting a step-through closes the bottom sheet so the floats do not stack on it', async () => {
+	const orig = window.matchMedia;
+	window.matchMedia = (q) => ({ matches: q === '(max-width: 599px)', media: q, addEventListener() {}, removeEventListener() {} });
+	try {
+		const { container } = render(
+			<TableContextProvider>
+				<AppShell />
+			</TableContextProvider>,
+		);
+		const panel = container.querySelector('.panel');
+		if (panel.getAttribute('data-open') !== 'true') fireEvent.click(screen.getByLabelText('Open panel'));
+		expect(container.querySelector('.app').getAttribute('data-panel')).toBe('open');
+		fireEvent.click(screen.getByTestId('tab-learn'));
+		fireEvent.click(screen.getByTestId('learn-start'));
+		await screen.findByTestId('step-forward');
+		expect(panel.getAttribute('data-open')).toBe('false');
+		expect(container.querySelector('.app').getAttribute('data-panel')).toBe('closed');
+	} finally {
+		window.matchMedia = orig;
+	}
+});

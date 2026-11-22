@@ -155,11 +155,11 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// re-frame Home when insets change (pinned legend)
+	// re-frame Home when insets change (pinned legend, phone Learn layout)
 	useEffect(() => {
 		if (framed.current) api.home();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [props.insets.bottom]);
+	}, [props.insets.bottom, props.insets.top]);
 
 	useEffect(() => {
 		const down = (e: KeyboardEvent) => {

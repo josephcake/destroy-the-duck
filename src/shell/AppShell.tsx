@@ -21,6 +21,8 @@ import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import './shell.css';
 
+const PHONE = '(max-width: 599px)'; // keep in step with shell.css
+
 type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
 const PREFS_KEY = 'dtd.ui.v1';
 // The classic player's own default is Norm (100 ms a cell: BFS on an open
@@ -184,7 +186,23 @@ export default function AppShell() {
 		return () => clearTimeout(t);
 	}, [newToast]);
 
+	const [phone, setPhone] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches);
+	useEffect(() => {
+		if (typeof window.matchMedia !== 'function') return;
+		const mq = window.matchMedia(PHONE);
+		const on = () => setPhone(mq.matches);
+		mq.addEventListener?.('change', on);
+		return () => mq.removeEventListener?.('change', on);
+	}, []);
+
+	// Phone: the panel is a bottom sheet; get it out of the way once a search starts.
+	const closeSheetOnPhone = () => {
+		if (typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches) setPanelOpen(false);
+	};
+
 	const startTrace = async (which: TracedAlgo, autoplay: boolean) => {
+		setLanding(false);
+		closeSheetOnPhone();
 		setBestPath(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
@@ -214,6 +232,7 @@ export default function AppShell() {
 
 	const go = () => {
 		setLanding(false);
+		closeSheetOnPhone();
 		if (!algo) return setPickerOpen(true);
 		if (isTraced(algo)) return void startTrace(algo, true);
 		clearTrace();
@@ -278,7 +297,11 @@ export default function AppShell() {
 	const classic = algo && !isTraced(algo) ? CLASSIC.find((c) => c.id === algo)! : null;
 	const showBestPathBtn = classic && classic.id !== 'dijkstra';
 	const tr = traceState;
-	const insets = { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
+	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
+	const learnFloats = !!tr && tab === 'learn';
+	const insets = phone
+		? { top: learnFloats ? 72 + Math.round(0.34 * window.innerHeight) : 64, right: 12, bottom: learnFloats ? 124 : 64, left: 12 }
+		: { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	const legendRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!legendPinned || !legendRef.current) return;
@@ -336,12 +359,13 @@ export default function AppShell() {
 	);
 
 	return (
-		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells}>
+		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-panel={panelOpen ? 'open' : 'closed'}>
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
 				<Main rows={HOME_ROWS} cols={HOME_COLS} />
 			</div>
 
+			{panelOpen && <button className="sheet-scrim" aria-label="Close panel" tabIndex={-1} onClick={() => setPanelOpen(false)} />}
 			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen}>
 				<div className="panel__head">
 					<div className="brand">
