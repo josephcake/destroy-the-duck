@@ -227,8 +227,11 @@ export default function AppShell() {
 			seek(to);
 		};
 		if (ctx.speed === 0) {
+			// Light: at least 25 steps a frame, more on long traces, so any run ends in
+			// about 240 frames (a wide classic BFS can be 280k steps)
+			const perFrame = Math.max(25, Math.ceil(traceState.totalSteps / 240));
 			const loop = () => {
-				for (let k = 0; k < 25 && !traceState.done; k++) traceState.seek(traceState.nextStepEnd());
+				for (let k = 0; k < perFrame && !traceState.done; k++) traceState.seek(traceState.nextStepEnd());
 				seek(traceState.applied);
 				if (!traceState.done) raf = requestAnimationFrame(loop);
 			};

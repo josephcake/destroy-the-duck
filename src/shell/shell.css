@@ -134,7 +134,9 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .zoom { right: 16px; bottom: 16px; display: flex; align-items: center; padding: 6px 6px 9px; gap: 4px; }
 /* §6: exactly one tape strip, on the desktop zoom toolbar */
 .zoom__tape { top: -11px; right: 22px; pointer-events: none; }
-.zoom__pct { width: 58px; height: 36px; text-align: center; font: var(--pk-type-data); }
+.zoom__pct { width: 58px; height: 44px; text-align: center; font: var(--pk-type-data); }
+/* 44 px taps on the zoom bar and the Learn transport, at every size */
+.zoom .icon-btn, .stepbar .icon-btn { width: 44px; height: 44px; }
 .mini { left: 12px; top: 12px; display: flex; align-items: center; gap: 4px; padding: 4px; }
 .mini .go { height: 36px; padding: 0 14px; font-size: 15px; flex: none; margin-bottom: 0; }
 .mini__algo { font: 600 12.5px/18px var(--f-ui); padding: 0 8px; color: var(--ink-2); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -152,8 +154,9 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .legend-pin { left: 16px; bottom: 16px; padding: var(--s-3); width: 260px; }
 
 /* ---------- learn ---------- */
-.stepbar { left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 8px; width: min(560px, calc(100% - 220px)); }
-.stepbar input[type='range'] { flex: 1; accent-color: var(--sel); }
+/* left of the zoom bar (4 x 44 + 58 + gaps + padding = 262 px, plus 12 clear), never under it */
+.stepbar { left: 16px; right: 290px; bottom: 16px; display: flex; align-items: center; gap: 4px; padding: 6px 8px; max-width: 640px; }
+.stepbar input[type='range'] { flex: 1; min-width: 40px; height: 44px; accent-color: var(--sel); }
 .stepbar__count { font: 500 12.5px/18px var(--f-mono); min-width: 84px; text-align: right; }
 .inspector { right: 16px; top: 16px; width: 300px; padding: var(--s-3); max-height: calc(100% - 100px); overflow: auto; }
 .inspector h3 { font: var(--pk-type-overline); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin: var(--s-3) 0 var(--s-2); }
@@ -172,7 +175,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.panel { position: absolute; left: 0; top: 0; bottom: 0; }
 	/* below the quick-controls bar, above the transport */
 	.inspector { width: 260px; top: 72px; max-height: calc(100% - 72px - 136px); }
-	.stepbar { width: calc(100% - 32px); bottom: 72px; }
+	.stepbar { right: 16px; max-width: none; bottom: 72px; }
 }
 /* Phone: the panel is a bottom sheet; while it is open the canvas floats step
    aside so nothing overlaps. Closed: quick bar on top, inspector under it,
