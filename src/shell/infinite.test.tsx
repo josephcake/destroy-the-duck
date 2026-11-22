@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 // @ts-expect-error legacy JS module
 import { TableContextProvider } from '../Context/TableContext';
-import AppShell, { closerDuckGap } from './AppShell';
+import AppShell from './AppShell';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { Board } from '../model/board';
 import { LegacyMirror } from '../canvas/mirror';
@@ -56,17 +56,6 @@ function drag(canvas: HTMLCanvasElement, from: [number, number], to: [number, nu
 	act(() => void fireEvent.pointerUp(canvas, at(...to)));
 	act(() => void fireEvent.mouseUp(window));
 }
-
-test('small screens: Duck 1 starts closer only when the classic gap cannot fit at 75 %', () => {
-	expect(closerDuckGap(1280)).toBeNull();
-	expect(closerDuckGap(1024)).toBeNull();
-	expect(closerDuckGap(844)).toBe(47);
-	expect(closerDuckGap(390)).toBe(17);
-	expect(closerDuckGap(200)).toBe(6);
-	// and Home then frames them at >= 75 %
-	const v = frame({ r0: 14, c0: 12, r1: 20, c1: 15 + 17 + 3 }, 390, 700, { top: 68, right: 12, bottom: 68, left: 12 }, 1.5, 0.75);
-	expect(v.zoom).toBeGreaterThanOrEqual(0.75);
-});
 
 const touch = (id: number, x: number, y: number) => ({ clientX: x, clientY: y, button: 0, pointerId: id, pointerType: 'touch' });
 
@@ -124,7 +113,7 @@ test('the Hand tool: one finger pans', async () => {
 	expect(document.getElementById('8-10')!.className).toMatch(/_wall/);
 });
 
-test('a 390 px screen: Duck 1 starts 17 columns from the Arrow, and the saved speed survives the move', async () => {
+test('a 390 px screen: Arrow and Duck keep the classic spots (the bounded board fits), and the saved speed holds', async () => {
 	localStorage.setItem('dtd.ui.v1', JSON.stringify({ chrome: 'light', cells: 'paper', speed: 'light' }));
 	const w = window.innerWidth;
 	window.innerWidth = 390;
@@ -132,7 +121,8 @@ test('a 390 px screen: Duck 1 starts 17 columns from the Arrow, and the saved sp
 		shell();
 		await flush();
 		await flush();
-		expect(document.getElementById('17-32')!.className).toMatch(/_ending/);
+		expect(document.getElementById('17-64')!.className).toMatch(/_ending/);
+		expect(document.getElementById('17-15')!.className).toMatch(/_starting/);
 		expect(document.querySelectorAll('.legacy-mirror td[class*="_ending"]')).toHaveLength(1);
 		expect(within(screen.getByRole('group', { name: 'Speed', hidden: true })).getByRole('button', { name: 'Light', hidden: true }).getAttribute('aria-pressed')).toBe('true');
 		expect(document.querySelector('.legacy-mirror td[class*="light_"]')).toBeNull(); // the classic theme was not rolled back either

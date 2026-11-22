@@ -18,7 +18,7 @@ import { searchAsync, wideAsync } from '../engine/runner';
 import { ClassicAlgo, FindMode, Trace, TraceEvent, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, contentBox, lonePads } from './snapshot';
-import { classicFrame, dragTableCell, moveWindow, placeEndpoint, wideJob } from './window';
+import { classicFrame, moveWindow, placeEndpoint, wideJob } from './window';
 import { wideBlock } from '../classic/wide';
 import { PAD_LETTER } from '../model/nodes';
 import { unsupported } from '../engine/search';
@@ -41,12 +41,6 @@ import './shell.css';
 const newSeed = () => 1 + ((globalThis.crypto?.getRandomValues?.(new Uint32Array(1))[0] ?? Date.now()) % 99999);
 const PHONE = '(max-width: 599px)'; // keep in step with shell.css
 const LANDSCAPE_PHONE = '(max-height: 499px) and (orientation: landscape)'; // keep in step with shell.css
-const PHONE_MIN_ZOOM = 0.75;
-/** Columns between Arrow and Duck 1 that fit a w-px-wide screen at PHONE_MIN_ZOOM, or null when the classic 49 fit. */
-export function closerDuckGap(w: number): number | null {
-	const cols = Math.floor((w - 24) / (20 * PHONE_MIN_ZOOM)) - 7; // 3 cells each side, and the duck itself
-	return cols >= 49 ? null : Math.max(6, cols);
-}
 
 /** Trace events [from, to) into the motion store: the same events TraceState.apply reads (motion spec §6). */
 export function recordEvents(anim: CellAnim, events: readonly TraceEvent[], from: number, to: number, t: number, instant: boolean) {
@@ -460,21 +454,14 @@ export default function AppShell() {
 	const homeBounds = (): Bounds => BOARD; // Home and Fit both frame the whole bounded board
 	const homeMinZoom = undefined; // Home shows the whole board, phones included (pinch to zoom in)
 	const fitBounds = (): Bounds => BOARD;
-	// First load on a small screen: if the classic Arrow-Duck gap (49 columns)
-	// can't fit at a tappable zoom, bring Duck 1 closer, once, with the table's
-	// own drag (the classic six are unchanged; only the starting spot moves).
-	const phoneFramed = useRef(false);
+	// First load frames the whole board on every screen. (Phones used to move
+	// Duck 1 closer so Home could stay tappable on the endless board; the board
+	// is bounded and Home shows all of it now, so the classic layout stays.)
+	const firstFramed = useRef(false);
 	useEffect(() => {
-		// wait until the table has taken the saved speed: its handlers copy the whole
-		// state ({...this.state}), so a drag before that commits rolled the speed back
-		if (phoneFramed.current || mirror.start < 0 || mirror.end < 0 || ctx.speedText !== prefs.speed) return;
-		phoneFramed.current = true;
-		const gap = closerDuckGap(window.innerWidth);
-		if (gap === null || ctx.starting !== '17-15' || ctx.ending !== '17-64') return void stage.current?.home();
-		setTimeout(() => {
-			dragTableCell('17-64', `17-${15 + gap}`);
-			requestAnimationFrame(() => stage.current?.home()); // after the mirror has read the move
-		}, 0);
+		if (firstFramed.current || mirror.start < 0 || mirror.end < 0) return;
+		firstFramed.current = true;
+		stage.current?.home();
 	});
 	const onEndpointDrop = (which: 'start' | 'end', cell: { r: number; c: number }) => {
 		const cur = which === 'start' ? mirror.startCell() : mirror.endCell();
