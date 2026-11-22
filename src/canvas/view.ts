@@ -106,7 +106,7 @@ export function startView(board: Bounds, w: number, h: number, inset: Insets, ar
 	const rows = board.r1 - board.r0 + 1;
 	let panX: number;
 	const lo = duck ? Math.min(arrow.c, duck.c) : arrow.c, hi = duck ? Math.max(arrow.c, duck.c) : arrow.c;
-	if (duck && hi - lo + 1 + 2 <= visCols) {
+	if (duck && hi - lo + 1 + 4 <= visCols) {
 		const c0 = lo - 2, span = hi - lo + 1 + 4; // centre the span, two cells each side
 		panX = inset.left + (aw - span * s) / 2 - c0 * s;
 	} else panX = inset.left + 3 * s - arrow.c * s; // the Arrow three cells in: the most room for the wave

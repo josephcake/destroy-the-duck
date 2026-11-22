@@ -61,3 +61,13 @@ test('off-screen Duck chips: one per Duck on her edge at her row, clamped inside
 	expect(cellInView(to, w, h, ins, DUCK.r, DUCK.c)).toBe(true);
 	expect(offscreenChips([{ ...DUCK, n: 1, found: false }], to, w, h, ins)).toHaveLength(0);
 });
+
+test('classic runs: the lone Duck counts as found when the best path ends on her cell (chip and badge show ✓)', async () => {
+	const { duckMarkers } = await import('./render');
+	const { Board } = await import('../model/board');
+	const mirror = { endCell: () => ({ ...DUCK }) } as unknown as Parameters<typeof duckMarkers>[0]['mirror'];
+	const base = { board: new Board(), mirror, trace: null };
+	expect(duckMarkers({ ...base, bestPath: null })[0].found).toBe(false);
+	expect(duckMarkers({ ...base, bestPath: [ARROW, { r: 17, c: 40 }, DUCK] })[0].found).toBe(true);
+	expect(duckMarkers({ ...base, bestPath: [ARROW, { r: 17, c: 40 }] })[0].found).toBe(false);
+});

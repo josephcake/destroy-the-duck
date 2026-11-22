@@ -8,7 +8,7 @@ import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
-import { delayTrace, duckMarkers, render, Scene, traceScheduled } from './render';
+import { bestPathScheduled, delayBestPath, delayTrace, duckMarkers, render, Scene, traceScheduled } from './render';
 import { DURATION, EASE } from '../vendor/paper-kit/paper-kit';
 import { parseId } from '../model/cell';
 import { Chip, offscreenChips } from './chips';
@@ -187,11 +187,21 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const autoFrameTrace = (now: number) => {
 		const s = live.current.scene.current;
 		const tr = s.trace;
-		if (!tr || !tr.done || !tr.paths.length || traceScheduled(tr)) return;
+		let cells: { r: number; c: number }[], ends: { r: number; c: number }[];
+		let hold: (ms: number) => void;
+		const bp = s.bestPath;
+		if (tr && tr.done && tr.paths.length && !traceScheduled(tr)) {
+			cells = tr.paths.flatMap((g) => g.nodes.map(parseId));
+			ends = tr.paths.map((g) => parseId(g.nodes[g.nodes.length - 1]));
+			hold = (ms) => delayTrace(tr, now, ms);
+		} else if (!tr && bp && bp.length > 1 && !s.mirror.previewOrder.length && !bestPathScheduled(bp)) {
+			// classic runs: the same ease before their path pulls (Prism re-gate G5)
+			cells = bp;
+			ends = [bp[bp.length - 1]];
+			hold = (ms) => delayBestPath(bp, now, ms);
+		} else return;
 		const { w, h } = size.current;
 		const ins = live.current.insets;
-		const cells = tr.paths.flatMap((g) => g.nodes.map(parseId));
-		const ends = tr.paths.map((g) => parseId(g.nodes[g.nodes.length - 1]));
 		if (!w || ends.every((d) => cellInView(view.current, w, h, ins, d.r, d.c))) return;
 		let r0 = Infinity, c0 = Infinity, r1 = -Infinity, c1 = -Infinity;
 		for (const q of cells) {
@@ -203,7 +213,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const fz = fitZoom(BOARD, w, h, ins);
 		const to = frame({ r0: r0 - 2, c0: c0 - 2, r1: r1 + 2, c1: c1 + 2 }, w, h, ins, Math.max(fz, view.current.zoom), fz);
 		const rm = s.reducedMotion;
-		delayTrace(tr, now, rm ? 0 : DURATION.flight);
+		hold(rm ? 0 : DURATION.flight);
 		autoFrame.current = null;
 		easeTo(to, rm ? 0 : DURATION.flight);
 	};

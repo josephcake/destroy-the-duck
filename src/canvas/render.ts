@@ -79,8 +79,27 @@ export function isWallAt(scene: Scene, r: number, c: number) {
 }
 
 /** True while something is still animating. */
+/** The classic path's identity in the trace scheduler (Arrow > Duck | length). */
+export const bestPathKey = (bp: { r: number; c: number }[]) => `${bp[0].r},${bp[0].c}>${bp.at(-1)!.r},${bp.at(-1)!.c}|${bp.length}`;
+/** Hold a classic path's trace for `ms` while the camera eases to it (Prism re-gate G5); only if not yet scheduled. */
+export function delayBestPath(bp: { r: number; c: number }[], now: number, ms: number) {
+	const k = bestPathKey(bp);
+	if (!pathStarts.has(k)) {
+		if (pathStarts.size > 32) pathStarts.clear();
+		pathStarts.set(k, now + ms);
+	}
+}
+export const bestPathScheduled = (bp: { r: number; c: number }[]) => pathStarts.has(bestPathKey(bp));
+/** The lone Duck is found: a finished traced run found her, or (classic runs) the best path ends on her cell. */
+function soloFound(scene: Pick<Scene, 'trace' | 'bestPath'>, d: { r: number; c: number }) {
+	const tr = scene.trace;
+	if (tr) return !!(tr.trace.result.found && tr.done);
+	const end = scene.bestPath && scene.bestPath.length > 1 ? scene.bestPath[scene.bestPath.length - 1] : null;
+	return !!end && end.r === d.r && end.c === d.c;
+}
+
 /** Every Duck on the board, numbered as the badges are, and whether this run found her (edge chips, Prism gate). */
-export function duckMarkers(scene: Pick<Scene, 'board' | 'mirror' | 'trace'>): { r: number; c: number; n: number | null; found: boolean }[] {
+export function duckMarkers(scene: Pick<Scene, 'board' | 'mirror' | 'trace' | 'bestPath'>): { r: number; c: number; n: number | null; found: boolean }[] {
 	const tr = scene.trace;
 	const all = [...scene.board.entries()].filter(([, , t]) => t.kind === 'duck') as [number, number, { kind: 'duck'; n: number }][];
 	const multi = all.length > 0;
@@ -88,7 +107,7 @@ export function duckMarkers(scene: Pick<Scene, 'board' | 'mirror' | 'trace'>): {
 	const order = all.map(([, , t]) => t.n).sort((a, b) => a - b);
 	const out: { r: number; c: number; n: number | null; found: boolean }[] = [];
 	const d = scene.mirror.endCell();
-	if (d) out.push({ ...d, n: multi ? 1 : null, found: multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done) });
+	if (d) out.push({ ...d, n: multi ? 1 : null, found: multi ? reached(1) : soloFound(scene, d) });
 	for (const [r, c, t] of all) out.push({ r, c, n: order.indexOf(t.n) + 2, found: reached(order.indexOf(t.n) + 2) });
 	return out;
 }
@@ -153,8 +172,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		for (const g of tr.paths) legsIn.push(g.nodes.map(parseId));
 		t0 = traceStarts.get(tr) ?? (traceStarts.set(tr, scene.now), scene.now);
 	} else if (scene.bestPath && scene.bestPath.length > 1 && !m.previewOrder.length) {
-		const a = scene.bestPath[0], b = scene.bestPath[scene.bestPath.length - 1];
-		const key = `${a.r},${a.c}>${b.r},${b.c}|${scene.bestPath.length}`;
+		const key = bestPathKey(scene.bestPath);
 		if (!pathStarts.has(key)) {
 			if (pathStarts.size > 32) pathStarts.clear();
 			pathStarts.set(key, scene.now);
@@ -313,7 +331,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const reached = (n: number) => !!(tr && tr.done && (tr.trace.result.paths ?? []).some((q) => q.duck === n));
 	const order = [...scene.board.entries()].filter(([, , t]) => t.kind === 'duck').map(([, , t]) => (t as { n: number }).n).sort((a, b) => a - b);
 	const ducks: { r: number; c: number; n: number | null; found: boolean }[] = [];
-	if (duckCell) ducks.push({ ...duckCell, n: multi ? 1 : null, found: multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done) });
+	if (duckCell) ducks.push({ ...duckCell, n: multi ? 1 : null, found: multi ? reached(1) : soloFound(scene, duckCell) });
 	for (const d of extra) ducks.push({ r: d.r, c: d.c, n: order.indexOf(d.n) + 2, found: reached(order.indexOf(d.n) + 2) });
 	for (const d of ducks) {
 		const q = cellToScreen(view, d.r, d.c);
