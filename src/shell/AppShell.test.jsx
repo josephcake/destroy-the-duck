@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TableContextProvider } from '../Context/TableContext';
 import AppShell from './AppShell';
 
@@ -180,4 +180,24 @@ test('Mochi fix 3: Show Best Path and the chips keep their slot whatever the alg
 	fireEvent.click(screen.getByRole('option', { name: /^A\*/ }));
 	expect(slot().style.visibility).toBe('hidden');
 	expect(screen.queryByRole('button', { name: 'Show Best Path' })).toBeNull();
+});
+
+test("Mochi check 3: a classic maze shows 'Generating maze…' while the picker is disabled", async () => {
+	vi.useFakeTimers();
+	localStorage.clear();
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	fireEvent.change(screen.getByLabelText('Maze'), { target: { value: 'spiral' } });
+	fireEvent.click(screen.getByTestId('generate'));
+	expect(screen.getByTestId('generate').textContent).toBe('Generating maze…');
+	expect(screen.getByTestId('generate')).toHaveAttribute('aria-busy', 'true');
+	expect(screen.getByTestId('algo-picker')).toBeDisabled();
+	expect(screen.getByTestId('maze-status').textContent).toMatch(/Generating maze/);
+	for (let i = 0; i < 5000 && screen.getByTestId('generate').textContent !== 'Generate'; i++) act(() => vi.advanceTimersByTime(100));
+	expect(screen.getByTestId('generate').textContent).toBe('Generate');
+	expect(screen.queryByTestId('maze-status')).toBeNull();
+	vi.useRealTimers();
 });

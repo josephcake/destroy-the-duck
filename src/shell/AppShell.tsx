@@ -462,6 +462,11 @@ export default function AppShell() {
 						<section className="section">
 							<h2 className="section__title">Find the duck</h2>
 							<AlgoPicker value={algo} open={pickerOpen} disabled={busy} onOpen={setPickerOpen} onPick={pickAlgo} blocked={blocked} />
+							{ctx.mazeRunning && (
+								<p className="chip" role="status" data-testid="maze-status" style={{ marginTop: 8 }}>
+									Generating maze… the picker and drawing unlock when it's done.
+								</p>
+							)}
 							{extraDucks > 0 && (
 								<div className="seg" role="group" aria-label="Find" style={{ marginTop: 8 }}>
 									{(
@@ -599,8 +604,8 @@ export default function AppShell() {
 									))}
 								</optgroup>
 							</select>
-							<button className="btn" disabled={busy} onClick={() => buildMaze()} data-testid="generate">
-								Generate
+							<button className="btn" disabled={busy} aria-busy={ctx.mazeRunning || undefined} onClick={() => buildMaze()} data-testid="generate">
+								{ctx.mazeRunning ? 'Generating maze…' : 'Generate'}
 							</button>
 						</div>
 						{maze.startsWith('gen:') && (
