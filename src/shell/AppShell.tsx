@@ -366,7 +366,7 @@ export default function AppShell() {
 			</div>
 
 			{panelOpen && <button className="sheet-scrim" aria-label="Close panel" tabIndex={-1} onClick={() => setPanelOpen(false)} />}
-			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen}>
+			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
 				<div className="panel__head">
 					<div className="brand">
 						<img src={duckImage} alt="" /> Destroy the Duck

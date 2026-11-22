@@ -147,3 +147,16 @@ test('phone: starting a step-through closes the bottom sheet so the floats do no
 		window.matchMedia = orig;
 	}
 });
+
+test('Prism 6: the collapsed panel is inert, so Tab cannot land inside it', () => {
+	const { container } = render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const panel = container.querySelector('.panel');
+	if (panel.getAttribute('data-open') === 'true') fireEvent.click(screen.getByLabelText('Collapse panel'));
+	expect(panel.hasAttribute('inert')).toBe(true);
+	fireEvent.click(screen.getByLabelText('Open panel'));
+	expect(panel.hasAttribute('inert')).toBe(false);
+});
