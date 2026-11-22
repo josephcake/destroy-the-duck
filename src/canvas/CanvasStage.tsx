@@ -80,10 +80,15 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const pointers = useRef(new Map<number, { x: number; y: number }>());
 	const space = useRef(false);
 	const framed = useRef(false);
+	// Mochi fix 6: the last framing the user asked for (Home or Fit) is redone
+	// when the stage resizes (window, browser zoom, panel, insets). A manual
+	// zoom or pan clears it, and then a resize keeps the zoom and the centre.
+	const autoFrame = useRef<'home' | 'fit' | null>('home');
 	const live = useRef(props);
 	live.current = props;
 
-	const setView = (v: View) => {
+	const setView = (v: View, manual = false) => {
+		if (manual) autoFrame.current = null;
 		const zoomChanged = v.zoom !== view.current.zoom;
 		// the cell under a still pointer changes with the view; drop the stale outline
 		if (zoomChanged || v.panX !== view.current.panX || v.panY !== view.current.panY) hover.current = null;
@@ -98,8 +103,12 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		live.current.onZoom(view.current.zoom);
 	};
 	const api: StageApi = {
-		home: () => frameBounds(live.current.homeBounds?.() ?? HOME),
+		home: () => {
+			autoFrame.current = 'home';
+			frameBounds(live.current.homeBounds?.() ?? HOME);
+		},
 		fit: () => {
+			autoFrame.current = 'fit';
 			const c = live.current.scene.current.board.contentBounds();
 			const b = c
 				? { r0: Math.min(HOME.r0, c.r0) - 4, c0: Math.min(HOME.c0, c.c0) - 4, r1: Math.max(HOME.r1, c.r1) + 4, c1: Math.max(HOME.c1, c.c1) + 4 }
@@ -108,11 +117,11 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		},
 		zoomStep: (dir) => {
 			const { w, h } = size.current;
-			setView(zoomAt(view.current, w / 2, h / 2, nextStop(view.current.zoom, dir)));
+			setView(zoomAt(view.current, w / 2, h / 2, nextStop(view.current.zoom, dir)), true);
 		},
 		zoomTo: (z) => {
 			const { w, h } = size.current;
-			setView(zoomAt(view.current, w / 2, h / 2, z));
+			setView(zoomAt(view.current, w / 2, h / 2, z), true);
 		},
 		invalidate: () => {
 			dirty.current = true;
@@ -127,12 +136,17 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const resize = () => {
 			const rect = canvas.parentElement!.getBoundingClientRect();
 			const dpr = window.devicePixelRatio || 1;
+			const prev = size.current;
 			size.current = { w: rect.width, h: rect.height, dpr };
 			canvas.width = Math.round(rect.width * dpr);
 			canvas.height = Math.round(rect.height * dpr);
 			if (!framed.current && rect.width > 0) {
 				framed.current = true;
 				api.home();
+			} else if (framed.current && rect.width > 0 && (rect.width !== prev.w || rect.height !== prev.h)) {
+				if (autoFrame.current === 'home') api.home();
+				else if (autoFrame.current === 'fit') api.fit();
+				else setView({ ...view.current, panX: view.current.panX + (rect.width - prev.w) / 2, panY: view.current.panY + (rect.height - prev.h) / 2 });
 			}
 			dirty.current = true;
 		};
@@ -167,7 +181,9 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	// re-frame Home when insets change (pinned legend, phone Learn layout)
 	useEffect(() => {
-		if (framed.current) api.home();
+		if (!framed.current) return;
+		if (autoFrame.current === 'home') api.home();
+		else if (autoFrame.current === 'fit') api.fit();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [props.insets.bottom, props.insets.top, props.insets.right, props.insets.left]);
 
@@ -282,7 +298,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		}
 		const g = gesture.current;
 		if (g.mode === 'pan') {
-			setView({ ...view.current, panX: view.current.panX + p.x - g.x, panY: view.current.panY + p.y - g.y });
+			setView({ ...view.current, panX: view.current.panX + p.x - g.x, panY: view.current.panY + p.y - g.y }, true);
 			gesture.current = { mode: 'pan', x: p.x, y: p.y };
 		} else if (g.mode === 'pinch' && pointers.current.size >= 2) {
 			const [a, b] = [...pointers.current.values()];
@@ -290,7 +306,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			const mx = (a.x + b.x) / 2;
 			const my = (a.y + b.y) / 2;
 			const z = zoomAt(view.current, mx, my, view.current.zoom * (dist / Math.max(1, g.dist)));
-			setView({ ...z, panX: z.panX + mx - g.mx, panY: z.panY + my - g.my });
+			setView({ ...z, panX: z.panX + mx - g.mx, panY: z.panY + my - g.my }, true);
 			gesture.current = { mode: 'pinch', dist, mx, my };
 		} else if (g.mode === 'legacy') {
 			// Fast drags skip cells between pointer events; the old table got a
@@ -332,7 +348,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const onWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
 		const p = local(e);
 		const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
-		setView(zoomAt(view.current, p.x, p.y, view.current.zoom * k));
+		setView(zoomAt(view.current, p.x, p.y, view.current.zoom * k), true);
 	};
 
 	useEffect(() => {
