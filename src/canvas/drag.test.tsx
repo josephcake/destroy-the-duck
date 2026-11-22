@@ -37,3 +37,25 @@ test.each([
 	expect(document.getElementById(`${r - 6}-${c + 6}`)!.className).toMatch(cls);
 	expect(walls()).toBe(0);
 });
+
+// Prism 2: a click paints the pressed cell; a 3-cell drag paints 3.
+test('a single click with the Wall tool paints one wall; a 3-cell drag paints 3', () => {
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const canvas = document.querySelector('canvas')!;
+	act(() => void fireEvent.pointerDown(canvas, at(5, 5)));
+	act(() => void fireEvent.pointerUp(canvas, at(5, 5)));
+	act(() => void fireEvent.mouseUp(window));
+	expect(document.getElementById('5-5')!.className).toMatch(/_wall/);
+	expect(walls()).toBe(1);
+	act(() => void fireEvent.pointerDown(canvas, at(8, 5)));
+	act(() => void fireEvent.pointerMove(canvas, at(8, 6)));
+	act(() => void fireEvent.pointerMove(canvas, at(8, 7)));
+	act(() => void fireEvent.pointerUp(canvas, at(8, 7)));
+	act(() => void fireEvent.mouseUp(window));
+	expect(['8-5', '8-6', '8-7'].map((id) => /_wall/.test(document.getElementById(id)!.className))).toEqual([true, true, true]);
+	expect(walls()).toBe(4);
+});

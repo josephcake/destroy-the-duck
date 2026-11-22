@@ -1,4 +1,5 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
+import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Board, Weight } from '../model/board';
 import { Bounds, HOME, idOf, inHome } from '../model/cell';
@@ -223,8 +224,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const k = inside ? scene.current.mirror.at(cell.r, cell.c) : K.Unvisited;
 		if (inside && (k === K.Start || k === K.End || tool === 'wall')) {
 			// Classic gestures: the legacy table's own handlers do the work.
-			legacy.down(idOf(cell.r, cell.c));
-			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint: k === K.Start || k === K.End };
+			const id = idOf(cell.r, cell.c);
+			const endpoint = k === K.Start || k === K.End;
+			// Commit the table's isBuilding before the first move: the original
+			// painted the pressed cell on the first mousemove inside it, so a
+			// plain click paints one wall.
+			flushSync(() => legacy.down(id));
+			if (!endpoint && tool === 'wall') legacy.move(id);
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint };
 			return;
 		}
 		paintCell(cell.r, cell.c);
