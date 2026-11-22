@@ -167,3 +167,12 @@ test('path dots stay clearly bigger than the visited dash width, at desktop 56 %
 		expect(dotD).toBeGreaterThanOrEqual(2.3 * dashW);
 	}
 });
+
+test('Prism PD1: the dark themes light the pulse core near-white, a clear step over the settled dot; light themes keep the derived core', () => {
+	// the specified near-white cores: 2.13 / 2.64 (pure white would give Prism's 2.31 / 2.95 ceiling)
+	expect(contrast(NP.pulse!.hi, NP.path)).toBeGreaterThanOrEqual(2.1);
+	expect(contrast(CD.pulse!.hi, CD.path)).toBeGreaterThanOrEqual(2.6);
+	for (const q of [NP, CD]) expect(q.pulse).toMatchObject({ core: 0.8, grow: 0.5, glowA: 0.35, glowR: 0.27 });
+	expect(P.pulse).toBeUndefined();
+	expect(CL.pulse).toBeUndefined();
+});

@@ -37,6 +37,7 @@ export type Palette = {
 	front: string;
 	frontEdge: string;
 	path: string; // the thread
+	pulse?: { hi: string; core: number; grow: number; glowA: number; glowR: number }; // dark themes: lit core colour, core share of r, swell, glow alpha, glow reach (cells)
 	start: string;
 	arrowBack: string;
 	startOutline: string | null; // Classic Light: 1dp outline (fill is 2.55:1)
@@ -83,6 +84,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		w: ['#4a4766', '#7a5a52', '#93583a', '#8a4f33'], wUnder: ['#36344f', '#5c433d', '#6f412a', '#6a3a24'], wEdge: '#c99a6a', stamp: '#fff1dc',
 		vis: ['#4aa89c', '#3f9a8f', '#56b5a8'], visited: '#3f9a8f', visitedBand: '#7fa6e0', flow: '#b8c8ec',
 		front: '#d9a24a', frontEdge: '#ffe0a0', path: '#ff8a66',
+		pulse: { hi: '#fff3f0', core: 0.8, grow: 0.5, glowA: 0.35, glowR: 0.27 },
 		start: '#ff6b3d', arrowBack: '#ffb092', startOutline: null,
 		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#a37a18', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',
 		oneway: '#3b4c7a', onewayFg: '#9fb3dd', hole: '#070b1c', holeShadow: 'rgba(0,0,0,0.85)',
@@ -115,6 +117,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		w: ['#5d5848', '#7a6a4c', '#2f5f80'], wUnder: ['#4a463a', '#5f523b', '#244a64'], wEdge: '#e6e3c8', stamp: '#f4f1e2',
 		vis: ['#3f9a7a', '#3f9a7a', '#3f9a7a'], visited: '#3f9a7a', visitedBand: '#3f9a7a', flow: '#c9cbe3',
 		front: '#00FFBB', frontEdge: '#b8ffe9', path: '#FF6347',
+		pulse: { hi: '#ffefed', core: 0.8, grow: 0.5, glowA: 0.35, glowR: 0.27 },
 		start: '#ff6a3d', arrowBack: '#ffb092', startOutline: null,
 		duck: '#ffd000', duckWing: '#e6b800', duckEdge: '#ffd000', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',
 		oneway: '#4a4a55', onewayFg: '#c9cbe3', hole: '#141418', holeShadow: 'rgba(0,0,0,0.6)',

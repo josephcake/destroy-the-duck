@@ -148,7 +148,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .mini__algo { font: 600 12.5px/18px var(--f-ui); padding: 0 8px; color: var(--ink-2); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pill { right: 16px; top: 16px; padding: 6px 12px; font: var(--pk-type-data); display: flex; flex-wrap: wrap; gap: 2px 12px; max-width: min(360px, calc(100% - 32px)); }
 /* the story line after a run (story.ts): its own row, body type, never wider than the pill */
-.pill__story { flex-basis: 100%; font-size: 13px; line-height: 18px; font-family: inherit; color: var(--ink-2); }
+.pill__story { flex-basis: 100%; font: 500 13px/18px var(--pk-font-ui); color: var(--ink-2); }
 /* gate (1280): the card sits over the board's top rows; only its buttons take the pointer,
    so a click anywhere else on it lands on the canvas, paints, and dismisses it */
 .landing { left: 50%; top: 24px; transform: translateX(-50%); width: min(400px, calc(100% - 32px)); padding: var(--s-5); pointer-events: none; }
@@ -160,6 +160,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .landing__duck { width: 48px; height: 48px; display: block; }
 .landing .row .go { flex: none; height: 40px; font-size: 15px; padding: 0 14px; }
 .landing__dismiss { font-size: 12px; color: var(--ink-3); margin-left: auto; }
+.landing .row .btn { white-space: nowrap; }
 .toast { left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 16px; font: var(--pk-type-display-s); font-variation-settings: var(--pk-type-display-s-axes); background: var(--ink); color: var(--panel); border: 0; cursor: pointer; }
 .legend-pin { left: 16px; bottom: 16px; padding: var(--s-3); width: 260px; }
 

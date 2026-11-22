@@ -55,7 +55,7 @@ export type Scene = {
 };
 
 /** A flowing path leg, in screen px of the view it was built for: its fixed dots and the pulse clock. */
-export type MarchItem = { dots: { x: number; y: number; u: number }[]; pts: ({ x: number; y: number } | null)[]; L: number; r: number; hw: number; flowFrom: number; v: number; span: number; color: string; halo: string; hi: string; skip: { x: number; y: number }[]; skipR: number };
+export type MarchItem = { dots: { x: number; y: number; u: number }[]; pts: ({ x: number; y: number } | null)[]; L: number; r: number; hw: number; flowFrom: number; v: number; span: number; color: string; halo: string; hi: string; core: number; grow: number; glowA: number; glowR: number; skip: { x: number; y: number }[]; skipR: number };
 
 /** Where the pulse head is (arc px from the Arrow) at `now`; it runs Arrow -> Duck, rests, repeats. */
 export function pulseHead(m: { L: number; v: number; span: number; flowFrom: number }, now: number) {
@@ -77,14 +77,28 @@ function drawPulse(ctx: CanvasRenderingContext2D, m: MarchItem, now: number, w: 
 	}
 	if (!lit.length) return;
 	const wOf = (u: number) => pulseW(u, head, m.span);
-	drawDots(ctx, lit, (u) => m.r * (1 + PATH_DOT.pulseGrow * wOf(u)), m.color, m.halo, m.hw, w, h, { rOf: (u) => m.r * PATH_DOT.pulseCore * wOf(u), color: m.hi });
+	if (m.glowA > 0) {
+		// dark themes (Prism PD1): one soft glow fill first, then the dots without the home ring that would cut it
+		ctx.save();
+		ctx.globalAlpha = m.glowA;
+		ctx.fillStyle = m.color;
+		ctx.beginPath();
+		for (const d of lit) {
+			const k = wOf(d.u), R = m.r * (1 + m.grow * k) + m.glowR * k;
+			ctx.moveTo(d.x + R, d.y);
+			ctx.arc(d.x, d.y, R, 0, Math.PI * 2);
+		}
+		ctx.fill();
+		ctx.restore();
+	}
+	drawDots(ctx, lit, (u) => m.r * (1 + m.grow * wOf(u)), m.color, m.glowA > 0 ? 'rgba(0,0,0,0)' : m.halo, m.hw, w, h, { rOf: (u) => m.r * m.core * wOf(u), color: m.hi });
 }
 
 /** The overlay box (screen px) that holds every flowing leg, or null. */
 export function marchBox(items: MarchItem[], w: number, h: number) {
 	let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
 	for (const m of items) {
-		const pad = m.r * (1 + PATH_DOT.pulseGrow) + m.hw + 2;
+		const pad = m.r * (1 + m.grow) + Math.max(m.hw, m.glowR) + 2;
 		for (const q of m.pts) if (q) {
 			x0 = Math.min(x0, q.x - pad);
 			y0 = Math.min(y0, q.y - pad);
@@ -413,7 +427,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		if (flowing) {
 			const skip: { x: number; y: number }[] = [pts[0]!, pts[pts.length - 1]!];
 			jumps.forEach(([a, b]) => skip.push(a, b));
-			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.home, hi: mix(p.path, '#ffffff', PATH_DOT.pulseHi), skip, skipR: 0.5 * s };
+			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.home, hi: p.pulse?.hi ?? mix(p.path, '#ffffff', PATH_DOT.pulseHi), core: p.pulse?.core ?? PATH_DOT.pulseCore, grow: p.pulse?.grow ?? PATH_DOT.pulseGrow, glowA: p.pulse?.glowA ?? 0, glowR: p.pulse ? Math.max(2.5, p.pulse.glowR * s) : 0, skip, skipR: 0.5 * s };
 			// the overlay draws the pulse (and keeps it moving without a full render); else draw it here
 			if (scene.march) scene.march.push(item);
 			else drawPulse(ctx, item, scene.now, width, height, false);
@@ -1424,7 +1438,7 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			drawPad(ctx, Z / 2, Z / 2, 20, p.pads[0], false, p, dpr);
 			return;
 		case 'path':
-			drawDots(ctx, pathDots([{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], 4.4, 0), (u) => 1.1 + 0.9 * (u / 26), p.path, p.home, 1, Z, Z);
+			drawDots(ctx, pathDots([{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], 4.4, 0), () => 1.6, p.path, p.path, 0, Z, Z);
 			return;
 		case 'start':
 			drawStart(ctx, Z / 2, Z / 2, 13.3, 0, p, dpr);

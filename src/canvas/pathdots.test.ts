@@ -173,3 +173,36 @@ test('overlay: with scene.march the main canvas keeps the solid dots and a small
 	expect(Math.max(...lit.radii)).toBeGreaterThan(m.r * 1.2); // swells under the pulse
 	expect(lit2.radii.length).toBeGreaterThan(0);
 });
+
+test('Prism PD1: the dark-theme pulse draws a glow first (4 fills: glow, ring, dot, core), light themes 3; the box makes room for the glow', () => {
+	const fillsFor = (key: 'paper-light' | 'paper-dark' | 'classic-dark' | 'classic-light') => {
+		const pal = PALETTES[key];
+		const path3 = Array.from({ length: 30 }, (_, i) => ({ r: 20 + Object.keys(PALETTES).indexOf(key), c: 5 + i }));
+		const base = scene({ now: 7e7, palette: pal, bestPath: path3 });
+		render(recorder().ctx, base);
+		const march: MarchItem[] = [];
+		render(recorder().ctx, { ...base, now: 7e7 + 10_000, march });
+		const m = march[0];
+		let t = m.flowFrom;
+		while (pulseHead(m, t) < m.L / 2) t += 5;
+		const o = recorder();
+		drawMarch(o.ctx, march, t, marchBox(march, 1280, 800)!, 1);
+		return { m, fills: o.fills, box: marchBox(march, 1280, 800)! };
+	};
+	for (const k of ['paper-dark', 'classic-dark'] as const) {
+		const { m, fills } = fillsFor(k);
+		expect(fills).toHaveLength(4);
+		expect(fills[0].fill).toBe(PALETTES[k].path); // the glow, in the path colour (at glowA)
+		expect(fills[1].fill).toBe('rgba(0,0,0,0)'); // no home ring cutting the glow
+		expect(fills[3].fill).toBe(PALETTES[k].pulse!.hi);
+		expect(m.glowR).toBeGreaterThanOrEqual(2.5);
+		expect(Math.max(...fills[0].radii)).toBeGreaterThan(Math.max(...fills[2].radii)); // the glow reaches past the swollen dot
+		expect(Math.max(...fills[3].radii)).toBeGreaterThan(0.75 * m.r); // the lit core is 0.8 r at the head
+	}
+	for (const k of ['paper-light', 'classic-light'] as const) {
+		const { m, fills } = fillsFor(k);
+		expect(fills).toHaveLength(3);
+		expect(m.glowA).toBe(0);
+		expect(m.grow).toBe(PATH_DOT.pulseGrow);
+	}
+});
