@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = resolve(__dirname, '../..');
-const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
+const read = (p) => readFileSync(resolve(root, p), 'utf8');
 
 test('the tab title, meta and og tags, and the install manifest say Quack Hunt', () => {
 	const html = read('index.html');
