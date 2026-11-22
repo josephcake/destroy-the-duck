@@ -55,7 +55,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Duck to move them.' },
 	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
 	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; a click uses the arrow below. Enter and leave only along the arrow.' },
-	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (a, b, c…); stepping on one jumps to the other for free. Click a pad to remove it.' },
+	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
 	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless pond.' },
@@ -508,7 +508,7 @@ export default function AppShell() {
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
 									<span className="chip" data-testid="tour-order">Tour: Arrow → {Array.from({ length: extraDucks + 1 }, (_, i) => i + 1).join(' → ')}</span>
 								)}
-								{lone.length > 0 && <span className="chip" data-testid="lone-pad">Pad {lone.map(PAD_LETTER).join(', ')} has no partner yet</span>}
+								{lone.length > 0 && <span className="chip" data-testid="lone-pad">Pad {lone.map(PAD_LETTER).join(', ')} has no partner yet, so searches ignore it</span>}
 							</div>
 						</section>
 					) : (

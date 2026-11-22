@@ -5,7 +5,7 @@ import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls } from './walls';
-import { PAD_LETTER } from '../model/nodes';
+import { padLabel } from '../model/nodes';
 import { Palette, coveredEdge, labelOn, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
@@ -281,8 +281,10 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 
 	// Phase C nodes: one-way lanes and teleporter pads, drawn over visited cells
 	// so they stay readable during a run. (Extra ducks go with the sprites.)
-	const padCount = new Map<number, number>();
-	for (const [, , t] of scene.board.entries()) if (t.kind === 'pad') padCount.set(t.pair, (padCount.get(t.pair) ?? 0) + 1);
+	// Pairs: a colour each (palette.pads), labels A / A′ (A = first in reading order).
+	const padEnds = new Map<number, number[]>(); // pair -> keys in reading order
+	for (const [r, c, t] of scene.board.entries()) if (t.kind === 'pad') (padEnds.get(t.pair) ?? padEnds.set(t.pair, []).get(t.pair)!).push(r * 1e6 + c);
+	for (const ends of padEnds.values()) ends.sort((a, b) => a - b);
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if ((t.kind !== 'oneway' && t.kind !== 'pad') || isWallAt(scene, r, c)) continue;
 		const { x, y } = cellToScreen(view, r, c);
@@ -292,21 +294,24 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			ctx.fill();
 			drawChevron(ctx, x + s / 2, y + s / 2, s, t.dir, p.onewayFg);
 		} else {
-			const lone = (padCount.get(t.pair) ?? 0) < 2;
+			const ends = padEnds.get(t.pair) ?? [];
+			const lone = ends.length < 2;
+			const color = p.pads[t.pair % p.pads.length];
 			ctx.save();
-			ctx.strokeStyle = p.pad;
-			ctx.lineWidth = Math.max(1.5, 0.1 * s);
+			ctx.strokeStyle = color;
+			ctx.lineWidth = Math.max(2, 0.12 * s);
 			if (lone) ctx.setLineDash([Math.max(2, 0.12 * s), Math.max(2, 0.1 * s)]);
 			ctx.beginPath();
-			ctx.arc(x + s / 2, y + s / 2, 0.36 * s, 0, Math.PI * 2);
+			ctx.arc(x + s / 2, y + s / 2, 0.44 * s, 0, Math.PI * 2);
 			ctx.stroke();
 			ctx.restore();
-			if (s >= 14) {
-				ctx.fillStyle = p.pad;
-				ctx.font = `700 ${0.42 * s}px "DM Mono", monospace`;
+			if (s >= 12) {
+				const label = padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1);
+				ctx.fillStyle = color;
+				ctx.font = `700 ${(label.length > 1 ? 0.46 : 0.52) * s}px "DM Mono", monospace`;
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
-				ctx.fillText(PAD_LETTER(t.pair), x + s / 2, y + s / 2 + 0.02 * s);
+				ctx.fillText(label, x + s / 2, y + s / 2 + 0.03 * s);
 				ctx.textAlign = 'left';
 			}
 		}

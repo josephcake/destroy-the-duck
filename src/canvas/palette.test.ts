@@ -64,6 +64,9 @@ describe.each(Object.entries(PALETTES))('%s Phase C nodes', (_n, p) => {
 		expect(contrast(p.onewayFg, p.home)).toBeGreaterThanOrEqual(3);
 		expect(contrast(p.onewayFg, p.oneway)).toBeGreaterThanOrEqual(3);
 		expect(contrast(p.pad, p.home)).toBeGreaterThanOrEqual(3);
+		expect(p.pads[0]).toBe(p.pad);
+		for (const c of p.pads) expect(contrast(c, p.home), c).toBeGreaterThanOrEqual(3);
+		expect(new Set(p.pads).size).toBe(p.pads.length);
 	});
 });
 

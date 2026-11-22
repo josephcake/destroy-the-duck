@@ -24,7 +24,8 @@ export type Palette = {
 	/** Phase C nodes (token-driven so the paper restyle can swap them). */
 	oneway: string; // lane fill
 	onewayFg: string; // chevron, >= 3:1 vs home
-	pad: string; // teleporter ring + letter, >= 3:1 vs home
+	pad: string; // teleporter ring + letter, >= 3:1 vs home (= pads[0])
+	pads: string[]; // one colour per pair (cycled), each >= 3:1 vs home
 	highlight: string; // wall top highlight (1dp, up-facing edges)
 	wallDown: string; // wall inner down edge (1dp)
 	wallOutline?: string; // optional 1dp outline (Classic Dark)
@@ -55,6 +56,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		oneway: '#e6edf7',
 		onewayFg: '#2b5fb8',
 		pad: '#7b3fc4',
+		pads: ['#7b3fc4', '#b4410c', '#0f766e', '#b91c1c', '#1d4ed8', '#a21caf'],
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(28,34,48,0.30)',
@@ -80,6 +82,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		oneway: '#1c2838',
 		onewayFg: '#7fb0ff',
 		pad: '#c69cff',
+		pads: ['#c69cff', '#fdba74', '#5eead4', '#fca5a5', '#93c5fd', '#f0abfc'],
 		highlight: 'rgba(255,255,255,0.22)',
 		wallDown: 'rgba(0,0,0,0.35)',
 		shadow: 'rgba(0,0,0,0.6)',
@@ -105,6 +108,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		oneway: '#c2c2c2',
 		onewayFg: '#1f4fa0',
 		pad: '#6a2496',
+		pads: ['#6a2496', '#8a3410', '#0f544f', '#8f1b1b', '#1e3a8a', '#7a1782'],
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(0,0,0,0.30)',
@@ -130,6 +134,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		oneway: '#585858',
 		onewayFg: '#cfe0ff',
 		pad: '#ead6ff',
+		pads: ['#ead6ff', '#fed7aa', '#99f6e4', '#fecaca', '#bfdbfe', '#f5d0fe'],
 		highlight: 'rgba(255,255,255,0.22)',
 		wallOutline: 'rgba(255,255,255,0.14)',
 		wallDown: 'rgba(0,0,0,0.35)',

@@ -23,11 +23,11 @@ test('teleporter tool: two clicks make pair a, a lone pad is called out, a click
 	const canvas = document.querySelector('canvas');
 	fireEvent.click(screen.getByTitle('Teleport (T)'));
 	await click(canvas, 5, 5);
-	expect(screen.getByTestId('lone-pad').textContent).toMatch(/Pad a has no partner/);
+	expect(screen.getByTestId('lone-pad').textContent).toMatch(/Pad A has no partner/);
 	await click(canvas, 5, 30);
 	expect(screen.queryByTestId('lone-pad')).toBeNull();
 	await click(canvas, 8, 8);
-	expect(screen.getByTestId('lone-pad').textContent).toMatch(/Pad b/);
+	expect(screen.getByTestId('lone-pad').textContent).toMatch(/Pad B/);
 	await click(canvas, 8, 8); // remove it again
 	expect(screen.queryByTestId('lone-pad')).toBeNull();
 });

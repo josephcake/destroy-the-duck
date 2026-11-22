@@ -91,3 +91,16 @@ test('JPS refuses boards with one-way lanes and says why', async () => {
 	expect(unsupported('jps4', buildSnapshot(board, mirrorWith([])))).toMatch(/one-way/);
 	expect(unsupported('astar', buildSnapshot(board, mirrorWith([])))).toBeNull();
 });
+
+test('an unpaired pad is harmless: not sent to the engine, every search unchanged, JPS still allowed', async () => {
+	const { unsupported } = await import('../engine/search');
+	const { TRACED } = await import('../engine/trace');
+	const plain = new Board();
+	const lone = new Board();
+	lone.set(17, 30, { kind: 'pad', pair: 1 }); // pair B with no partner, right on the straight path
+	const a = buildSnapshot(plain, mirrorWith([]));
+	const b = buildSnapshot(lone, mirrorWith([]));
+	expect(b.pads).toBeUndefined();
+	expect(unsupported('jps4', b)).toBeNull();
+	for (const algo of TRACED) expect(runSearch(algo, b).result.pathCost).toBe(runSearch(algo, a).result.pathCost);
+});

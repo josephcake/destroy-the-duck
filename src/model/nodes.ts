@@ -33,4 +33,6 @@ export function dirOf(a: { r: number; c: number }, b: { r: number; c: number }):
 	if (b.r === a.r && b.c === a.c - 1) return 3;
 	return null;
 }
-export const PAD_LETTER = (pair: number) => String.fromCharCode(97 + pair);
+export const PAD_LETTER = (pair: number) => String.fromCharCode(65 + pair);
+/** The two ends of pair n: the one first in reading order is 'A', the other "A′". */
+export const padLabel = (pair: number, second: boolean) => PAD_LETTER(pair) + (second ? '′' : '');
