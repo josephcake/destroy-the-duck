@@ -107,7 +107,7 @@ export default function AppShell() {
 	const [weight, setWeight] = useState<Weight>(5);
 	const [dir, setDir] = useState<Dir>(1);
 	const [findMode, setFindMode] = useState<FindMode>('all');
-	const [maze, setMaze] = useState('basic');
+	const [maze, setMaze] = useState('gen:backtracker'); // fills the view; the classic mazes stay one pick away
 	const [seed, setSeed] = useState(newSeed);
 	const [landing, setLanding] = useState(true);
 	const [legendPinned, setLegendPinned] = useState(false);
@@ -336,7 +336,9 @@ export default function AppShell() {
 		setSeed(s);
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		ctx.clearBoard('visited');
-		applyGenerator(maze.slice(4) as GenId, s, board, mirror.start, mirror.end);
+		// fills the cells in view (the classic mazes fill the 35x80 classic window)
+		const region = stage.current?.viewCells() ?? mirror.window;
+		applyGenerator(maze.slice(4) as GenId, s, board, mirror, region.r1 >= region.r0 + 4 && region.c1 >= region.c0 + 4 ? region : mirror.window);
 	};
 
 	// ---------- keyboard ----------
@@ -620,17 +622,17 @@ export default function AppShell() {
 						<h2 className="section__title">Board</h2>
 						<div className="row">
 							<select className="select grow" aria-label="Maze" value={maze} disabled={busy} onChange={(e) => setMaze(e.target.value)}>
-								<optgroup label="Classic mazes">
-									{MAZES.map((m) => (
-										<option key={m.value} value={m.value}>
-											Maze: {m.text}
-										</option>
-									))}
-								</optgroup>
-								<optgroup label="New generators">
+								<optgroup label="Fill the view">
 									{GENERATORS.map((g) => (
 										<option key={g.id} value={`gen:${g.id}`} title={g.blurb}>
 											{g.label}
+										</option>
+									))}
+								</optgroup>
+								<optgroup label="Classic mazes (around the Arrow and Duck)">
+									{MAZES.map((m) => (
+										<option key={m.value} value={m.value}>
+											Maze: {m.text}
 										</option>
 									))}
 								</optgroup>
@@ -762,7 +764,7 @@ export default function AppShell() {
 							<button className="go" onClick={() => { setPanelOpen(true); setTab('sandbox'); setPickerOpen(true); setLanding(false); }}>
 								Pick an algorithm
 							</button>
-							<button className="btn" onClick={() => { setMaze('basic'); setLanding(false); ctx.buildMaze('basic'); }}>
+							<button className="btn" onClick={() => buildMaze()}>
 								Try a maze
 							</button>
 							<span className="landing__dismiss">Goes away on first click</span>

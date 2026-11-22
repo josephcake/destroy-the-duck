@@ -8,7 +8,7 @@ import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
 import { render, Scene } from './render';
-import { Insets, View, cellAt, frame, nextStop, zoomAt } from './view';
+import { Insets, View, cellAt, frame, nextStop, visibleBounds, zoomAt } from './view';
 
 export type Tool = 'wall' | 'weight' | 'oneway' | 'pad' | 'duck' | 'erase' | 'pan';
 /** Tools that place one node per click (no drag painting). */
@@ -33,6 +33,8 @@ export type StageApi = {
 	zoomStep: (dir: 1 | -1) => void;
 	zoomTo: (z: number) => void;
 	invalidate: () => void;
+	/** The cells fully in view (null before the stage has a size). */
+	viewCells: () => Bounds | null;
 };
 
 type Props = {
@@ -148,6 +150,12 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		},
 		invalidate: () => {
 			dirty.current = true;
+		},
+		viewCells: () => {
+			const { w, h } = size.current;
+			if (!w || !h) return null;
+			const v = visibleBounds(view.current, w, h); // one cell of slack each side
+			return { r0: v.r0 + 2, c0: v.c0 + 2, r1: v.r1 - 2, c1: v.c1 - 2 };
 		},
 	};
 	useImperativeHandle(ref, () => api);
