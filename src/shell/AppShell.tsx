@@ -877,6 +877,15 @@ export default function AppShell() {
 					</div>
 				)}
 
+				{!tr && tab === 'sandbox' && classic && mirror.visitedCount > 0 && (
+					// classic runs get the same quiet pill (the stats live in the panel, closed on phones)
+					<div className="float pill" aria-live="polite" data-testid="classic-pill">
+						<span>{algoLabel(algo)}</span>
+						<span>visited {mirror.visitedCount}</span>
+						{bestPath && bestPath.length > 1 && <span>cost {bestPath.length - 1}</span>}
+					</div>
+				)}
+
 				{tr && tab === 'learn' && (
 					<>
 						<Inspector state={tr} hasLanes={oneways > 0} />
