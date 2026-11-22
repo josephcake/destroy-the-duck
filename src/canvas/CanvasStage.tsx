@@ -1,16 +1,19 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
 import { BOARD, inBoard } from '../model/bounds';
 import { flushSync } from 'react-dom';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Board, Dir, Tile, Weight } from '../model/board';
 import { dirOf, nextDuck, nextPadPair } from '../model/nodes';
 import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
-import { render, Scene } from './render';
+import { delayTrace, duckMarkers, render, Scene, traceScheduled } from './render';
+import { DURATION, EASE } from '../vendor/paper-kit/paper-kit';
+import { parseId } from '../model/cell';
+import { Chip, offscreenChips } from './chips';
 import { Insets, View, cellAt, frame, nextStop, visibleBounds, zoomAt } from './view';
-import { clampView } from './view';
+import { cellInView, clampView, fitZoom, lerpView, revealCell, startView } from './view';
 import { CellAnim, Speed } from './cellAnim';
 import { LaneDrag, laneEnd, laneMove, laneStart, turn } from './laneDrag';
 import { CELL } from './view';
@@ -64,6 +67,8 @@ type Props = {
 	homeBounds?: () => Bounds;
 	/** Least zoom Home may pick (phones keep cells tappable). */
 	homeMinZoom?: number;
+	/** Arrow and Duck 1 for the phone start view (Home when the board fit is under 50%). */
+	startAnchor?: () => { arrow: { r: number; c: number }; duck: { r: number; c: number } | null } | null;
 	/** What Fit frames: everything placed. */
 	fitBounds?: () => Bounds;
 	/** A lane drag ended: its direction becomes the tap direction (one-way spec §1.2). */
@@ -104,15 +109,25 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	// Setting dirty.current = true wakes the frame loop, which otherwise sleeps
 	// (no rAF scheduled) once nothing animates: an idle board costs no frames.
 	const wake = useRef<() => void>(() => {});
+	// `stamp` marks real activity (board, tool, run, view): it restarts the bob and
+	// lane flow. A mouse hover only repaints the ring (Prism gate nice-to-have 1).
 	const dirty = useMemo(() => {
 		let v = true;
 		return {
+			stamp: true,
 			get current() {
 				return v;
 			},
 			set current(x: boolean) {
 				v = x;
-				if (x) wake.current();
+				if (x) {
+					this.stamp = true;
+					wake.current();
+				}
+			},
+			hover() {
+				v = true;
+				wake.current();
 			},
 		};
 	}, []);
@@ -130,7 +145,10 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	live.current = props;
 
 	const setView = (v: View, manual = false) => {
-		if (manual) autoFrame.current = null;
+		if (manual) {
+			autoFrame.current = null;
+			cam.current = null; // any user pan or zoom cancels a camera ease
+		}
 		if (size.current.w) v = clampView(v, size.current.w, size.current.h, BOARD);
 		const zoomChanged = v.zoom !== view.current.zoom;
 		// the cell under a still pointer changes with the view; drop the stale outline
@@ -138,6 +156,70 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		view.current = v;
 		dirty.current = true;
 		if (zoomChanged) live.current.onZoom(v.zoom);
+	};
+	// camera eases (start view chips, auto-frame before a trace): 420 ms EASE.flight
+	const cam = useRef<{ from: View; to: View; t0: number; dur: number } | null>(null);
+	const easeTo = (to: View, dur = DURATION.flight) => {
+		const { w, h } = size.current;
+		if (w) to = clampView(to, w, h, BOARD);
+		if (live.current.scene.current.reducedMotion || dur <= 0) {
+			cam.current = null;
+			setView(to);
+			return;
+		}
+		cam.current = { from: view.current, to, t0: performance.now(), dur };
+		dirty.current = true;
+	};
+	const stepCamera = (now: number) => {
+		const c = cam.current;
+		if (!c) return false;
+		const k = Math.min(1, Math.max(0, (now - c.t0) / c.dur));
+		const v = k >= 1 ? c.to : lerpView(c.from, c.to, EASE.flight(k));
+		if (k >= 1) cam.current = null;
+		const zoomChanged = v.zoom !== view.current.zoom;
+		view.current = v;
+		hover.current = null;
+		if (zoomChanged) live.current.onZoom(v.zoom);
+		return k < 1;
+	};
+	// the camera stays still during the wave; when the trace starts and its Duck is
+	// off-screen, ease to the path (+2 cells) first and hold the trace for the ease
+	const autoFrameTrace = (now: number) => {
+		const s = live.current.scene.current;
+		const tr = s.trace;
+		if (!tr || !tr.done || !tr.paths.length || traceScheduled(tr)) return;
+		const { w, h } = size.current;
+		const ins = live.current.insets;
+		const cells = tr.paths.flatMap((g) => g.nodes.map(parseId));
+		const ends = tr.paths.map((g) => parseId(g.nodes[g.nodes.length - 1]));
+		if (!w || ends.every((d) => cellInView(view.current, w, h, ins, d.r, d.c))) return;
+		let r0 = Infinity, c0 = Infinity, r1 = -Infinity, c1 = -Infinity;
+		for (const q of cells) {
+			r0 = Math.min(r0, q.r);
+			r1 = Math.max(r1, q.r);
+			c0 = Math.min(c0, q.c);
+			c1 = Math.max(c1, q.c);
+		}
+		const fz = fitZoom(BOARD, w, h, ins);
+		const to = frame({ r0: r0 - 2, c0: c0 - 2, r1: r1 + 2, c1: c1 + 2 }, w, h, ins, Math.max(fz, view.current.zoom), fz);
+		const rm = s.reducedMotion;
+		delayTrace(tr, now, rm ? 0 : DURATION.flight);
+		autoFrame.current = null;
+		easeTo(to, rm ? 0 : DURATION.flight);
+	};
+	// off-screen Duck chips (Prism gate must-fix 2 §6)
+	const [chips, setChips] = useState<Chip[]>([]);
+	const chipSig = useRef('');
+	const updateChips = () => {
+		const { w, h } = size.current;
+		if (!w) return;
+		const s = live.current.scene.current;
+		const next = offscreenChips(duckMarkers(s), view.current, w, h, live.current.insets);
+		const sig = next.map((c) => `${c.key}:${c.edge}:${Math.round(c.x)}:${Math.round(c.y)}:${c.found}`).join('|');
+		if (sig !== chipSig.current) {
+			chipSig.current = sig;
+			setChips(next);
+		}
 	};
 	const frameBounds = (b: Bounds, minZoom?: number) => {
 		const { w, h } = size.current;
@@ -148,10 +230,18 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const api: StageApi = {
 		home: () => {
 			autoFrame.current = 'home';
-			frameBounds(live.current.homeBounds?.() ?? HOME, live.current.homeMinZoom);
+			cam.current = null;
+			const { w, h } = size.current;
+			const a = live.current.startAnchor?.();
+			const sv = w && a ? startView(BOARD, w, h, live.current.insets, a.arrow, a.duck) : null;
+			if (sv) {
+				setView(sv);
+				live.current.onZoom(view.current.zoom);
+			} else frameBounds(live.current.homeBounds?.() ?? HOME, live.current.homeMinZoom);
 		},
 		fit: () => {
 			autoFrame.current = 'fit';
+			cam.current = null;
 			frameBounds(live.current.fitBounds?.() ?? BOARD);
 		},
 		zoomStep: (dir) => {
@@ -211,8 +301,11 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			raf = 0;
 			if (!ctx || (!dirty.current && !animating)) return; // idle: no next frame until dirty wakes it
 			const now = performance.now();
-			if (dirty.current) activeAt.current = now;
+			if (dirty.stamp) activeAt.current = now;
+			dirty.stamp = false;
 			dirty.current = false;
+			const camMoving = stepCamera(now);
+			autoFrameTrace(now);
 			const s = live.current.scene.current;
 			const scene: Scene = {
 				...s,
@@ -232,6 +325,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				perf.push(performance.now() - t0);
 				if (perf.length > 20000) perf.splice(0, 10000);
 			} else animating = render(ctx, scene);
+			if (camMoving || cam.current) animating = true;
+			updateChips();
 			if (animating) raf = requestAnimationFrame(loop);
 		};
 		wake.current = () => {
@@ -463,7 +558,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		if (!hover.current || hover.current.r !== cell.r || hover.current.c !== cell.c || !live.current.editable) {
 			// no hover ring while drawing is locked: it promises a cell that won't paint
 			hover.current = e.pointerType === 'mouse' && live.current.editable && inBoard(cell.r, cell.c) ? cell : null;
-			dirty.current = true;
+			dirty.hover();
 		}
 		const g = gesture.current;
 		if (g.mode === 'pan') {
@@ -560,6 +655,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	}, []);
 
 	return (
+		<>
 		<canvas
 			ref={canvasRef}
 			data-testid="board-canvas"
@@ -571,11 +667,40 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			onPointerCancel={onPointerUp}
 			onPointerLeave={() => {
 				hover.current = null;
-				dirty.current = true;
+				dirty.hover();
 			}}
 			onWheel={onWheel}
 			onContextMenu={(e) => e.preventDefault()}
 			style={{ cursor: props.tool === 'pan' ? 'grab' : props.editable ? 'crosshair' : 'not-allowed' }}
 		/>
+		{chips.map((c) => (
+			<button
+				key={c.key}
+				type="button"
+				className={`duck-chip duck-chip--${c.edge}${c.found ? ' duck-chip--found' : ''}`}
+				data-testid="duck-chip"
+				aria-label={`${c.n ? `Duck ${c.n}` : 'Duck'} is off-screen${c.found ? ', found' : ''}: show her`}
+				title={c.n ? `Duck ${c.n}` : 'Duck'}
+				style={{ left: c.x - 22, top: c.y - 22 }}
+				onClick={() => {
+					const { w, h } = size.current;
+					autoFrame.current = null;
+					easeTo(revealCell(view.current, w, h, live.current.insets, c.r, c.c));
+				}}
+			>
+				<ChipGlyph edge={c.edge} found={c.found} />
+			</button>
+		))}
+		</>
 	);
 });
+
+const CHEV: Record<Chip['edge'], string> = { left: 'M9 4 5 8l4 4', right: 'M7 4l4 4-4 4', top: 'M4 9l4-4 4 4', bottom: 'M4 7l4 4 4-4' };
+function ChipGlyph({ edge, found }: { edge: Chip['edge']; found: boolean }) {
+	return (
+		<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<path d="M5 14c0 3 3 5 7 5s7-2 7-6c-2 1-4 1-5 0 1-1 2-2 2-4a4 4 0 0 0-8 0c0 1 .5 2 1 2.5C7 12 5 12 5 14z" />
+			{found ? <path d="M15 4.5l2 2 3.5-4" /> : <path d={CHEV[edge]} transform={edge === 'left' ? 'translate(-5 4)' : edge === 'right' ? 'translate(9 4)' : edge === 'top' ? 'translate(4 -5)' : 'translate(4 9)'} />}
+		</svg>
+	);
+}

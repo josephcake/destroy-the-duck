@@ -453,8 +453,14 @@ export default function AppShell() {
 		: phone
 		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
-	const homeBounds = (): Bounds => BOARD; // Home and Fit both frame the whole bounded board
-	const homeMinZoom = undefined; // Home shows the whole board, phones included (pinch to zoom in)
+	// Fit (F) frames the whole board. Start view (H) does too, unless that fit would be
+	// under 50% (phones): then it opens at 75% around the Arrow (Prism qa gate, must-fix 2).
+	const homeBounds = (): Bounds => BOARD;
+	const homeMinZoom = undefined;
+	const startAnchor = () => {
+		const a = mirror.startCell();
+		return a ? { arrow: a, duck: mirror.endCell() } : null;
+	};
 	const fitBounds = (): Bounds => BOARD;
 	// First load frames the whole board on every screen. (Phones used to move
 	// Duck 1 closer so Home could stay tappable on the endless board; the board
@@ -814,6 +820,7 @@ export default function AppShell() {
 					onZoom={setZoom}
 					homeBounds={homeBounds}
 					homeMinZoom={homeMinZoom}
+					startAnchor={startAnchor}
 					fitBounds={fitBounds}
 					onEndpointDrop={onEndpointDrop}
 					dir={dir}
@@ -892,8 +899,8 @@ export default function AppShell() {
 					<button className="icon-btn" aria-label="Zoom out" onClick={() => stage.current?.zoomStep(-1)}><Icon.minus /></button>
 					<button className="zoom__pct" aria-label="Zoom to 100%" onClick={() => stage.current?.zoomTo(1)}>{Math.round(zoom * 100)}%</button>
 					<button className="icon-btn" aria-label="Zoom in" onClick={() => stage.current?.zoomStep(1)}><Icon.plus /></button>
-					<button className="icon-btn" aria-label="Fit" title="Fit (F)" onClick={() => stage.current?.fit()}><Icon.fit /></button>
-					<button className="icon-btn" aria-label="Home" title="Home (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
+					<button className="icon-btn" aria-label="Fit board" title="Fit board (F)" onClick={() => stage.current?.fit()}><Icon.fit /></button>
+					<button className="icon-btn" aria-label="Start view" title="Start view (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
 				</div>
 
 				{wideToast && (

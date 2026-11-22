@@ -79,6 +79,31 @@ export function isWallAt(scene: Scene, r: number, c: number) {
 }
 
 /** True while something is still animating. */
+/** Every Duck on the board, numbered as the badges are, and whether this run found her (edge chips, Prism gate). */
+export function duckMarkers(scene: Pick<Scene, 'board' | 'mirror' | 'trace'>): { r: number; c: number; n: number | null; found: boolean }[] {
+	const tr = scene.trace;
+	const all = [...scene.board.entries()].filter(([, , t]) => t.kind === 'duck') as [number, number, { kind: 'duck'; n: number }][];
+	const multi = all.length > 0;
+	const reached = (n: number) => !!(tr && tr.done && (tr.trace.result.paths ?? []).some((q) => q.duck === n));
+	const order = all.map(([, , t]) => t.n).sort((a, b) => a - b);
+	const out: { r: number; c: number; n: number | null; found: boolean }[] = [];
+	const d = scene.mirror.endCell();
+	if (d) out.push({ ...d, n: multi ? 1 : null, found: multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done) });
+	for (const [r, c, t] of all) out.push({ r, c, n: order.indexOf(t.n) + 2, found: reached(order.indexOf(t.n) + 2) });
+	return out;
+}
+
+/**
+ * Hold a finished run's path trace for `ms` (the camera eases to the path first,
+ * Prism gate must-fix 2 §7): the legs start that much later and keep their full T.
+ * Call before the first frame that would start the trace.
+ */
+export function delayTrace(tr: TraceState, now: number, ms: number) {
+	if (!traceStarts.has(tr)) traceStarts.set(tr, now + ms);
+}
+/** Whether a finished run's trace has started (or been scheduled). */
+export const traceScheduled = (tr: TraceState) => traceStarts.has(tr);
+
 /** Lane chevrons step back to this alpha while a wave runs (Prism gate must-fix 3: .8 keeps Paper at 3.11:1 on the tile). */
 export const FLOW_WAVE_ALPHA = 0.8;
 
@@ -143,7 +168,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	let visA = VA;
 	if (legs.length) {
 		const el = scene.now - t0;
-		if (scene.now < traceEnd) visA = VA - (VA - RA) * EASE.out(Math.min(1, el / 160));
+		if (scene.now < traceEnd) visA = VA - (VA - RA) * EASE.out(Math.min(1, Math.max(0, el) / 160));
 		else {
 			const u = Math.min(1, (scene.now - traceEnd) / 300);
 			visA = RA + (VA - RA) * EASE.out(u);

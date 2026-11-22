@@ -37,15 +37,18 @@ test('resize refits Home until the user zooms; Home re-arms it', () => {
 	const big = pct();
 	resize(600, 400);
 	const small = pct();
-	expect(small).toBeLessThan(big); // refit to the smaller stage
+	expect(small).toBe(75); // refit: the whole board would be under 50% here, so Home opens the 75% start view (Prism qa gate)
 	resize(1200, 800);
 	expect(pct()).toBe(big); // and back: no stuck 12-20 %
 	fireEvent.click(screen.getByLabelText('Zoom in'));
 	const manual = pct();
 	resize(600, 400);
 	expect(pct()).toBe(manual); // manual zoom respected
-	fireEvent.click(screen.getByLabelText('Home'));
+	fireEvent.click(screen.getByLabelText('Start view'));
 	expect(pct()).toBe(small);
 	resize(1200, 800);
 	expect(pct()).toBe(big); // Home re-armed auto-fit
+	fireEvent.click(screen.getByLabelText('Fit board'));
+	resize(600, 400);
+	expect(pct()).toBeLessThan(50); // Fit board keeps framing the whole board, however small
 });
