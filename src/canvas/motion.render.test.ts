@@ -60,6 +60,20 @@ test('every cell live (half entering, half settling) costs at most 16 strokes, a
 	expect(done.animating).toBe(false);
 });
 
+test('Prism gate ruling 1: half the board settled, half live, still costs at most 16 live + 1 frontier + 2 settled strokes', () => {
+	const anim = new CellAnim();
+	anim.reset(T0);
+	const N = BOARD_ROWS * BOARD_COLS;
+	for (let i = 0; i < N; i++) anim.frontierAt(i, 0, i % 50);
+	for (let i = 0; i < N / 2; i++) anim.visitAt(i, 0); // settled by T0 + settle
+	for (let i = N / 2; i < N; i += 2) anim.visitAt(i, MOTION.fast.settle); // settling now
+	const base = strokesOf(scene({ trace: fakeTrace, anim: new CellAnim() })).strokes;
+	const mixed = strokesOf(scene({ trace: fakeTrace, anim, now: T0 + MOTION.fast.settle + 100 }));
+	expect(anim.settledCount).toBeGreaterThan(1000);
+	expect(anim.liveCount).toBeGreaterThan(500);
+	expect(mixed.strokes - base).toBeLessThanOrEqual(16 + 1 + 2);
+});
+
 test('reduced motion: cells land in their final state at once (no live strokes, no frames)', () => {
 	const anim = new CellAnim();
 	anim.reset(T0);
