@@ -491,7 +491,7 @@ export default function AppShell() {
 			<nav className="panel pk-panel pk-torn-right" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
 				<div className="panel__head pk-strip pk-torn-bottom">
 					<div className="brand pk-display-m">
-						<Swatch kind="duck" palette={palette} size={34} className="brand__duck" /> Destroy the Duck
+						<Swatch kind="duck" palette={palette} size={34} className="brand__duck" /> Quack Hunt
 					</div>
 					<button className="icon-btn" aria-label="Collapse panel" title="Collapse panel ([)" onClick={() => setPanelOpen(false)}>
 						<Icon.collapse />

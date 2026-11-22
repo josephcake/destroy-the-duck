@@ -12,7 +12,7 @@ test('shell mounts the hidden classic grid with Arrow and Duck, panel and landin
 	expect(document.getElementById('17-15').className).toMatch(/_starting/);
 	expect(document.getElementById('17-64').className).toMatch(/_ending/);
 	expect(screen.getByTestId('landing')).toBeInTheDocument();
-	expect(screen.getByText('Destroy the Duck')).toBeInTheDocument();
+	expect(screen.getByText('Quack Hunt')).toBeInTheDocument();
 	expect(screen.getByTestId('go')).toBeInTheDocument();
 });
 
