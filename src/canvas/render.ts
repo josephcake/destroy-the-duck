@@ -136,13 +136,14 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 	const legs = motion ? scheduleLegs(legsIn, t0) : [];
 	const traceEnd = legs.length ? Math.max(...legs.map((l) => l.start + l.dur)) + NEEDLE_RETRACT + DURATION.tug : -Infinity;
-	let visA = VISITED_ALPHA;
+	const VA = visitedAlphaOf(p), RA = VA * (RECEDE_ALPHA / VISITED_ALPHA);
+	let visA = VA;
 	if (legs.length) {
 		const el = scene.now - t0;
-		if (scene.now < traceEnd) visA = VISITED_ALPHA - (VISITED_ALPHA - RECEDE_ALPHA) * EASE.out(Math.min(1, el / 160));
+		if (scene.now < traceEnd) visA = VA - (VA - RA) * EASE.out(Math.min(1, el / 160));
 		else {
 			const u = Math.min(1, (scene.now - traceEnd) / 300);
-			visA = RECEDE_ALPHA + (VISITED_ALPHA - RECEDE_ALPHA) * EASE.out(u);
+			visA = RA + (VA - RA) * EASE.out(u);
 			if (u < 1) animating = true;
 		}
 	}
@@ -423,6 +424,8 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 export const VISITED_ALPHA = 0.8;
 /** While a path traces, settled dashes recede to this alpha so the thread is the subject (§3). */
 export const RECEDE_ALPHA = 0.6;
+/** The palette's settled-dash alpha: .8, or the palette's own (Classic Light .85: its pinned colour reaches 3:1). */
+export const visitedAlphaOf = (p: Palette) => p.visitedAlpha ?? VISITED_ALPHA;
 const EASE_SETTLE = bezier(0.4, 0, 0.2, 1);
 const ENTER_BUCKETS = 4;
 const SETTLE_BUCKETS = 8;
@@ -536,7 +539,7 @@ export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, sce
 	for (let b = 0; b < SETTLE_BUCKETS; b++) {
 		if (!settle[b]) continue;
 		const k = (b + 0.5) / SETTLE_BUCKETS;
-		ctx.globalAlpha = 1 - (1 - VISITED_ALPHA) * k;
+		ctx.globalAlpha = 1 - (1 - visitedAlphaOf(p)) * k;
 		ctx.strokeStyle = ramp[b];
 		ctx.stroke(settle[b]!);
 	}
@@ -1177,7 +1180,7 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 		}
 		case 'visited':
 			ctx.strokeStyle = p.visited;
-			ctx.globalAlpha = VISITED_ALPHA;
+			ctx.globalAlpha = visitedAlphaOf(p);
 			ctx.lineWidth = 1.6;
 			ctx.lineCap = 'round';
 			ctx.beginPath();

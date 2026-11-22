@@ -1,7 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
-import { VISITED_ALPHA, settleRamp } from './render';
+import { VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -80,10 +80,10 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.grid, p.home)).toBeGreaterThan(1.05);
 	});
 	test('minimal: the visited dash (blended at VISITED_ALPHA) reads (>= 3:1, WCAG 1.4.11) but stays quieter than walls and the path', () => {
-		const dash = contrast(blend(p.visited, p.home, VISITED_ALPHA), p.home);
-		// Paper presets: >= 3:1 (Prism 2026-11-22). Classic keeps its pinned colours
-		// (Classic Light visited is 4.08 at full alpha, 2.98 blended), so it gets a 2.5 floor.
-		expect(dash).toBeGreaterThanOrEqual(p.classic ? 2.5 : 3);
+		const dash = contrast(blend(p.visited, p.home, visitedAlphaOf(p)), p.home);
+		// every palette >= 3:1 (Mochi, qa batch): Classic Light keeps its pinned colour and
+		// draws the dash at .85 (3.23; was 2.98 at .8), still quieter than its path (3.58)
+		expect(dash).toBeGreaterThanOrEqual(3);
 		expect(dash).toBeLessThan(contrast(p.wall, p.home));
 		expect(dash).toBeLessThan(contrast(p.path, p.home));
 	});
