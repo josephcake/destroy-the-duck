@@ -524,7 +524,8 @@ function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: numb
 		}
 		return;
 	}
-	// 2 baked sprites (lift 0 and 1), crossfaded (§8)
+	// baked sprites at 9 lift levels; the nearest is blitted (§8: no per-card shadowBlur).
+	// (A 2-sprite crossfade left the card ~25% see-through mid-pulse, which read brown on navy.)
 	const S = Math.round(s * 2) / 2, pad = Math.ceil(size / 2 + 12);
 	const sprite = (lift: number) => cached(`front|${p.name}|${S}|${lift}|${dpr}`, () => {
 		const L = mkLayer(2 * pad * dpr, 2 * pad * dpr);
@@ -533,21 +534,19 @@ function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: numb
 		liftedCard(L[1], pad, pad, 0.74 * S, { fill: p.front, edge: p.frontEdge, lift, shadow: p.shadow, dpr });
 		return L[0];
 	});
-	const a = sprite(0), b = sprite(1);
+	const LEVELS = 8;
+	const img = sprite(Math.round(l * LEVELS) / LEVELS);
 	for (const { r, c } of cells) {
 		const { x, y } = cellToScreen(view, r, c);
 		const rot = (hash(r, c, 21) - 0.5) * 0.14; // ±0.07 rad
-		if (!a || !b) {
+		if (!img) {
 			liftedCard(ctx, x + s / 2, y + s / 2, size, { fill: p.front, edge: p.frontEdge, lift: l, rotate: rot, shadow: p.shadow, dpr });
 			continue;
 		}
 		ctx.save();
 		ctx.translate(x + s / 2, y + s / 2);
 		ctx.rotate(rot);
-		ctx.globalAlpha = 1 - l;
-		ctx.drawImage(a as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
-		ctx.globalAlpha = l;
-		ctx.drawImage(b as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
+		ctx.drawImage(img as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
 		ctx.restore();
 	}
 }
@@ -708,7 +707,7 @@ function drawJump(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, s: number, color:
 	}
 	ctx.stroke();
 	ctx.restore();
-	if (!motion) return; // reduced motion: the trail only, no plane
+	if (!motion || t >= 1) return; // the plane only shows in flight; reduced motion: the trail only
 	const u = Math.min(0.98, t), q0 = pt(u), q1 = pt(u + 0.02);
 	drawPlane(ctx, q0.x, q0.y, Math.max(16, 0.95 * s), Math.atan2(q1.y - q0.y, q1.x - q0.x), p);
 }

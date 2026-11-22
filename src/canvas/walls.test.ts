@@ -103,3 +103,17 @@ test('§4.1 table: ply, shadow, blur and deckle at 25 / 50 / 100 / 200 / 400 %',
 	const C = wallLook(40, PALETTES['classic-dark']);
 	expect([C.under, C.jitter, C.radius, C.topFibre]).toEqual([null, 0, 4, 0]);
 });
+
+test('a wall crossing a chunk border is cut as one piece: each chunk sees its neighbour cells (halo), so a change there re-bakes both', () => {
+	const cache = new WallCache();
+	const walls = new Set(['3,14', '3,15']); // chunk (0,0) only
+	const src = { isWall: (r: number, c: number) => walls.has(`${r},${c}`), changedAt: () => 0 };
+	drawWalls(fakeCtx(), src, view, vb, PALETTES['paper-light'], 1, 1000, false, cache);
+	expect(cache.baked).toBe(1);
+	walls.add('3,16'); // first cell of chunk (0,1), touching 3,15
+	drawWalls(fakeCtx(), src, view, vb, PALETTES['paper-light'], 1, 2000, false, cache);
+	expect(cache.baked).toBe(3); // the new chunk, and chunk (0,0) whose edge is no longer a cut
+	walls.add('20,40'); // far away: nothing else re-bakes
+	drawWalls(fakeCtx(), src, view, vb, PALETTES['paper-light'], 1, 3000, false, cache);
+	expect(cache.baked).toBe(4);
+});

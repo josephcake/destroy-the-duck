@@ -120,12 +120,27 @@ const boundsOf = (cells: CellRef[], s: number, extra: number) => {
  * under-ply (+ its cut edge). 'body': top ply + top fibre + cut edges.
  * `shadowK` scales the cast (flutter 2x -> 1x, peel 1x -> 1.8x).
  */
-export function paintWalls(ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, layer: 'shadow' | 'body', dpr: number, opts: { jitter?: number; shadowK?: number } = {}) {
+export function paintWalls(
+	ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, layer: 'shadow' | 'body', dpr: number,
+	opts: { jitter?: number; shadowK?: number; halo?: CellRef[]; origin?: { x: number; y: number } } = {},
+) {
 	if (!cells.length) return;
 	const L = wallLook(s, p);
 	const jitter = opts.jitter ?? L.jitter;
 	const top = unionPath(cells, s, L.radius, jitter, 1);
 	const b = boundsOf(cells, s, 2 + (L.under ? Math.max(L.under.dx, L.under.dy) : 0));
+	// Cut edges are an erosion of the outline. A chunk's outline stops at the chunk
+	// border, so the edge path also takes the neighbouring wall cells (halo) and the
+	// band is clipped to this chunk's own cells: no seam where a wall crosses chunks.
+	const halo = opts.halo?.length ? opts.halo : null;
+	const band = (own: Path2D, dx: number, dy: number, color: string, alpha: number, kind: 'all' | 'tl', w: number) => {
+		if (!halo) return edgeBand(ctx, own, color, alpha, kind, w, b, dpr);
+		const all = unionPath([...cells, ...halo], s, L.radius, jitter, 1, dx, dy);
+		ctx.save();
+		ctx.clip(own);
+		edgeBand(ctx, all, color, alpha, kind, w, boundsOf([...cells, ...halo], s, 2 + Math.max(dx, dy)), dpr);
+		ctx.restore();
+	};
 	if (layer === 'shadow') {
 		if (L.cast) withShadow(ctx, L.cast, dpr, opts.shadowK ?? 1, () => { ctx.fillStyle = p.wall; ctx.fill(top); });
 		const up = L.under ? unionPath(cells, s, L.radius, jitter, 1, L.under.dx, L.under.dy) : null;
@@ -133,7 +148,7 @@ export function paintWalls(ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, 
 		if (up && L.under) {
 			ctx.fillStyle = L.under.fill;
 			ctx.fill(up);
-			if (L.edges) edgeBand(ctx, up, p.cut, 0.3, 'all', 1, b, dpr);
+			if (L.edges) band(up, L.under.dx, L.under.dy, p.cut, 0.3, 'all', 1);
 		}
 		return;
 	}
@@ -145,6 +160,9 @@ export function paintWalls(ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, 
 		const tile = fibreTile({ seed: 9, ink, alpha: 0.5, grain: 120 });
 		const pat = ctx.createPattern?.(tile as CanvasImageSource, 'repeat');
 		if (pat) {
+			// anchor the fibre to the board, not to the chunk bitmap
+			const o = opts.origin;
+			if (o && typeof DOMMatrix !== 'undefined') pat.setTransform?.(new DOMMatrix().translate(-(((o.x % 256) + 256) % 256), -(((o.y % 256) + 256) % 256)));
 			ctx.save();
 			ctx.clip(top);
 			ctx.globalAlpha *= L.topFibre;
@@ -154,8 +172,8 @@ export function paintWalls(ctx: Ctx2D, cells: CellRef[], s: number, p: Palette, 
 		}
 	}
 	if (L.edges) {
-		edgeBand(ctx, top, p.cut, 0.55, 'all', 1, b, dpr);
-		edgeBand(ctx, top, p.cutTL, 0.9, 'tl', 1.5, b, dpr);
+		band(top, 0, 0, p.cut, 0.55, 'all', 1);
+		band(top, 0, 0, p.cutTL, 0.9, 'tl', 1.5);
 	}
 }
 
@@ -191,7 +209,7 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 	const cc0 = Math.floor(vb.c0 / K), cc1 = Math.floor(vb.c1 / K);
 	const useCache = K * s * dpr <= 1100; // §8 cap; above it draw live with jitter 0
 	const pad = Math.ceil(0.45 * s) + 16;
-	type Job = { r0: number; c0: number; cells: Cell[]; sig: number; key: string };
+	type Job = { r0: number; c0: number; cells: Cell[]; halo: Cell[]; sig: number; key: string };
 	const jobs: Job[] = [];
 	const pops: Cell[] = [];
 	for (let cr = cr0; cr <= cr1; cr++)
@@ -210,9 +228,26 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 					cells.push({ r, c, mask });
 					sig = Math.imul(sig ^ ((r - r0) * K + (c - c0)), 16777619) ^ mask;
 				}
-			if (cells.length) jobs.push({ r0, c0, cells, sig: sig ^ cells.length, key: `${cr},${cc}` });
+			if (!cells.length) continue;
+			// the 1-cell ring of settled walls just outside the chunk (for seamless cut edges)
+			const halo: Cell[] = [];
+			for (let r = r0 - 1; r <= r0 + K; r++)
+				for (let c = c0 - 1; c <= c0 + K; c++) {
+					if (r >= r0 && r < r0 + K && c >= c0 && c < c0 + K) continue;
+					if (!settled(r, c)) continue;
+					const mask = wallMask(settled, r, c);
+					halo.push({ r, c, mask });
+					sig = Math.imul(sig ^ ((r - r0 + 1) * 131 + (c - c0 + 1) + 7919), 16777619) ^ mask;
+				}
+			jobs.push({ r0, c0, cells, halo, sig: sig ^ cells.length, key: `${cr},${cc}` });
 		}
-	const refs = (j: Job, ox: number, oy: number): CellRef[] => j.cells.map((q) => ({ x: ox + (q.c - j.c0) * s, y: oy + (q.r - j.r0) * s, r: q.r, c: q.c, mask: q.mask }));
+	const refsOf = (list: Cell[], j: Job, ox: number, oy: number): CellRef[] => list.map((q) => ({ x: ox + (q.c - j.c0) * s, y: oy + (q.r - j.r0) * s, r: q.r, c: q.c, mask: q.mask }));
+	const refs = (j: Job, ox: number, oy: number) => refsOf(j.cells, j, ox, oy);
+	const optsFor = (j: Job, ox: number, oy: number, live: boolean) => ({
+		...(live ? { jitter: 0 } : {}),
+		halo: refsOf(j.halo, j, ox, oy),
+		origin: { x: j.c0 * s - ox, y: j.r0 * s - oy }, // board px at the ctx origin
+	});
 	const origin = (j: Job) => cellToScreen(view, j.r0, j.c0);
 	const bake = (j: Job): Entry | null => {
 		if (!useCache) return null;
@@ -227,8 +262,8 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 		if (!bc || !sc) return null;
 		for (const c of [bc, sc]) c.setTransform(dpr, 0, 0, dpr, 0, 0);
 		const cells = refs(j, pad, pad);
-		paintWalls(sc, cells, s, p, 'shadow', dpr);
-		paintWalls(bc, cells, s, p, 'body', dpr);
+		paintWalls(sc, cells, s, p, 'shadow', dpr, optsFor(j, pad, pad, false));
+		paintWalls(bc, cells, s, p, 'body', dpr, optsFor(j, pad, pad, false));
 		const e = { sig: j.sig, shadow, body, pad };
 		cache.set(j.key, e);
 		return e;
@@ -242,11 +277,11 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 	};
 	for (const [j, e] of entries) {
 		if (e && e.shadow) blit(j, e.shadow);
-		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'shadow', dpr, { jitter: 0 }); }
+		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'shadow', dpr, optsFor(j, o.x, o.y, true)); }
 	}
 	for (const [j, e] of entries) {
 		if (e) blit(j, e.body);
-		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'body', dpr, { jitter: 0 }); }
+		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'body', dpr, optsFor(j, o.x, o.y, true)); }
 	}
 	// live layer: a dropped scrap settling (flutter), or a scrap peeling away
 	const one = (r: number, c: number): CellRef[] => [{ x: -s / 2, y: -s / 2, r, c, mask: 0 }];
