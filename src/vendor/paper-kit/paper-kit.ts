@@ -61,7 +61,8 @@ export function definePreset(base: PaperTheme, overrides: Partial<PaperTheme>): 
 function lum(hex: string): number {
 	const h = hex.replace('#', '');
 	const v = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
-	return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+	const [r = 0, g = 0, b = 0] = v;
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 export function contrast(a: string, b: string): number {
 	const x = lum(a), y = lum(b);
@@ -426,39 +427,42 @@ export function threadPath(ctx: Ctx, pts: (Pt | null)[], o: ThreadOpts): void {
 	for (const p of pts) { if (!p) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push(p); }
 	if (cur.length > 1) segs.push(cur);
 	const lw = o.width, dash = o.dash ?? [lw * 3.1, lw * 1.55];
-	let total = 0; for (const sg of segs) for (let i = 1; i < sg.length; i++) total += Math.hypot(sg[i].x - sg[i - 1].x, sg[i].y - sg[i - 1].y);
+	let total = 0; for (const sg of segs) for (let i = 1; i < sg.length; i++) { const a = sg[i - 1], b = sg[i]; if (a && b) total += Math.hypot(b.x - a.x, b.y - a.y); }
 	let budget = total * Math.max(0, Math.min(1, o.progress ?? 1));
 	ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 	for (const sg of segs) {
 		if (budget <= 0) break;
-		const p = new Path2D(); p.moveTo(sg[0].x, sg[0].y); let used = 0;
+		const s0 = sg[0]; if (!s0) continue;
+		const p = new Path2D(); p.moveTo(s0.x, s0.y); let used = 0;
 		for (let i = 1; i < sg.length; i++) {
-			const d = Math.hypot(sg[i].x - sg[i - 1].x, sg[i].y - sg[i - 1].y);
-			if (used + d > budget) { const t = (budget - used) / d; p.lineTo(sg[i - 1].x + (sg[i].x - sg[i - 1].x) * t, sg[i - 1].y + (sg[i].y - sg[i - 1].y) * t); used = budget; break; }
-			p.lineTo(sg[i].x, sg[i].y); used += d;
+			const a = sg[i - 1], b = sg[i]; if (!a || !b) continue;
+			const d = Math.hypot(b.x - a.x, b.y - a.y);
+			if (used + d > budget) { const t = (budget - used) / d; p.lineTo(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t); used = budget; break; }
+			p.lineTo(b.x, b.y); used += d;
 		}
 		budget -= used;
 		if (o.halo) { ctx.setLineDash([]); ctx.globalAlpha = 0.85; ctx.strokeStyle = o.halo; ctx.lineWidth = lw + Math.max(2, lw * 0.75); ctx.stroke(p); ctx.globalAlpha = 1; }
 		if (o.holes) {
 			// a hole where every stitch enters and leaves the paper
-			const period = dash[0] + dash[1], off = (o.tug ?? 0) * period, hr = o.holes.r ?? Math.max(0.9, lw * 0.36), push = hr * 0.9;
+			const [dOn = 0, dOff = 0] = dash, period = dOn + dOff, off = (o.tug ?? 0) * period, hr = o.holes.r ?? Math.max(0.9, lw * 0.36), push = hr * 0.9;
 			ctx.fillStyle = o.holes.color;
 			let acc = 0;
 			for (let i = 1; i < sg.length; i++) {
-				const ax = sg[i - 1].x, ay = sg[i - 1].y, d = Math.hypot(sg[i].x - ax, sg[i].y - ay);
-				for (const phase of [-push, dash[0] + push]) { // just outside each stitch end, in the gap
+				const a = sg[i - 1], b = sg[i]; if (!a || !b) continue;
+				const ax = a.x, ay = a.y, bx = b.x, by = b.y, d = Math.hypot(bx - ax, by - ay);
+				for (const phase of [-push, dOn + push]) { // just outside each stitch end, in the gap
 					let t = Math.ceil((acc - off - phase) / period) * period + phase + off;
-					for (; t < acc + d && t <= used; t += period) { const k = (t - acc) / d; if (k < 0) continue; ctx.beginPath(); ctx.arc(ax + (sg[i].x - ax) * k, ay + (sg[i].y - ay) * k, hr, 0, Math.PI * 2); ctx.fill(); }
+					for (; t < acc + d && t <= used; t += period) { const k = (t - acc) / d; if (k < 0) continue; ctx.beginPath(); ctx.arc(ax + (bx - ax) * k, ay + (by - ay) * k, hr, 0, Math.PI * 2); ctx.fill(); }
 				}
 				acc += d; if (acc > used) break;
 			}
 		}
-		ctx.setLineDash(dash); ctx.lineDashOffset = -(o.tug ?? 0) * (dash[0] + dash[1]);
+		ctx.setLineDash(dash); ctx.lineDashOffset = -(o.tug ?? 0) * ((dash[0] ?? 0) + (dash[1] ?? 0));
 		if (o.holes) ctx.lineCap = 'butt'; // stitches end at their holes
 		if (o.shadow) { const dp = o.dpr ?? 1; ctx.save(); ctx.shadowColor = o.shadow.color; ctx.shadowOffsetX = o.shadow.dx * dp; ctx.shadowOffsetY = o.shadow.dy * dp; ctx.shadowBlur = o.shadow.blur * dp; ctx.strokeStyle = o.color; ctx.lineWidth = lw; ctx.stroke(p); ctx.restore(); }
 		if (o.under) { ctx.save(); ctx.translate(0, Math.max(1, lw * 0.3)); ctx.strokeStyle = o.under; ctx.lineWidth = lw; ctx.stroke(p); ctx.restore(); }
 		ctx.strokeStyle = o.color; ctx.lineWidth = lw; ctx.stroke(p);
-		if (o.knot) { ctx.setLineDash([]); ctx.beginPath(); ctx.arc(sg[0].x, sg[0].y, lw * 0.9, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill(); }
+		if (o.knot) { ctx.setLineDash([]); ctx.beginPath(); ctx.arc(s0.x, s0.y, lw * 0.9, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill(); }
 	}
 	ctx.restore();
 }
@@ -510,7 +514,7 @@ export function sheetPile(ctx: Ctx, q: CellRef, s: number, o: PileOpts): void {
 	for (let i = n - 1; i >= 0; i--) {
 		const a = q.r, b = q.c, k = i + 1 + (o.seed ?? 0) * 8;
 		const path = deckledSheet(w, w, jit, a, b, k);
-		const fill = shade(o.fills[Math.min(i, o.fills.length - 1)], (hash(a, b, k, 9) - 0.5) * 2 * tv);
+		const fill = shade(o.fills[Math.min(i, o.fills.length - 1)] ?? '#000000', (hash(a, b, k, 9) - 0.5) * 2 * tv);
 		ctx.save();
 		ctx.translate(q.x + s / 2 + i * st.x + (hash(a, b, k, 1) - 0.5) * 2 * off, q.y + s / 2 + i * st.y + (hash(a, b, k, 2) - 0.5) * 2 * off);
 		ctx.rotate((hash(a, b, k, 3) - 0.5) * 2 * rot);
