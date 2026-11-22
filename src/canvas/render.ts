@@ -283,6 +283,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	// so they stay readable during a run. (Extra ducks go with the sprites.)
 	// Pairs: a colour each (palette.pads), labels A / A′ (A = first in reading order).
 	const padEnds = new Map<number, number[]>(); // pair -> keys in reading order
+	const padLabels: { x: number; y: number; label: string; color: string }[] = []; // drawn above paths
 	for (const [r, c, t] of scene.board.entries()) if (t.kind === 'pad') (padEnds.get(t.pair) ?? padEnds.set(t.pair, []).get(t.pair)!).push(r * 1e6 + c);
 	for (const ends of padEnds.values()) ends.sort((a, b) => a - b);
 	for (const [r, c, t] of scene.board.entries(vb)) {
@@ -305,15 +306,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			ctx.arc(x + s / 2, y + s / 2, 0.44 * s, 0, Math.PI * 2);
 			ctx.stroke();
 			ctx.restore();
-			if (s >= 12) {
-				const label = padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1);
-				ctx.fillStyle = color;
-				ctx.font = `700 ${(label.length > 1 ? 0.46 : 0.52) * s}px "DM Mono", monospace`;
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.fillText(label, x + s / 2, y + s / 2 + 0.03 * s);
-				ctx.textAlign = 'left';
-			}
+			if (s >= 12) padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color });
 		}
 	}
 
@@ -419,6 +412,21 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const cells = m.previewOrder.map((i) => LegacyMirror.cellAt(i));
 		if (m.start >= 0) cells.unshift(LegacyMirror.cellAt(m.start));
 		drawPath(cells, false); // the classic player already animates it
+	}
+
+	// Pad letters sit above paths (a jump starts and ends on a pad, so the
+	// line always crosses one): the letter on a paper disc in the pair colour.
+	for (const t of padLabels) {
+		ctx.fillStyle = p.paper;
+		ctx.beginPath();
+		ctx.arc(t.x, t.y, 0.3 * s, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.fillStyle = t.color;
+		ctx.font = `700 ${(t.label.length > 1 ? 0.4 : 0.46) * s}px "DM Mono", monospace`;
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(t.label, t.x, t.y + 0.03 * s);
+		ctx.textAlign = 'left';
 	}
 
 	// Learn: ring the node the current event is about
