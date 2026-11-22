@@ -178,4 +178,7 @@ kbd { font: 500 11px/14px var(--f-mono); border: 1px solid var(--line-ui); borde
 	.seg > button, .tabs > button { min-height: 44px; }
 	.zoom__pct { height: 44px; }
 	.landing .row .go, .landing .row .btn { min-height: 44px; }
+	.btn, .select { min-height: 44px; }
+	.panel__foot { align-items: center; }
+	.panel__foot a { padding: 12px 0; }
 }
