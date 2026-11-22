@@ -55,3 +55,27 @@ export function visibleBounds(v: View, w: number, h: number): Bounds {
 	const b = cellAt(v, w, h);
 	return { r0: a.r - 1, c0: a.c - 1, r1: b.r + 1, c1: b.c + 1 };
 }
+
+/** Board overscroll: how far past its edge the board can be pulled, in px. */
+export const OVERSCROLL = 48;
+/**
+ * Keeps a bounded board on screen (Joseph 2026-11-22: the board has edges).
+ * Zoom: no smaller than half the zoom that fits the board. Pan, per axis: a
+ * board wider than the viewport can't be pulled more than OVERSCROLL past
+ * either edge; a narrower one stays fully visible (OVERSCROLL from the sides).
+ */
+export function clampView(v: View, w: number, h: number, b: Bounds): View {
+	const cols = b.c1 - b.c0 + 1, rows = b.r1 - b.r0 + 1;
+	const fitZ = Math.min(w / (cols * CELL), h / (rows * CELL));
+	const zoom = clampZoom(Math.max(v.zoom, Math.min(1, fitZ * 0.5)));
+	const s = CELL * zoom;
+	const axis = (pan: number, view: number, size: number, first: number) => {
+		const ov = Math.min(OVERSCROLL, Math.max(0, (view - size) / 2));
+		const lo = Math.min(view - size - ov, ov), hi = Math.max(view - size - ov, ov);
+		const edge = pan + first * s; // screen position of the board's first edge
+		return pan + (Math.max(lo, Math.min(hi, edge)) - edge);
+	};
+	// keep the screen point under the old centre when the zoom was clamped
+	const z0 = zoom === v.zoom ? v : zoomAt(v, w / 2, h / 2, zoom);
+	return { zoom, panX: axis(z0.panX, w, cols * s, b.c0), panY: axis(z0.panY, h, rows * s, b.r0) };
+}

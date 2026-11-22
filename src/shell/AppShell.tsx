@@ -1,6 +1,7 @@
 // The new app shell (Prism Paper Cutout v2.1; was "Open Pond"). Phase A: the classic TableContext and
 // its 35x80 table stay mounted (hidden) and keep running the classic six
 // unchanged; this shell drives them and paints everything on the canvas.
+import { BOARD, inBoard } from '../model/bounds';
 import { FAST_CELLS } from '../lib/speed';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // @ts-expect-error legacy JS module
@@ -72,7 +73,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
 	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
-	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless table.' },
+	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the board. H shows all of it.' },
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
@@ -369,9 +370,8 @@ export default function AppShell() {
 		setSeed(s);
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		ctx.clearBoard('visited');
-		// fills the cells in view (the classic mazes fill the 35x80 classic window)
-		const region = stage.current?.viewCells() ?? mirror.window;
-		applyGenerator(maze.slice(4) as GenId, s, board, mirror, region.r1 >= region.r0 + 4 && region.c1 >= region.c0 + 4 ? region : mirror.window);
+		// fills the whole bounded board
+		applyGenerator(maze.slice(4) as GenId, s, board, mirror, BOARD);
 	};
 
 	// ---------- keyboard ----------
@@ -420,15 +420,9 @@ export default function AppShell() {
 		: phone
 		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
-	// Home (H) frames the Arrow and Duck 1 with 3 cells around them. Phones
-	// never go below 75 % (cells stay tappable); the board around is endless.
-	const homeBounds = (): Bounds => {
-		const a = mirror.startCell(), d = mirror.endCell();
-		if (!a || !d) return mirror.window;
-		return { r0: Math.min(a.r, d.r) - 3, c0: Math.min(a.c, d.c) - 3, r1: Math.max(a.r, d.r) + 3, c1: Math.max(a.c, d.c) + 3 };
-	};
-	const homeMinZoom = small ? PHONE_MIN_ZOOM : 0.5;
-	const fitBounds = (): Bounds => contentBox(board, mirror) ?? mirror.window;
+	const homeBounds = (): Bounds => BOARD; // Home and Fit both frame the whole bounded board
+	const homeMinZoom = undefined; // Home shows the whole board, phones included (pinch to zoom in)
+	const fitBounds = (): Bounds => BOARD;
 	// First load on a small screen: if the classic Arrow-Duck gap (49 columns)
 	// can't fit at a tappable zoom, bring Duck 1 closer, once, with the table's
 	// own drag (the classic six are unchanged; only the starting spot moves).
@@ -448,6 +442,7 @@ export default function AppShell() {
 	const onEndpointDrop = (which: 'start' | 'end', cell: { r: number; c: number }) => {
 		const cur = which === 'start' ? mirror.startCell() : mirror.endCell();
 		if (cur && cur.r === cell.r && cur.c === cell.c) return; // a click, not a move
+		if (!inBoard(cell.r, cell.c)) return; // dropped off the board: it stays where it was
 		reset();
 		placeEndpoint(mirror, board, which, cell);
 		scheduleRender();
@@ -818,7 +813,7 @@ export default function AppShell() {
 					<div className="float landing" data-testid="landing">
 						<Swatch kind="duck" palette={palette} size={48} className="landing__duck" />
 						<h1>Hunt the quack.</h1>
-						<p>Draw walls, pick a search, and watch it find the duck. The board never ends: pan with the hand or two fingers, and draw anywhere.</p>
+						<p>Draw walls, pick a search, and watch it find the duck. Every search works anywhere on the board. Pinch or scroll to zoom in.</p>
 						<div className="row">
 							<button className="go" onClick={() => { setPanelOpen(true); setTab('sandbox'); setPickerOpen(true); setLanding(false); }}>
 								Pick an algorithm

@@ -1,4 +1,5 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
+import { BOARD, inBoard } from '../model/bounds';
 import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { Board, Dir, Weight } from '../model/board';
@@ -9,6 +10,7 @@ import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
 import { render, Scene } from './render';
 import { Insets, View, cellAt, frame, nextStop, visibleBounds, zoomAt } from './view';
+import { clampView } from './view';
 
 export type Tool = 'wall' | 'weight' | 'oneway' | 'pad' | 'duck' | 'erase' | 'pan';
 /** Tools that place one node per click (no drag painting). */
@@ -117,6 +119,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	const setView = (v: View, manual = false) => {
 		if (manual) autoFrame.current = null;
+		if (size.current.w) v = clampView(v, size.current.w, size.current.h, BOARD);
 		const zoomChanged = v.zoom !== view.current.zoom;
 		// the cell under a still pointer changes with the view; drop the stale outline
 		if (zoomChanged || v.panX !== view.current.panX || v.panY !== view.current.panY) hover.current = null;
@@ -137,8 +140,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		},
 		fit: () => {
 			autoFrame.current = 'fit';
-			const c = live.current.fitBounds?.() ?? HOME;
-			frameBounds({ r0: c.r0 - 4, c0: c.c0 - 4, r1: c.r1 + 4, c1: c.c1 + 4 });
+			frameBounds(live.current.fitBounds?.() ?? BOARD);
 		},
 		zoomStep: (dir) => {
 			const { w, h } = size.current;
@@ -263,6 +265,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	/** Where a node may go: not on a Home wall or the Arrow/Duck. */
 	const placeable = (r: number, c: number) => {
+		if (!inBoard(r, c)) return false;
 		const { board, mirror } = live.current.scene.current;
 		if (!mirror.inWindow(r, c)) return board.get(r, c)?.kind !== 'wall' && !mirror.endpointAt(r, c);
 		const k = mirror.at(r, c);
@@ -271,6 +274,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const paintCell = (r: number, c: number, dir?: Dir) => {
 		const { tool, weight, scene } = live.current;
 		const { board, mirror } = scene.current;
+		if (!inBoard(r, c)) return; // the board is bounded: nothing lands off it
 		if (mirror.free && mirror.endpointAt(r, c)) return; // free mode: the Arrow and Duck 1 aren't in the table to guard their cells
 		if (tool === 'oneway') {
 			if (placeable(r, c)) board.set(r, c, { kind: 'oneway', dir: dir ?? live.current.dir ?? 1 });
@@ -372,7 +376,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const cell = cellAt(view.current, p.x, p.y);
 		if (!hover.current || hover.current.r !== cell.r || hover.current.c !== cell.c || !live.current.editable) {
 			// no hover ring while drawing is locked: it promises a cell that won't paint
-			hover.current = e.pointerType === 'mouse' && live.current.editable ? cell : null;
+			hover.current = e.pointerType === 'mouse' && live.current.editable && inBoard(cell.r, cell.c) ? cell : null;
 			dirty.current = true;
 		}
 		const g = gesture.current;

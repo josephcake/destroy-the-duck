@@ -1,5 +1,6 @@
 // Builds the engine input from the two sources of truth in Phase A:
 // the legacy mirror (walls in the classic window, Arrow, Duck) and the new Board.
+import { BOARD } from '../model/bounds';
 import { Board } from '../model/board';
 import { Bounds, Cell, HOME_COLS, HOME_ROWS, keyOf } from '../model/cell';
 import { Dir, Snapshot } from '../engine/graph';
@@ -42,10 +43,10 @@ export function contentBox(board: Board, mirror?: MirrorView): Bounds | null {
 	return b;
 }
 
-/** The search area: the content box plus MARGIN on every side. The canvas itself has no edges. */
-export function searchBounds(board: Board, mirror?: MirrorView): Bounds {
-	const x = contentBox(board, mirror) ?? { r0: 0, c0: 0, r1: 0, c1: 0 };
-	return { r0: x.r0 - MARGIN, c0: x.c0 - MARGIN, r1: x.r1 + MARGIN, c1: x.c1 + MARGIN };
+/** The search area: the whole bounded board (model/bounds.ts). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function searchBounds(_board?: Board, _mirror?: MirrorView): Bounds {
+	return { ...BOARD };
 }
 
 export type BuildOpts = { findMode?: FindMode };

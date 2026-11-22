@@ -2,6 +2,7 @@
 // proportional to content, not to viewport area: it walks Home (2,800 cells),
 // board chunks in view and the trace overlay. Expensive bitmaps (wall
 // chunks, weight piles) are baked once and blitted.
+import { BOARD } from '../model/bounds';
 import { Board, Weight } from '../model/board';
 import { parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
@@ -72,17 +73,28 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const { view, width, height, dpr, palette: p } = scene;
 	const motion = !scene.reducedMotion;
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	const vb = visibleBounds(view, width, height);
+	const v0 = visibleBounds(view, width, height);
+	// the board is bounded (model/bounds.ts): draw only what's on it
+	const vb = { r0: Math.max(v0.r0, BOARD.r0), c0: Math.max(v0.c0, BOARD.c0), r1: Math.min(v0.r1, BOARD.r1), c1: Math.min(v0.c1, BOARD.c1) };
 	const s = CELL * view.zoom;
 	let animating = false;
 
-	// one endless flat sheet: no grain, no vignette (minimal, Joseph 2026-11-22)
-	ctx.fillStyle = p.home;
+	// flat table around a flat board, and one hairline for the board's edge
+	ctx.fillStyle = p.paper;
 	ctx.fillRect(0, 0, width, height);
+	const bx = view.panX + BOARD.c0 * s, by = view.panY + BOARD.r0 * s;
+	const bw = (BOARD.c1 - BOARD.c0 + 1) * s, bh = (BOARD.r1 - BOARD.r0 + 1) * s;
+	ctx.fillStyle = p.home;
+	ctx.fillRect(bx, by, bw, bh);
 
 	// Grid: fades in between 25% and 50% (ga = clamp((zoom − .25)/.25))
 	const ga = Math.max(0, Math.min(1, (view.zoom - 0.25) / 0.25));
-	if (ga > 0) drawGrid(ctx, view, vb, s, p, dpr, ga);
+	if (ga > 0 && vb.r1 >= vb.r0 && vb.c1 >= vb.c0) drawGrid(ctx, view, vb, s, p, dpr, ga);
+	ctx.save();
+	ctx.strokeStyle = p.homeLine; // >= 3:1 on the board (palette.test)
+	ctx.lineWidth = Math.max(1, 1.5 / dpr);
+	ctx.strokeRect(Math.round(bx * dpr) / dpr - 0.5, Math.round(by * dpr) / dpr - 0.5, Math.round(bw * dpr) / dpr + 1, Math.round(bh * dpr) / dpr + 1);
+	ctx.restore();
 
 	// §4.2 weights: piles of sheets (Paper), merged flat sheets (Classic)
 	drawWeights(ctx, scene, vb, s, dpr);

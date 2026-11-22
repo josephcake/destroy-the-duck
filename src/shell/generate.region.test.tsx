@@ -48,7 +48,7 @@ afterEach(() => {
 const frame = () => act(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
 const tableWalls = () => document.querySelectorAll('.legacy-mirror td[class*="_wall"]').length;
 
-test('the Generate button builds in the current view: panned far away, the classic table stays empty', async () => {
+test('the Generate button fills the whole bounded board, whatever the view', async () => {
 	render(
 		<TableContextProvider>
 			<AppShell />
@@ -57,16 +57,12 @@ test('the Generate button builds in the current view: panned far away, the class
 	await frame();
 	const canvas = document.querySelector('canvas')!;
 	fireEvent.change(screen.getByLabelText('Maze'), { target: { value: 'gen:backtracker' } });
-	// pan 6000 px down-right with the hand tool: the view is now hundreds of cells from the classic window
+	// try to pan far away with the hand tool: the view stops at the board's edge
 	act(() => void fireEvent.keyDown(window, { key: 'p' }));
 	act(() => void fireEvent.pointerDown(canvas, { clientX: 100, clientY: 100, button: 0, pointerId: 1, pointerType: 'mouse' }));
 	act(() => void fireEvent.pointerMove(canvas, { clientX: -5900, clientY: -5900, button: 0, pointerId: 1, pointerType: 'mouse' }));
 	act(() => void fireEvent.pointerUp(canvas, { clientX: -5900, clientY: -5900, button: 0, pointerId: 1, pointerType: 'mouse' }));
 	fireEvent.click(screen.getByTestId('generate'));
 	await frame();
-	expect(tableWalls()).toBe(0); // nothing landed in the classic window
-	fireEvent.click(screen.getByLabelText('Home')); // back to the Arrow and Duck
-	fireEvent.click(screen.getByTestId('generate'));
-	await frame();
-	expect(tableWalls()).toBeGreaterThan(300); // the view covers the window now
+	expect(tableWalls()).toBeGreaterThan(900); // a maze over all 35 x 80 cells
 });

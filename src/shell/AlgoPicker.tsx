@@ -12,7 +12,7 @@ export function algoLabel(a: AlgoId | null) {
 }
 export function algoSub(a: AlgoId | null) {
 	if (!a) return 'Classic · New';
-	return isTraced(a) ? `${ALGO_INFO[a].family} · whole canvas` : 'Classic · the cells around your board';
+	return isTraced(a) ? `${ALGO_INFO[a].family} · whole board` : 'Classic · whole board';
 }
 
 type Props = {

@@ -41,7 +41,7 @@ export type WideResult = { ok: true; trace: Trace } | { ok: false; reason: strin
 
 /** Why a classic algorithm can't run on a rows x cols board, or null when it can. */
 export function wideBlock(algo: ClassicAlgo, rows: number, cols: number): string | null {
-	if (algo === 'dijkstra') return `Classic Dijkstra is written for a 35 × 80 grid, and this board needs ${rows} × ${cols}. Try Dijkstra · weighted or A*.`;
+	if (algo === 'dijkstra' && (rows !== 35 || cols !== 80)) return `Classic Dijkstra is written for a 35 × 80 grid, and this board needs ${rows} × ${cols}. Try Dijkstra · weighted or A*.`;
 	if (rows * cols > CLASSIC_MAX_CELLS)
 		return `Board too large for the classic algorithms: ${rows} × ${cols} = ${(rows * cols).toLocaleString('en-US')} cells (limit ${CLASSIC_MAX_CELLS.toLocaleString('en-US')}). Try A*.`;
 	return null;
