@@ -55,3 +55,18 @@ test('fix 1: starting a step-through clears the previous classic run', async () 
 	expect(visitedCells()).toBe(0);
 	expect(screen.getByTestId('step-count').textContent).toMatch(/^0 \//);
 });
+
+test('fix 2: Reset clears visited cells, the path and the Visited count, and keeps walls and weights', () => {
+	const ref = runBfs();
+	expect(stat('Path')).not.toBe('–');
+	const wall = document.getElementById('3-3');
+	act(() => void (wall.className = wall.className.replace('visited', 'wall').replace('unvisited', 'wall')));
+	act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset', exact: true })));
+	drain(ref);
+	act(() => T.runOnlyPendingTimers());
+	expect(visitedCells()).toBe(0);
+	expect(stat('Visited')).toBe('0');
+	expect(stat('Path')).toBe('–');
+	expect(stat('Cost')).toBe('–');
+	expect(wall.className).toMatch(/_wall/);
+});
