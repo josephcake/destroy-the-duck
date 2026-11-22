@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 
 import './styles/_base.css';
 import './styles/_nav.css';
@@ -11,10 +11,8 @@ import './styles/_theme_cell.css';
 import App from './App';
 import { TableContextProvider } from './Context/TableContext';
 
-ReactDOM.render(
+createRoot(document.getElementById('root')).render(
 	<TableContextProvider>
 		<App />
 	</TableContextProvider>,
-
-	document.getElementById('root'),
 );

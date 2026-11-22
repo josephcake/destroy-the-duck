@@ -1,6 +1,7 @@
 import React from 'react';
 import { algorithmOptions, mazeOptions, clearButtons } from './constants';
 import { NavOptions, NavSettings } from './NavItems';
+import duckImage from '../Images/duck.png';
 
 const Nav = ({
 	go,
@@ -36,7 +37,7 @@ const Nav = ({
 			<div className={'nav__algo nav__items'}>
 				<img
 					className={'nav-image'}
-					src={require('../Images/duck.png')}
+					src={duckImage}
 					alt={'Duck'}
 				/>
 			</div>

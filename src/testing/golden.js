@@ -1,7 +1,7 @@
 // Runner-agnostic golden files: plain JSON compared with toEqual.
 // RECORD_GOLDENS=1 writes missing/changed files instead of asserting.
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const ROOT = path.resolve(process.cwd(), 'src/__tests__/golden');
 
