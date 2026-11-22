@@ -200,6 +200,13 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		ro?.observe(canvas.parentElement!);
 		let raf = 0;
 		let animating = false;
+		// render-time probe for QA: localStorage['qh.perf'] = '1' collects ms per render() in window.__qhRender
+		let perf: number[] | null = null;
+		try {
+			if (localStorage.getItem('qh.perf') === '1') perf = (window as unknown as { __qhRender: number[] }).__qhRender = [];
+		} catch {
+			/* storage blocked */
+		}
 		const loop = () => {
 			raf = 0;
 			if (!ctx || (!dirty.current && !animating)) return; // idle: no next frame until dirty wakes it
@@ -219,7 +226,12 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				now,
 				activeAt: activeAt.current,
 			};
-			animating = render(ctx, scene);
+			if (perf) {
+				const t0 = performance.now();
+				animating = render(ctx, scene);
+				perf.push(performance.now() - t0);
+				if (perf.length > 20000) perf.splice(0, 10000);
+			} else animating = render(ctx, scene);
 			if (animating) raf = requestAnimationFrame(loop);
 		};
 		wake.current = () => {

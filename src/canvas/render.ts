@@ -120,7 +120,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const T = MOTION[scene.speed] ?? MOTION.fast;
 	const legsIn: { r: number; c: number }[][] = [];
 	let t0 = Infinity;
-	if (tr && tr.paths.length) {
+	if (tr && tr.done && tr.paths.length) {
+		// the thread pulls once the path is complete (path events can arrive over several ticks)
 		for (const g of tr.paths) legsIn.push(g.nodes.map(parseId));
 		t0 = traceStarts.get(tr) ?? (traceStarts.set(tr, scene.now), scene.now);
 	} else if (scene.bestPath && scene.bestPath.length > 1 && !m.previewOrder.length) {

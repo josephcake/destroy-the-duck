@@ -620,7 +620,6 @@ export default function AppShell() {
 										Runs on the {wide.rows} × {wide.cols} cells around everything you placed
 									</span>
 								)}
-								{algo && isTraced(algo) && <span className="chip">Searches everything you placed, plus 16 cells around it</span>}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
 								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
