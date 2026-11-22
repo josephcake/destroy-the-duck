@@ -25,8 +25,10 @@ test('phone: buttons and selects (Clear Board/Wall/Path, Generate, Maze) are at 
 	expect(px(rule('.icon-btn, .mini .go'), 'height')).toBeGreaterThanOrEqual(44); // Pin is an icon-btn
 });
 
-test('phone: footer links get 12px above and below (20px line + 24 = 44px), centred with the name', () => {
-	expect(rule('.panel__foot a')).toMatch(/padding:\s*12px 0/);
+test('phone: footer links are >= 44 x 44 (12px above and below a 20px line; min-width 44px for the short GitHub), centred with the name', () => {
+	expect(rule('.panel__foot a')).toMatch(/padding:\s*12px 4px/);
+	expect(px(rule('.panel__foot a'), 'min-width')).toBeGreaterThanOrEqual(44);
+	expect(rule('.panel__foot a')).toMatch(/text-align:\s*center/);
 	expect(rule('.panel__foot')).toMatch(/align-items:\s*center/);
 });
 
