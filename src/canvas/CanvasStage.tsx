@@ -41,7 +41,7 @@ type Props = {
 type Gesture =
 	| { mode: 'none' }
 	| { mode: 'pan'; x: number; y: number }
-	| { mode: 'legacy'; pointerType: string }
+	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number } }
 	| { mode: 'paint'; last: { r: number; c: number } }
 	| { mode: 'pinch'; dist: number; mx: number; my: number };
 
@@ -213,7 +213,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		if (inside && (k === K.Start || k === K.End || tool === 'wall')) {
 			// Classic gestures: the legacy table's own handlers do the work.
 			legacy.down(idOf(cell.r, cell.c));
-			gesture.current = { mode: 'legacy', pointerType: e.pointerType };
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell };
 			return;
 		}
 		paintCell(cell.r, cell.c);
@@ -241,8 +241,15 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			setView({ ...z, panX: z.panX + mx - g.mx, panY: z.panY + my - g.my });
 			gesture.current = { mode: 'pinch', dist, mx, my };
 		} else if (g.mode === 'legacy') {
-			if (inHome(cell.r, cell.c)) legacy.move(idOf(cell.r, cell.c));
-			else if (live.current.tool === 'wall') paintCell(cell.r, cell.c);
+			// Fast drags skip cells between pointer events; the old table got a
+			// mouseover per cell, so replay every cell along the line.
+			if (cell.r !== g.last.r || cell.c !== g.last.c) {
+				for (const q of line(g.last, cell)) {
+					if (inHome(q.r, q.c)) legacy.move(idOf(q.r, q.c));
+					else if (live.current.tool === 'wall') paintCell(q.r, q.c);
+				}
+				gesture.current = { ...g, last: cell };
+			}
 		} else if (g.mode === 'paint') {
 			if (cell.r !== g.last.r || cell.c !== g.last.c) {
 				for (const q of line(g.last, cell)) paintCell(q.r, q.c);

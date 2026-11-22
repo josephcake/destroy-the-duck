@@ -4,7 +4,7 @@ import { Bounds } from '../model/cell';
 export const CELL = 20; // today's cell size (td.styles.js)
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 8;
-export const ZOOM_STOPS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8];
+export const ZOOM_STOPS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 8];
 
 export type View = { panX: number; panY: number; zoom: number };
 export type Insets = { top: number; right: number; bottom: number; left: number };
