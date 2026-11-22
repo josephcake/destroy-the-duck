@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { Board, Dir, Weight } from '../model/board';
 import { dirOf, nextDuck, nextPadPair } from '../model/nodes';
-import { Bounds, HOME, idOf, inHome } from '../model/cell';
+import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
@@ -23,6 +23,8 @@ export type SceneInput = {
 	learnCurrent: boolean;
 	reducedMotion: boolean;
 	bestPath: { r: number; c: number }[] | null; // classic run: overlay only, never written to the table
+	classicWindow?: Bounds | null;
+	ghost?: { kind: 'start' | 'end'; r: number; c: number } | null;
 };
 
 export type StageApi = {
@@ -45,15 +47,21 @@ type Props = {
 	/** A draw gesture was refused because a search is running. */
 	onLocked?: () => void;
 	onZoom: (z: number) => void;
-	/** What Home (H) frames; defaults to the classic 35x80 board. */
+	/** What Home (H) frames: the Arrow and Duck. */
 	homeBounds?: () => Bounds;
+	/** Least zoom Home may pick (phones keep cells tappable). */
+	homeMinZoom?: number;
+	/** What Fit frames: everything placed. */
+	fitBounds?: () => Bounds;
+	/** The Arrow or Duck was dropped outside the classic window. */
+	onEndpointDrop?: (which: 'start' | 'end', cell: { r: number; c: number }) => void;
 };
 
 type Gesture =
 	| { mode: 'none' }
 	| { mode: 'pan'; x: number; y: number }
-	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: boolean }
-	| { mode: 'paint'; last: { r: number; c: number } }
+	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: 'start' | 'end' | null; ghost?: { r: number; c: number } | null; undo?: () => void }
+	| { mode: 'paint'; last: { r: number; c: number }; undo?: () => void }
 	| { mode: 'pinch'; dist: number; mx: number; my: number };
 
 function* line(a: { r: number; c: number }, b: { r: number; c: number }) {
@@ -68,6 +76,7 @@ function* line(a: { r: number; c: number }, b: { r: number; c: number }) {
  * wall drag keeps painting board walls, but an Arrow/Duck drag never paints.
  */
 export function legacyDragAction(endpoint: boolean, tool: Tool, inside: boolean): 'legacy' | 'paint' | 'none' {
+	// (an endpoint dropped outside the window is placed on pointer up: see onEndpointDrop)
 	if (inside) return 'legacy';
 	return !endpoint && tool === 'wall' ? 'paint' : 'none';
 }
@@ -113,24 +122,21 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		dirty.current = true;
 		if (zoomChanged) live.current.onZoom(v.zoom);
 	};
-	const frameBounds = (b: Bounds) => {
+	const frameBounds = (b: Bounds, minZoom?: number) => {
 		const { w, h } = size.current;
 		if (!w) return;
-		setView(frame(b, w, h, live.current.insets));
+		setView(frame(b, w, h, live.current.insets, 1.5, minZoom));
 		live.current.onZoom(view.current.zoom);
 	};
 	const api: StageApi = {
 		home: () => {
 			autoFrame.current = 'home';
-			frameBounds(live.current.homeBounds?.() ?? HOME);
+			frameBounds(live.current.homeBounds?.() ?? HOME, live.current.homeMinZoom);
 		},
 		fit: () => {
 			autoFrame.current = 'fit';
-			const c = live.current.scene.current.board.contentBounds();
-			const b = c
-				? { r0: Math.min(HOME.r0, c.r0) - 4, c0: Math.min(HOME.c0, c.c0) - 4, r1: Math.max(HOME.r1, c.r1) + 4, c1: Math.max(HOME.c1, c.c1) + 4 }
-				: { r0: -4, c0: -4, r1: HOME.r1 + 4, c1: HOME.c1 + 4 };
-			frameBounds(b);
+			const c = live.current.fitBounds?.() ?? HOME;
+			frameBounds({ r0: c.r0 - 4, c0: c.c0 - 4, r1: c.r1 + 4, c1: c.c1 + 4 });
 		},
 		zoomStep: (dir) => {
 			const { w, h } = size.current;
@@ -236,6 +242,12 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		};
 	}, []);
 
+	const clearGhost = () => {
+		if (live.current.scene.current.ghost) {
+			live.current.scene.current.ghost = null;
+			dirty.current = true;
+		}
+	};
 	const local = (e: { clientX: number; clientY: number }) => {
 		const rect = canvasRef.current!.getBoundingClientRect();
 		return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -243,8 +255,9 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	/** Where a node may go: not on a Home wall or the Arrow/Duck. */
 	const placeable = (r: number, c: number) => {
-		if (!inHome(r, c)) return live.current.scene.current.board.get(r, c)?.kind !== 'wall';
-		const k = live.current.scene.current.mirror.at(r, c);
+		const { board, mirror } = live.current.scene.current;
+		if (!mirror.inWindow(r, c)) return board.get(r, c)?.kind !== 'wall';
+		const k = mirror.at(r, c);
 		return k !== K.Start && k !== K.End && k !== K.Wall;
 	};
 	const paintCell = (r: number, c: number, dir?: Dir) => {
@@ -269,14 +282,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			dirty.current = true;
 			return;
 		}
-		if (inHome(r, c)) {
+		if (mirror.inWindow(r, c)) {
 			const k = mirror.at(r, c);
 			if (k === K.Start || k === K.End) return;
 			if (tool === 'erase') {
-				legacy.eraseWall(idOf(r, c));
+				legacy.eraseWall(mirror.idAt(r, c));
 				board.set(r, c, undefined);
 			} else if (tool === 'weight' && k !== K.Wall) board.set(r, c, { kind: 'weight', cost: weight });
-			return; // Home walls are painted by the legacy handlers
+			return; // walls in the classic window are painted by the legacy handlers
 		}
 		if (tool === 'wall') board.set(r, c, { kind: 'wall' });
 		else if (tool === 'weight') board.set(r, c, { kind: 'weight', cost: weight });
@@ -290,6 +303,13 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		canvasRef.current!.setPointerCapture?.(e.pointerId);
 		live.current.onInteract();
 		if (pointers.current.size === 2) {
+			// a second finger turns any one-finger gesture into pinch-zoom + two-finger pan;
+			// end a table drag first, or the table stays in its building/dragging state
+			const g0 = gesture.current;
+			// a second finger within the first cell means "pan/zoom", not "draw": take the first cell back
+			if ((g0.mode === 'legacy' || g0.mode === 'paint') && g0.undo) g0.undo();
+			if (g0.mode === 'legacy') legacy.up();
+			clearGhost();
 			const [a, b] = [...pointers.current.values()];
 			gesture.current = { mode: 'pinch', dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
 			return;
@@ -307,22 +327,26 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			return;
 		}
 		const cell = cellAt(view.current, p.x, p.y);
-		const inside = inHome(cell.r, cell.c);
-		const k = inside ? scene.current.mirror.at(cell.r, cell.c) : K.Unvisited;
+		const { mirror } = scene.current;
+		const inside = mirror.inWindow(cell.r, cell.c);
+		const k = mirror.at(cell.r, cell.c);
 		if (inside && (k === K.Start || k === K.End || tool === 'wall')) {
 			// Classic gestures: the legacy table's own handlers do the work.
-			const id = idOf(cell.r, cell.c);
-			const endpoint = k === K.Start || k === K.End;
+			const id = mirror.idAt(cell.r, cell.c);
+			const endpoint = k === K.Start ? 'start' : k === K.End ? 'end' : null;
 			// Commit the table's isBuilding before the first move: the original
 			// painted the pressed cell on the first mousemove inside it, so a
 			// plain click paints one wall.
 			flushSync(() => legacy.down(id));
 			if (!endpoint && tool === 'wall') legacy.move(id);
-			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint };
+			const undo = !endpoint && tool === 'wall' && k !== K.Wall && e.pointerType !== 'mouse' ? () => legacy.eraseWall(id) : undefined;
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint, undo };
 			return;
 		}
+		const prev = scene.current.board.get(cell.r, cell.c);
 		paintCell(cell.r, cell.c);
-		gesture.current = { mode: 'paint', last: cell };
+		const undo = e.pointerType !== 'mouse' ? () => void scene.current.board.set(cell.r, cell.c, prev) : undefined;
+		gesture.current = { mode: 'paint', last: cell, undo };
 	};
 
 	const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -350,12 +374,17 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// Fast drags skip cells between pointer events; the old table got a
 			// mouseover per cell, so replay every cell along the line.
 			if (cell.r !== g.last.r || cell.c !== g.last.c) {
+				const m = live.current.scene.current.mirror;
 				for (const q of line(g.last, cell)) {
-					const act = legacyDragAction(g.endpoint, live.current.tool, inHome(q.r, q.c));
-					if (act === 'legacy') legacy.move(idOf(q.r, q.c));
+					const act = legacyDragAction(!!g.endpoint, live.current.tool, m.inWindow(q.r, q.c));
+					if (act === 'legacy') legacy.move(m.idAt(q.r, q.c));
 					else if (act === 'paint') paintCell(q.r, q.c);
 				}
-				gesture.current = { ...g, last: cell };
+				// past the window the table can't follow: show a ghost, place it on drop
+				const ghost = g.endpoint && !m.inWindow(cell.r, cell.c) ? cell : null;
+				live.current.scene.current.ghost = ghost && g.endpoint ? { kind: g.endpoint, ...ghost } : null;
+				dirty.current = true;
+				gesture.current = { ...g, last: cell, ghost, undo: undefined };
 			}
 		} else if (g.mode === 'paint') {
 			if ((cell.r !== g.last.r || cell.c !== g.last.c) && !CLICK_TOOLS.has(live.current.tool)) {
@@ -369,7 +398,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 					} else paintCell(q.r, q.c);
 					prev = q;
 				}
-				gesture.current = { mode: 'paint', last: cell };
+				gesture.current = { mode: 'paint', last: cell, undo: undefined };
 			}
 		}
 	};
@@ -378,8 +407,13 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		pointers.current.delete(e.pointerId);
 		const g = gesture.current;
 		// Mouse buttons already bubble a native mouseup to window (the legacy
-		// listener); touch and pen don't, so send one.
-		if (g.mode === 'legacy' && g.pointerType !== 'mouse') legacy.up();
+		// listener); touch and pen don't, so send one. A drop outside the window
+		// ends the table drag now, then places the Arrow/Duck there.
+		if (g.mode === 'legacy' && g.endpoint && g.ghost) {
+			flushSync(() => legacy.up());
+			clearGhost();
+			live.current.onEndpointDrop?.(g.endpoint, g.ghost);
+		} else if (g.mode === 'legacy' && g.pointerType !== 'mouse') legacy.up();
 		gesture.current = { mode: 'none' };
 	};
 

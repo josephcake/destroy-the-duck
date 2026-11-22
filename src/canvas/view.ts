@@ -36,12 +36,12 @@ export function nextStop(z: number, dir: 1 | -1) {
 }
 
 /** View that frames `b` (cells, inclusive) inside a w x h viewport minus insets. */
-export function frame(b: Bounds, w: number, h: number, inset: Insets, maxZoom = 1.5): View {
+export function frame(b: Bounds, w: number, h: number, inset: Insets, maxZoom = 1.5, minZoom = ZOOM_MIN): View {
 	const cols = b.c1 - b.c0 + 1;
 	const rows = b.r1 - b.r0 + 1;
 	const aw = Math.max(50, w - inset.left - inset.right);
 	const ah = Math.max(50, h - inset.top - inset.bottom);
-	const zoom = clampZoom(Math.min(aw / (cols * CELL), ah / (rows * CELL), maxZoom));
+	const zoom = clampZoom(Math.max(minZoom, Math.min(aw / (cols * CELL), ah / (rows * CELL), maxZoom)));
 	const s = CELL * zoom;
 	return {
 		zoom,

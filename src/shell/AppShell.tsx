@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // @ts-expect-error legacy JS module
 import Main from '../Main/Main';
 import { Board, Weight } from '../model/board';
-import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
+import { HOME_COLS, HOME_ROWS, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, migrateCellSet } from '../canvas/palette';
@@ -15,11 +15,12 @@ import { Swatch } from './Swatch';
 import { searchAsync } from '../engine/runner';
 import { FindMode, Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
-import { buildSnapshot, BUDGET, lonePads } from './snapshot';
+import { buildSnapshot, contentBox, lonePads } from './snapshot';
+import { dragTableCell, placeEndpoint } from './window';
 import { PAD_LETTER } from '../model/nodes';
 import { unsupported } from '../engine/search';
 import { Dir } from '../model/board';
-import { Bounds, HOME } from '../model/cell';
+import { Bounds } from '../model/cell';
 import { classicBestPath } from './classicBest';
 import { CLASSIC, MAZES, SPEEDS, SpeedName, speedEvent, useLegacy } from './legacy';
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
@@ -35,6 +36,13 @@ import './shell.css';
 // goldens) draw from it, and one extra call shifts every later visit.
 const newSeed = () => 1 + ((globalThis.crypto?.getRandomValues?.(new Uint32Array(1))[0] ?? Date.now()) % 99999);
 const PHONE = '(max-width: 599px)'; // keep in step with shell.css
+const LANDSCAPE_PHONE = '(max-height: 499px) and (orientation: landscape)'; // keep in step with shell.css
+const PHONE_MIN_ZOOM = 0.75;
+/** Columns between Arrow and Duck 1 that fit a w-px-wide screen at PHONE_MIN_ZOOM, or null when the classic 49 fit. */
+export function closerDuckGap(w: number): number | null {
+	const cols = Math.floor((w - 24) / (20 * PHONE_MIN_ZOOM)) - 7; // 3 cells each side, and the duck itself
+	return cols >= 49 ? null : Math.max(6, cols);
+}
 
 type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
 const PREFS_KEY = 'dtd.ui.v1';
@@ -66,6 +74,19 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
+export function useMedia(query: string) {
+	const get = () => typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
+	const [on, setOn] = useState(get);
+	useEffect(() => {
+		if (typeof window.matchMedia !== 'function') return;
+		const mq = window.matchMedia(query);
+		const f = () => setOn(mq.matches);
+		mq.addEventListener?.('change', f);
+		return () => mq.removeEventListener?.('change', f);
+	}, [query]);
+	return on;
+}
+
 /** Shortcuts stay live everywhere except where the user is typing text. */
 export function isTyping(t: EventTarget | null) {
 	if (!(t instanceof HTMLElement)) return false;
@@ -94,6 +115,12 @@ export default function AppShell() {
 	const [zoom, setZoom] = useState(1);
 	const [newToast, setNewToast] = useState(false);
 	const [lockedToast, setLockedToast] = useState(false);
+	const [farToast, setFarToast] = useState(false);
+	useEffect(() => {
+		if (!farToast) return;
+		const t = setTimeout(() => setFarToast(false), 4000);
+		return () => clearTimeout(t);
+	}, [farToast]);
 	useEffect(() => {
 		if (!lockedToast) return;
 		const t = setTimeout(() => setLockedToast(false), 2500);
@@ -117,7 +144,7 @@ export default function AppShell() {
 	// Show Best Path button uses) is drawn as an overlay and fills Path/Cost.
 	// Nothing is written to the classic table, so visit order is untouched.
 	const [bestPath, setBestPath] = useState<string[] | null>(null);
-	scene.current.bestPath = bestPath ? bestPath.map(parseId) : null;
+	scene.current.bestPath = bestPath ? bestPath.map((id) => { const q = parseId(id); return { r: q.r + mirror.origin.r, c: q.c + mirror.origin.c }; }) : null;
 	const classicRun = useRef(false);
 	// ms stat for classic runs: wall-clock time of the animated run (Go to the
 	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
@@ -222,14 +249,8 @@ export default function AppShell() {
 		return () => clearTimeout(t);
 	}, [newToast]);
 
-	const [phone, setPhone] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches);
-	useEffect(() => {
-		if (typeof window.matchMedia !== 'function') return;
-		const mq = window.matchMedia(PHONE);
-		const on = () => setPhone(mq.matches);
-		mq.addEventListener?.('change', on);
-		return () => mq.removeEventListener?.('change', on);
-	}, []);
+	const phone = useMedia(PHONE);
+	const landscapePhone = useMedia(LANDSCAPE_PHONE);
 
 	// Phone: the panel is a bottom sheet; get it out of the way once a search starts.
 	const closeSheetOnPhone = () => {
@@ -349,38 +370,43 @@ export default function AppShell() {
 	const snapNow = buildSnapshot(board, mirror, { findMode });
 	const blocked = (a: TracedAlgo) => unsupported(a, snapNow);
 	const why = algo && isTraced(algo) ? blocked(algo) : null;
-	const outside = [...board.entries()].some(([r, c]) => !inHome(r, c));
+	const outside = [...board.entries()].some(([r, c]) => !mirror.inWindow(r, c));
 	const classic = algo && !isTraced(algo) ? CLASSIC.find((c) => c.id === algo)! : null;
 	const showBestPathBtn = classic && classic.id !== 'dijkstra';
+	// opt-in outline: only while a classic algorithm is picked and something lies past its window
+	scene.current.classicWindow = classic && outside ? mirror.window : null;
 	const tr = traceState;
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
 	const insets = phone
 		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
-	// Phone (decision for Mochi b): frame the rows of Home and the columns from
-	// the Arrow to the Duck (±3), so both stay on screen; never below 35 %,
-	// then centre on the Arrow-Duck midpoint and let the user pan sideways.
+	// Home (H) frames the Arrow and Duck 1 with 3 cells around them. Phones
+	// never go below 75 % (cells stay tappable); the board around is endless.
 	const homeBounds = (): Bounds => {
-		if (!phone || mirror.start < 0 || mirror.end < 0) return HOME;
-		const a = mirror.start % HOME_COLS, d = mirror.end % HOME_COLS;
-		let c0 = Math.min(a, d) - 3, c1 = Math.max(a, d) + 3;
-		const maxCols = Math.floor((window.innerWidth - 24) / (20 * 0.35));
-		if (c1 - c0 + 1 > maxCols) {
-			const mid = Math.round((a + d) / 2);
-			c0 = mid - Math.floor(maxCols / 2);
-			c1 = c0 + maxCols - 1;
-		}
-		return { r0: HOME.r0, r1: HOME.r1, c0, c1 };
+		if (mirror.start < 0 || mirror.end < 0) return mirror.window;
+		const a = mirror.cellAt(mirror.start), d = mirror.cellAt(mirror.end);
+		return { r0: Math.min(a.r, d.r) - 3, c0: Math.min(a.c, d.c) - 3, r1: Math.max(a.r, d.r) + 3, c1: Math.max(a.c, d.c) + 3 };
 	};
-	// Phone: the first framing runs before the classic table reports the Arrow
-	// and Duck; frame again once it does.
+	const homeMinZoom = phone || landscapePhone ? PHONE_MIN_ZOOM : 0.5;
+	const fitBounds = (): Bounds => contentBox(board, mirror) ?? mirror.window;
+	// First load on a small screen: if the classic Arrow-Duck gap (49 columns)
+	// can't fit at a tappable zoom, bring Duck 1 closer, once, with the table's
+	// own drag (the classic six are unchanged; only the starting spot moves).
 	const phoneFramed = useRef(false);
 	useEffect(() => {
-		if (!phone || phoneFramed.current || mirror.start < 0 || mirror.end < 0) return;
+		if (phoneFramed.current || mirror.start < 0 || mirror.end < 0) return;
 		phoneFramed.current = true;
+		const gap = closerDuckGap(window.innerWidth);
+		if (gap !== null && ctx.starting === '17-15' && ctx.ending === '17-64') dragTableCell('17-64', `17-${15 + gap}`);
 		stage.current?.home();
 	});
+	const onEndpointDrop = (which: 'start' | 'end', cell: { r: number; c: number }) => {
+		reset();
+		const res = placeEndpoint(mirror, board, which, cell);
+		if (res === 'too-far') setFarToast(true);
+		scheduleRender();
+	};
 	const legendRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!legendPinned || !legendRef.current) return;
@@ -511,8 +537,8 @@ export default function AppShell() {
 							<div className="chips chips--reserve" data-testid="find-chips">
 								{algo && <span className="chip chip--mono" data-testid="order-chip">order {classic ? `classic: ${classic.order}` : 'N · E · S · W'}</span>}
 								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
-								{classic && outside && <span className="chip">Classic algorithms search Home only</span>}
-								{algo && isTraced(algo) && <span className="chip">Searches the whole table (budget {BUDGET / 1000}k)</span>}
+								{classic && outside && <span className="chip" data-testid="classic-window">Classic algorithms see the 35 × 80 cells around the Arrow and Duck (dashed); the newer ones see everything</span>}
+								{algo && isTraced(algo) && <span className="chip">Searches everything you placed, plus 16 cells around it</span>}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
 								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
@@ -700,6 +726,9 @@ export default function AppShell() {
 					onLocked={() => setLockedToast(true)}
 					onZoom={setZoom}
 					homeBounds={homeBounds}
+					homeMinZoom={homeMinZoom}
+					fitBounds={fitBounds}
+					onEndpointDrop={onEndpointDrop}
 					dir={dir}
 				/>
 
@@ -728,7 +757,7 @@ export default function AppShell() {
 					<div className="float landing" data-testid="landing">
 						<Swatch kind="duck" palette={palette} size={48} className="landing__duck" />
 						<h1>Hunt the quack.</h1>
-						<p>Draw walls, pick a search, and watch it find the duck. The table is endless; the {prefs.cells === 'classic' ? 'dashed box' : 'paper sheet'} is the classic board.</p>
+						<p>Draw walls, pick a search, and watch it find the duck. The board never ends: pan with the hand or two fingers, and draw anywhere.</p>
 						<div className="row">
 							<button className="go" onClick={() => { setPanelOpen(true); setTab('sandbox'); setPickerOpen(true); setLanding(false); }}>
 								Pick an algorithm
@@ -771,7 +800,12 @@ export default function AppShell() {
 					<button className="icon-btn" aria-label="Home" title="Home (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
 				</div>
 
-				{lockedToast && !ctx.isToastVisible && !newToast && (
+				{farToast && (
+					<button className="float toast" role="status" data-testid="far-toast" onClick={() => setFarToast(false)}>
+						The Arrow and Duck 1 stay within 35 × 80 cells of each other, so the classic searches can run. Add more ducks anywhere with the Duck tool.
+					</button>
+				)}
+				{lockedToast && !ctx.isToastVisible && !newToast && !farToast && (
 					<button className="float toast" role="status" data-testid="locked-toast" onClick={() => setLockedToast(false)}>
 						Drawing is locked while the search runs. Wait, or press Reset.
 					</button>
