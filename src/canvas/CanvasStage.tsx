@@ -8,7 +8,7 @@ import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
 import { Palette } from './palette';
-import { bestPathScheduled, delayBestPath, delayTrace, duckMarkers, frameHint, render, Scene, traceScheduled } from './render';
+import { bestPathScheduled, delayBestPath, delayTrace, drawMarch, duckMarkers, frameHint, marchBox, MarchItem, render, Scene, traceScheduled } from './render';
 import { DURATION, EASE } from '../vendor/paper-kit/paper-kit';
 import { parseId } from '../model/cell';
 import { Chip, offscreenChips } from './chips';
@@ -104,6 +104,7 @@ export function legacyDragAction(endpoint: boolean, tool: Tool, inside: boolean)
 
 export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(props, ref) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const marchRef = useRef<HTMLCanvasElement>(null); // the path march overlay: only its box redraws
 	const view = useRef<View>({ panX: 0, panY: 0, zoom: 1 });
 	const size = useRef({ w: 0, h: 0, dpr: 1 });
 	// Setting dirty.current = true wakes the frame loop, which otherwise sleeps
@@ -301,6 +302,34 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		let raf = 0;
 		let timer = 0;
 		let animating = false;
+		// path march overlay (Joseph 2026-11-22): between full renders only this small canvas redraws
+		const mc = marchRef.current;
+		const mctx = mc?.getContext?.('2d') ?? null;
+		let marchItems: MarchItem[] = [];
+		let box: { x: number; y: number; w: number; h: number } | null = null;
+		let marchOnly = false; // the last full render said: nothing but the march is moving
+		const layoutMarch = () => {
+			if (!mc) return;
+			const nb = mctx && marchItems.length ? marchBox(marchItems, size.current.w, size.current.h) : null;
+			const dpr = size.current.dpr;
+			if (!nb) {
+				if (box) {
+					mc.style.display = 'none';
+					box = null;
+				}
+				return;
+			}
+			if (!box || nb.x !== box.x || nb.y !== box.y || nb.w !== box.w || nb.h !== box.h) {
+				mc.style.display = 'block';
+				mc.style.left = `${nb.x}px`;
+				mc.style.top = `${nb.y}px`;
+				mc.style.width = `${nb.w}px`;
+				mc.style.height = `${nb.h}px`;
+				mc.width = Math.round(nb.w * dpr);
+				mc.height = Math.round(nb.h * dpr);
+				box = nb;
+			}
+		};
 		// render-time probe for QA: localStorage['qh.perf'] = '1' collects ms per render() in window.__qhRender
 		let perf: number[] | null = null;
 		try {
@@ -312,6 +341,23 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			raf = 0;
 			if (!ctx || (!dirty.current && !animating)) return; // idle: no next frame until dirty wakes it
 			const now = performance.now();
+			if (marchOnly && !dirty.current && !cam.current && box && mctx) {
+				// only the dots move: redraw the overlay box, not the board
+				if (document.hidden) {
+					animating = false;
+					return;
+				}
+				if (perf) {
+					const t0 = performance.now();
+					drawMarch(mctx, marchItems, now, box, size.current.dpr);
+					perf.push(performance.now() - t0);
+				} else drawMarch(mctx, marchItems, now, box, size.current.dpr);
+				timer = window.setTimeout(() => {
+					timer = 0;
+					if (!raf) raf = requestAnimationFrame(loop);
+				}, Math.max(0, frameHint.minGap - (performance.now() - now) - 4));
+				return;
+			}
 			if (dirty.stamp) activeAt.current = now;
 			dirty.stamp = false;
 			dirty.current = false;
@@ -330,6 +376,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				now,
 				activeAt: activeAt.current,
 				hidden: typeof document !== 'undefined' && document.hidden,
+				march: mctx ? [] : undefined,
 			};
 			if (perf) {
 				const t0 = performance.now();
@@ -338,6 +385,10 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				if (perf.length > 20000) perf.splice(0, 10000);
 			} else animating = render(ctx, scene);
 			if (camMoving || cam.current) animating = true;
+			marchItems = scene.march ?? [];
+			layoutMarch();
+			if (box && mctx) drawMarch(mctx, marchItems, now, box, size.current.dpr);
+			marchOnly = animating && frameHint.minGap > 0 && !camMoving && !cam.current;
 			updateChips();
 			if (!animating) return;
 			// only the path march is moving: ~30 fps (a timer, then the next frame)
@@ -357,7 +408,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		};
 		// a hidden tab stops the march (render sees document.hidden); showing it again resumes
 		const onVis = () => {
-			if (!document.hidden) dirty.current = true;
+			if (!document.hidden) dirty.hover(); // a repaint, not activity: no bob, no lane flow
 		};
 		document.addEventListener('visibilitychange', onVis);
 		raf = requestAnimationFrame(loop);
@@ -703,6 +754,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			onContextMenu={(e) => e.preventDefault()}
 			style={{ cursor: props.tool === 'pan' ? 'grab' : props.editable ? 'crosshair' : 'not-allowed' }}
 		/>
+		<canvas ref={marchRef} className="march-layer" aria-hidden="true" style={{ position: 'absolute', display: 'none', pointerEvents: 'none' }} />
 		{chips.map((c) => (
 			<button
 				key={c.key}

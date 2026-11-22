@@ -5,7 +5,7 @@ import { CellAnim } from './cellAnim';
 import { LegacyMirror } from './mirror';
 import { Board } from '../model/board';
 import { PALETTES } from './palette';
-import { PATH_DOT, frameHint, pathDots, render, rmDotScale, type Scene } from './render';
+import { PATH_DOT, drawMarch, frameHint, marchBox, pathDots, render, rmDotScale, type MarchItem, type Scene } from './render';
 
 const arrow = { x: 10, y: 10 }, duck = { x: 110, y: 10 };
 
@@ -104,4 +104,24 @@ test('a new run (trace still searching, the old path cleared) draws no dots and 
 	render(c.ctx, scene({ trace: searching, bestPath: null, now: 4e7 }));
 	expect(dotFill(c.fills)).toBeUndefined();
 	expect(frameHint.minGap).toBe(0);
+});
+
+test('overlay: with scene.march the main canvas leaves the marching dots to a small layer that redraws only them, off the Arrow and Duck', () => {
+	const base = scene({ now: 5e7 });
+	render(recorder().ctx, base);
+	const march: MarchItem[] = [];
+	const main = recorder();
+	expect(render(main.ctx, { ...base, now: 5e7 + 10_000, march })).toBe(true);
+	expect(dotFill(main.fills)).toBeUndefined();
+	expect(march.length).toBe(1);
+	const box = marchBox(march, 1280, 800)!;
+	expect(box.w).toBeLessThan(1280);
+	expect(box.h).toBeLessThan(200);
+	const o = recorder(), o2 = recorder();
+	drawMarch(o.ctx, march, 5e7 + 10_000, box, 1);
+	drawMarch(o2.ctx, march, 5e7 + 10_100, box, 1);
+	const d = dotFill(o.fills)!;
+	expect(d.radii.length).toBeGreaterThan(20);
+	expect(o.fills.filter((f) => f.fill === p.path)).toHaveLength(1); // one batched dot fill per frame
+	expect(dotFill(o2.fills)).toBeTruthy();
 });

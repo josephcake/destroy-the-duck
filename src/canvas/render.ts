@@ -47,7 +47,54 @@ export type Scene = {
 	reducedMotion: boolean;
 	/** the tab is hidden: the path flow stops asking for frames (it resumes on visibility) */
 	hidden?: boolean;
+	/**
+	 * When set, marching path legs are not drawn here but pushed to this list, for a
+	 * small overlay canvas that redraws only them (drawMarch) between full renders.
+	 */
+	march?: MarchItem[];
 };
+
+/** A marching path leg, in screen px of the view it was built for. */
+export type MarchItem = { pts: ({ x: number; y: number } | null)[]; gap: number; L: number; r: number; hw: number; flowFrom: number; speed: number; color: string; halo: string; skip: { x: number; y: number }[]; skipR: number };
+
+/** Where the march dots fall at `now` (shared by render() and the overlay). */
+function marchDots(m: MarchItem, now: number) {
+	const phase = (((now - m.flowFrom) / 1000) * m.speed) % m.gap;
+	return pathDots(m.pts, m.gap, phase);
+}
+const marchR = (m: MarchItem) => (u: number) => m.r * Math.max(0, Math.min(1, u / m.gap, (m.L - u) / m.gap + 0.5));
+
+/** The overlay box (screen px) that holds every march dot, or null. */
+export function marchBox(items: MarchItem[], w: number, h: number) {
+	let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+	for (const m of items) {
+		const pad = m.r + m.hw + 2;
+		for (const q of m.pts) if (q) {
+			x0 = Math.min(x0, q.x - pad);
+			y0 = Math.min(y0, q.y - pad);
+			x1 = Math.max(x1, q.x + pad);
+			y1 = Math.max(y1, q.y + pad);
+		}
+	}
+	x0 = Math.max(0, Math.floor(x0));
+	y0 = Math.max(0, Math.floor(y0));
+	x1 = Math.min(w, Math.ceil(x1));
+	y1 = Math.min(h, Math.ceil(y1));
+	return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
+/**
+ * Draw the marching dots on the overlay (its origin at box.x, box.y). The overlay sits above
+ * the stickers, so dots on the Arrow, the Duck and teleporter pads are left out.
+ */
+export function drawMarch(ctx: CanvasRenderingContext2D, items: MarchItem[], now: number, box: { x: number; y: number; w: number; h: number }, dpr: number) {
+	ctx.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
+	ctx.clearRect(box.x, box.y, box.w, box.h);
+	for (const m of items) {
+		const dots = marchDots(m, now).filter((d) => !m.skip.some((q) => Math.abs(q.x - d.x) < m.skipR && Math.abs(q.y - d.y) < m.skipR));
+		drawDots(ctx, dots, marchR(m), m.color, m.halo, m.hw, box.x + box.w, box.y + box.h);
+	}
+}
 
 /**
  * Path dots (Joseph 2026-11-22): the found path is a row of dots that march from
@@ -341,7 +388,14 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const flowing = motion && flow && !!leg && tug >= 1 && scene.now >= flowFrom;
 		const phase = flowing ? (((scene.now - flowFrom) / 1000) * PATH_DOT.speed * s) % gap : 0;
 		if (flowing) pathFlow = true;
-		const dots = pathDots(pts, gap, phase, k * L + 1e-6);
+		const hw = Math.max(PATH_DOT.haloMin, PATH_DOT.halo * s);
+		if (flowing && scene.march) {
+			// the overlay draws it (and keeps marching without a full render)
+			const skip: { x: number; y: number }[] = [pts[0]!, pts[pts.length - 1]!];
+			jumps.forEach(([a, b]) => skip.push(a, b));
+			scene.march.push({ pts, gap, L, r, hw, flowFrom, speed: PATH_DOT.speed * s, color: p.path, halo: p.home, skip, skipR: 0.5 * s });
+		}
+		const dots = flowing && scene.march ? [] : pathDots(pts, gap, phase, k * L + 1e-6);
 		const ramp = !motion && flow;
 		const rOf = (u: number) => {
 			if (ramp) return r * rmDotScale(u, L);
@@ -349,7 +403,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			// marching: the dot entering at the Arrow and the one leaving at the Duck grow / shrink
 			return r * Math.max(0, Math.min(1, u / gap, (L - u) / gap + 0.5));
 		};
-		drawDots(ctx, dots, rOf, p.path, p.home, Math.max(PATH_DOT.haloMin, PATH_DOT.halo * s), width, height);
+		drawDots(ctx, dots, rOf, p.path, p.home, hw, width, height);
 		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.path);
 		jumps.forEach(([a, b, col], j) => {
 			// §4.4: fold trail in the pair colour; the paper plane flies once (420 ms) when the head reaches the pad

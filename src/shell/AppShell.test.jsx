@@ -249,7 +249,8 @@ test('minimal shell: kit themes, always flat (no fibre), no tape, no torn edges,
 	// legend swatches are canvas sprites (img), and the board is the only <canvas>
 	expect(document.querySelectorAll('.legend img.swatch[data-swatch]').length).toBeGreaterThanOrEqual(6);
 	expect(document.querySelectorAll('.legend i')).toHaveLength(0);
-	expect(document.querySelectorAll('canvas')).toHaveLength(1);
+	expect(document.querySelectorAll('canvas:not(.march-layer)')).toHaveLength(1);
+	expect(document.querySelectorAll('canvas.march-layer')).toHaveLength(1);
 	expect(document.querySelector('.panel__foot').textContent.replace(/\s+/g, ' ').trim()).toBe('Joseph Cake·LinkedIn·GitHub');
 	expect(document.body.textContent).not.toMatch(/pond/i);
 });
