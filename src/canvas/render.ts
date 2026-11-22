@@ -4,7 +4,7 @@ import { Board } from '../model/board';
 import { HOME, HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
-import { Palette, mix, weightColor } from './palette';
+import { Palette, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
 export type Scene = {
@@ -83,17 +83,6 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.globalAlpha = 1;
 	}
 
-	// Home outline + label
-	ctx.save();
-	ctx.strokeStyle = p.homeLine;
-	ctx.lineWidth = 1;
-	ctx.setLineDash([4, 4]);
-	ctx.strokeRect(home.x - 0.5, home.y - 0.5, hw + 1, hh + 1);
-	ctx.restore();
-	ctx.fillStyle = p.label;
-	ctx.font = '600 11px "Instrument Sans", system-ui, sans-serif';
-	ctx.textBaseline = 'bottom';
-	ctx.fillText('HOME · 35 × 80', home.x, home.y - 5);
 
 	// Weights (board store; classic Home walls win over a weight underneath)
 	for (const [r, c, t] of scene.board.entries(vb)) {
@@ -103,6 +92,13 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const inset = view.zoom >= 0.5 ? 0.06 * s : 0;
 		roundRect(ctx, x + inset, y + inset, s - 2 * inset, s - 2 * inset, view.zoom >= 0.5 ? 0.22 * s : 0);
 		ctx.fill();
+		if (view.zoom >= 0.35) {
+			// the edge carries the 3:1 contrast; the fill stays a soft tint
+			ctx.strokeStyle = weightEdge(p, t.cost);
+			ctx.lineWidth = Math.max(1, Math.min(2, 0.08 * s));
+			roundRect(ctx, x + inset + 0.75, y + inset + 0.75, s - 2 * inset - 1.5, s - 2 * inset - 1.5, view.zoom >= 0.5 ? 0.2 * s : 0);
+			ctx.stroke();
+		}
 		if (view.zoom >= 2) {
 			ctx.fillStyle = t.cost === 10 ? 'rgba(255,255,255,0.85)' : 'rgba(28,34,48,0.72)';
 			ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
@@ -182,6 +178,19 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			ctx.stroke();
 		}
 	}
+
+	// Home outline + label, on top of the cells so visited never hides them.
+	// Colours meet 3:1 (line) and 4.5:1 (label) against the paper.
+	ctx.save();
+	ctx.strokeStyle = p.homeLine;
+	ctx.lineWidth = 1.5;
+	ctx.setLineDash([6, 4]);
+	ctx.strokeRect(home.x - 1, home.y - 1, hw + 2, hh + 2);
+	ctx.restore();
+	ctx.fillStyle = p.label;
+	ctx.font = '700 12px "Instrument Sans", system-ui, sans-serif';
+	ctx.textBaseline = 'bottom';
+	ctx.fillText('HOME · 35 × 80', home.x, home.y - 6);
 
 	// Paths: traced path, and the classic Show Best Path preview (in tag order)
 	const drawPath = (cells: { r: number; c: number }[]) => {
