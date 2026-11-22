@@ -89,6 +89,12 @@ export default function AppShell() {
 	const [legendH, setLegendH] = useState(0);
 	const [zoom, setZoom] = useState(1);
 	const [newToast, setNewToast] = useState(false);
+	const [lockedToast, setLockedToast] = useState(false);
+	useEffect(() => {
+		if (!lockedToast) return;
+		const t = setTimeout(() => setLockedToast(false), 2500);
+		return () => clearTimeout(t);
+	}, [lockedToast]);
 	const [, setTick] = useState(0); // re-render on mirror / board changes
 	const [playing, setPlaying] = useState(false);
 	const [applied, setApplied] = useState(0);
@@ -675,6 +681,7 @@ export default function AppShell() {
 						setLanding(false);
 						setBestPath(null);
 					}}
+					onLocked={() => setLockedToast(true)}
 					onZoom={setZoom}
 					homeBounds={homeBounds}
 					dir={dir}
@@ -747,6 +754,11 @@ export default function AppShell() {
 					<button className="icon-btn" aria-label="Home" title="Home (H)" onClick={() => stage.current?.home()}><Icon.home /></button>
 				</div>
 
+				{lockedToast && !ctx.isToastVisible && !newToast && (
+					<button className="float toast" role="status" data-testid="locked-toast" onClick={() => setLockedToast(false)}>
+						Drawing is locked while the search runs. Wait, or press Reset.
+					</button>
+				)}
 				{(ctx.isToastVisible || newToast) && (
 					<button className="float toast" role="status" onClick={() => (ctx.isToastVisible ? ctx.resetToast('click') : setNewToast(false))}>
 						Cannot find Duck!

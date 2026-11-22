@@ -42,6 +42,8 @@ type Props = {
 	editable: boolean;
 	insets: Insets;
 	onInteract: () => void;
+	/** A draw gesture was refused because a search is running. */
+	onLocked?: () => void;
 	onZoom: (z: number) => void;
 	/** What Home (H) frames; defaults to the classic 35x80 board. */
 	homeBounds?: () => Bounds;
@@ -166,7 +168,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				width: size.current.w,
 				height: size.current.h,
 				dpr: size.current.dpr,
-				hover: hover.current,
+				hover: live.current.editable ? hover.current : null,
 				now: performance.now(),
 			};
 			animating = render(ctx, scene);
@@ -178,6 +180,10 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	useEffect(() => {
+		dirty.current = true; // the hover ring follows the drawing lock
+	}, [props.editable]);
 
 	// re-frame Home when insets change (pinned legend, phone Learn layout)
 	useEffect(() => {
@@ -268,7 +274,13 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			gesture.current = { mode: 'pan', x: p.x, y: p.y };
 			return;
 		}
-		if (e.button !== 0 || !editable) return;
+		if (e.button !== 0) return;
+		if (!editable) {
+			// Drawing is locked while a search runs. Say so: a silent drop left
+			// only the hover ring, which read as a white tile (Mochi check 3).
+			live.current.onLocked?.();
+			return;
+		}
 		const cell = cellAt(view.current, p.x, p.y);
 		const inside = inHome(cell.r, cell.c);
 		const k = inside ? scene.current.mirror.at(cell.r, cell.c) : K.Unvisited;
@@ -292,8 +304,9 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const p = local(e);
 		if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, p);
 		const cell = cellAt(view.current, p.x, p.y);
-		if (!hover.current || hover.current.r !== cell.r || hover.current.c !== cell.c) {
-			hover.current = e.pointerType === 'mouse' ? cell : null;
+		if (!hover.current || hover.current.r !== cell.r || hover.current.c !== cell.c || !live.current.editable) {
+			// no hover ring while drawing is locked: it promises a cell that won't paint
+			hover.current = e.pointerType === 'mouse' && live.current.editable ? cell : null;
 			dirty.current = true;
 		}
 		const g = gesture.current;
@@ -375,7 +388,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			}}
 			onWheel={onWheel}
 			onContextMenu={(e) => e.preventDefault()}
-			style={{ cursor: props.tool === 'pan' ? 'grab' : 'crosshair' }}
+			style={{ cursor: props.tool === 'pan' ? 'grab' : props.editable ? 'crosshair' : 'not-allowed' }}
 		/>
 	);
 });
