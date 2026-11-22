@@ -9,6 +9,8 @@ export class TraceState {
 	visited = new Map<string, number>(); // node -> pop order
 	frontier = new Map<string, FrontierEntry>();
 	path: string[] = [];
+	/** Path events grouped per duck (All / Tour draw one line each). */
+	paths: { duck: number; nodes: string[] }[] = [];
 	current: string | null = null;
 	/** stepEnds[s] = event index just past the last event of step s. */
 	private readonly stepEnds: number[] = [];
@@ -51,12 +53,21 @@ export class TraceState {
 				this.frontier.set(e.node, { node: e.node, g: e.g!, h: e.h, f: e.f });
 				break;
 			case 'pop':
+			case 'visit':
 				this.frontier.delete(e.node);
-				this.visited.set(e.node, this.visited.size);
+				if (!this.visited.has(e.node)) this.visited.set(e.node, this.visited.size);
 				break;
-			case 'path':
+			case 'leg':
+				this.frontier.clear(); // each leg is a fresh search
+				break;
+			case 'path': {
 				this.path.push(e.node);
+				const g = this.paths[this.paths.length - 1];
+				const key = Number(e.params?.p ?? 0);
+				if (!g || this.paths.length - 1 !== key) this.paths.push({ duck: e.duck ?? 1, nodes: [e.node] });
+				else g.nodes.push(e.node);
 				break;
+			}
 		}
 	}
 
@@ -67,6 +78,7 @@ export class TraceState {
 			this.visited.clear();
 			this.frontier.clear();
 			this.path = [];
+			this.paths = [];
 			this.current = null;
 		}
 		while (this.applied < target) this.apply(this.trace.events[this.applied++]);

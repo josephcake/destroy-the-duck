@@ -6,11 +6,52 @@ export const CHUNK = 32;
 export type Weight = 2 | 5 | 10;
 export const WEIGHTS: readonly Weight[] = [2, 5, 10];
 
-export type Tile = { kind: 'wall' } | { kind: 'weight'; cost: Weight };
+export type Dir = 0 | 1 | 2 | 3; // N, E, S, W (same as engine/graph Dir)
+/** Phase C nodes: one-way lanes, teleporter pads (pair 0..25 = a..z), extra ducks (n >= 2). */
+export type Tile =
+	| { kind: 'wall' }
+	| { kind: 'weight'; cost: Weight }
+	| { kind: 'oneway'; dir: Dir }
+	| { kind: 'pad'; pair: number }
+	| { kind: 'duck'; n: number };
 
 const KIND_EMPTY = 0;
 const KIND_WALL = 1;
 const KIND_WEIGHT = 2;
+const KIND_ONEWAY = 3;
+const KIND_PAD = 4;
+const KIND_DUCK = 5;
+
+function encode(tile: Tile | undefined): [number, number] {
+	if (!tile) return [KIND_EMPTY, 0];
+	switch (tile.kind) {
+		case 'wall':
+			return [KIND_WALL, 0];
+		case 'weight':
+			return [KIND_WEIGHT, tile.cost];
+		case 'oneway':
+			return [KIND_ONEWAY, tile.dir];
+		case 'pad':
+			return [KIND_PAD, tile.pair];
+		case 'duck':
+			return [KIND_DUCK, tile.n];
+	}
+}
+function decode(kind: number, arg: number): Tile | undefined {
+	switch (kind) {
+		case KIND_WALL:
+			return { kind: 'wall' };
+		case KIND_WEIGHT:
+			return { kind: 'weight', cost: arg as Weight };
+		case KIND_ONEWAY:
+			return { kind: 'oneway', dir: arg as Dir };
+		case KIND_PAD:
+			return { kind: 'pad', pair: arg };
+		case KIND_DUCK:
+			return { kind: 'duck', n: arg };
+	}
+	return undefined;
+}
 
 type Chunk = { kind: Uint8Array; arg: Uint8Array; count: number };
 
@@ -31,10 +72,7 @@ export class Board {
 		const entry = this.chunks.get(chunkKey(cr, cc));
 		if (!entry) return undefined;
 		const i = lr * CHUNK + lc;
-		const kind = entry.chunk.kind[i];
-		if (kind === KIND_WALL) return { kind: 'wall' };
-		if (kind === KIND_WEIGHT) return { kind: 'weight', cost: entry.chunk.arg[i] as Weight };
-		return undefined;
+		return decode(entry.chunk.kind[i], entry.chunk.arg[i]);
 	}
 
 	/** Returns true when the tile changed. */
@@ -43,8 +81,7 @@ export class Board {
 		const [cc, lc] = split(c);
 		const k = chunkKey(cr, cc);
 		let entry = this.chunks.get(k);
-		const kind = !tile ? KIND_EMPTY : tile.kind === 'wall' ? KIND_WALL : KIND_WEIGHT;
-		const arg = tile && tile.kind === 'weight' ? tile.cost : 0;
+		const [kind, arg] = encode(tile);
 		if (!entry) {
 			if (kind === KIND_EMPTY) return false;
 			entry = { cr, cc, chunk: { kind: new Uint8Array(CHUNK * CHUNK), arg: new Uint8Array(CHUNK * CHUNK), count: 0 } };
@@ -82,7 +119,7 @@ export class Board {
 				if (kind === KIND_EMPTY) continue;
 				const r = r0 + Math.floor(i / CHUNK);
 				const c = c0 + (i % CHUNK);
-				yield [r, c, kind === KIND_WALL ? { kind: 'wall' } : { kind: 'weight', cost: chunk.arg[i] as Weight }];
+				yield [r, c, decode(kind, chunk.arg[i])!];
 			}
 		}
 	}

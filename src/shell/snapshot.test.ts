@@ -39,3 +39,55 @@ test('weighted runs on the default board: detour vs wading (hand-computed)', () 
 		expect(runSearch(algo, buildSnapshot(tall, mirrorWith([]))).result.pathCost).toBe(58);
 	}
 });
+
+// Phase C nodes reach the engine from the Board.
+import { lonePads, nextDuck, nextPadPair } from './snapshot';
+import { TraceState } from '../learn/player';
+
+test('one-way lanes, complete teleporter pairs and extra ducks (in number order) reach the engine', () => {
+	const board = new Board();
+	board.set(10, 20, { kind: 'oneway', dir: 1 });
+	board.set(5, 5, { kind: 'pad', pair: 0 });
+	board.set(30, 70, { kind: 'pad', pair: 0 });
+	board.set(2, 2, { kind: 'pad', pair: 1 }); // lone: ignored
+	board.set(3, 40, { kind: 'duck', n: 3 });
+	board.set(30, 10, { kind: 'duck', n: 2 });
+	board.set(17, 15, { kind: 'oneway', dir: 0 }); // under the Arrow: the classic table wins
+	const snap = buildSnapshot(board, mirrorWith([]), { findMode: 'tour' });
+	expect(snap.oneWay).toEqual([[keyOf(10, 20), 1]]);
+	expect(snap.pads).toEqual([[keyOf(5, 5), keyOf(30, 70)]]);
+	expect(snap.goals).toEqual([{ r: 17, c: 64 }, { r: 30, c: 10 }, { r: 3, c: 40 }]);
+	expect(snap.findMode).toBe('tour');
+	expect(lonePads(board)).toEqual([1]);
+	expect(nextPadPair(board)).toBe(1); // finish b before starting c
+	expect(nextDuck(board)).toBe(4);
+});
+
+test('find mode is only sent when there is more than one duck', () => {
+	expect(buildSnapshot(new Board(), mirrorWith([]), { findMode: 'all' }).findMode).toBeUndefined();
+});
+
+test('All and Tour runs give one drawn path per duck; a teleporter jump is free', () => {
+	const board = new Board();
+	board.set(30, 10, { kind: 'duck', n: 2 });
+	const all = runSearch('astar', buildSnapshot(board, mirrorWith([]), { findMode: 'all' }));
+	const st = new TraceState(all).seek(all.events.length);
+	expect(st.paths.map((p) => p.duck).sort()).toEqual([1, 2]);
+	expect(st.paths.find((p) => p.duck === 1)!.nodes.length).toBe(50);
+	const tour = runSearch('astar', buildSnapshot(board, mirrorWith([]), { findMode: 'tour' }));
+	expect(tour.result.paths!.map((p) => p.duck)).toEqual([1, 2]);
+	// pads next to Arrow and Duck: 1 step in, free jump, 1 step out
+	const b2 = new Board();
+	b2.set(17, 16, { kind: 'pad', pair: 0 });
+	b2.set(17, 63, { kind: 'pad', pair: 0 });
+	const jt = runSearch('dijkstraW', buildSnapshot(b2, mirrorWith([])));
+	expect(jt.result.pathCost).toBe(2);
+});
+
+test('JPS refuses boards with one-way lanes and says why', async () => {
+	const { unsupported } = await import('../engine/search');
+	const board = new Board();
+	board.set(10, 20, { kind: 'oneway', dir: 1 });
+	expect(unsupported('jps4', buildSnapshot(board, mirrorWith([])))).toMatch(/one-way/);
+	expect(unsupported('astar', buildSnapshot(board, mirrorWith([])))).toBeNull();
+});
