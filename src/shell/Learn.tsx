@@ -45,7 +45,7 @@ export function StepBar({ state, playing, onSeek, onPlay }: StepProps) {
 	);
 }
 
-export function Inspector({ state }: { state: TraceState }) {
+export function Inspector({ state, hasLanes = false }: { state: TraceState; hasLanes?: boolean }) {
 	const evs = state.stepEvents;
 	const algo = state.trace.algo;
 	const astar = algo === 'astar';
@@ -72,6 +72,7 @@ export function Inspector({ state }: { state: TraceState }) {
 					<p>Press Step to begin. One step = one cell taken off the frontier, with everything it discovers.</p>
 				)}
 			</div>
+			{hasLanes && <p className="inspector__hint">One-way lanes can only be entered and left along their arrows. Watch the wave: it flows with the chevrons, never against them.</p>}
 			<div className="chips">
 				<span className="chip chip--mono" title="Neighbour order for new algorithms">order N · E · S · W</span>
 				<span className="chip chip--mono">ties: {astar ? 'f, then h, then oldest' : 'g, then oldest'}</span>

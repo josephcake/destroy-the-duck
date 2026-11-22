@@ -1,5 +1,6 @@
 // Touch, the classic window helpers, and small-screen framing (the board is
 // bounded since 2026-11-22: see bounded.test.tsx).
+import { CellAnim } from '../canvas/cellAnim';
 import { createRef } from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 // @ts-expect-error legacy JS module
@@ -21,7 +22,7 @@ const flush = () => act(() => new Promise((r) => setTimeout(r, 0))); // the mirr
 function stageWith(tool: Tool) {
 	const board = new Board();
 	const mirror = new LegacyMirror(); // no table attached: its window is empty
-	const scene = { current: { board, mirror, palette: PALETTES['paper-light'], trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion: true, bestPath: null } as SceneInput };
+	const scene = { current: { board, mirror, palette: PALETTES['paper-light'], trace: null, anim: new CellAnim(), speed: 'fast' as const, learnCurrent: false, reducedMotion: true, bestPath: null } as SceneInput };
 	const ref = createRef<StageApi>();
 	const props = { scene, weight: 5 as const, editable: true, insets: { top: 0, right: 0, bottom: 0, left: 0 }, onInteract: () => {}, onZoom: () => {} };
 	const view = render(<CanvasStage ref={ref} {...props} tool={tool} />);

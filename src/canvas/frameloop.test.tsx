@@ -1,6 +1,7 @@
 // Prism review (paper v2.1) must-fix 1: an idle board costs no frames. The duck
 // bob runs 3 cycles (3 x 2400 ms) after the last change, then the rAF loop stops
 // until something marks the canvas dirty again.
+import { CellAnim } from './cellAnim';
 import { render as mount, fireEvent, act } from '@testing-library/react';
 // @ts-expect-error legacy JS module
 import { TableContextProvider } from '../Context/TableContext';
@@ -32,7 +33,7 @@ test('render(): the bob keeps animating for 3 cycles after the last change, then
 	const board = new Board();
 	const scene = (age: number, reducedMotion = false): Scene => ({
 		view: { panX: 0, panY: 0, zoom: 1 }, width: 1280, height: 800, dpr: 1, palette: PALETTES['paper-light'], board, mirror: new LegacyMirror(),
-		trace: null, traceTimes: new Map(), learnCurrent: false, hover: null, bestPath: null, now: 1e6 + age, activeAt: 1e6, reducedMotion,
+		trace: null, anim: new CellAnim(), speed: 'fast' as const, learnCurrent: false, hover: null, bestPath: null, now: 1e6 + age, activeAt: 1e6, reducedMotion,
 	});
 	const m = new LegacyMirror();
 	m.end = 17 * 80 + 64; // a duck on the board

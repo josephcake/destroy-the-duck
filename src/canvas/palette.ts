@@ -30,6 +30,8 @@ export type Palette = {
 	stamp: string;
 	vis: [string, string, string]; // visited confetti tints
 	visited: string; // = vis[1], for legends and contrast checks
+	visitedBand: string; // cost band 1 (motion spec §2): every other 8 cost units, >= 3:1 at .8
+	flow: string; // one-way chevrons (one-way spec §2): >= 3:1 on home and on the .45 tile
 	front: string;
 	frontEdge: string;
 	path: string; // the thread
@@ -61,7 +63,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#2f3b5e', cut: '#8c9bc4', cutTL: '#b3c0e2',
 		shadow: 'rgba(84,58,22,0.30)', contact: 'rgba(84,58,22,0.38)',
 		w: ['#f2d9a6', '#e9b673', '#e3a066', '#dc9258'], wUnder: ['#d9b97f', '#c8964f', '#b67836', '#b8743c'], wEdge: '#9a6a33', stamp: '#5a2410',
-		vis: ['#4fa092', '#3f9384', '#62ad9f'], visited: '#2a7366',
+		vis: ['#4fa092', '#3f9384', '#62ad9f'], visited: '#2a7366', visitedBand: '#3d5f8a', flow: '#4f6b94',
 		front: '#f6cd78', frontEdge: '#b07a1c', path: '#b02e22',
 		start: '#e0522a', arrowBack: '#f39a76', startOutline: null,
 		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#8a6410', beak: '#e8701c', beak2: '#c4541a', eye: '#1f1b16',
@@ -77,7 +79,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#dccaa2', cut: '#fff4d8', cutTL: '#fffaf0',
 		shadow: 'rgba(2,5,16,0.55)', contact: 'rgba(2,5,16,0.60)',
 		w: ['#4a4766', '#7a5a52', '#93583a', '#8a4f33'], wUnder: ['#36344f', '#5c433d', '#6f412a', '#6a3a24'], wEdge: '#c99a6a', stamp: '#fff1dc',
-		vis: ['#4aa89c', '#3f9a8f', '#56b5a8'], visited: '#3f9a8f',
+		vis: ['#4aa89c', '#3f9a8f', '#56b5a8'], visited: '#3f9a8f', visitedBand: '#7fa6e0', flow: '#b8c8ec',
 		front: '#d9a24a', frontEdge: '#ffe0a0', path: '#ff8a66',
 		start: '#ff6b3d', arrowBack: '#ffb092', startOutline: null,
 		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#a37a18', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',
@@ -93,7 +95,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#04042C', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.28)', contact: 'rgba(0,0,0,0.30)',
 		w: ['#e8dcc0', '#d4b483', '#c08a4a'], wUnder: ['#cfc2a4', '#b8955f', '#9c6c34'], wEdge: '#8e6a2e', stamp: '#3a1a08',
-		vis: ['#7C4DA2', '#7C4DA2', '#7C4DA2'], visited: '#7C4DA2',
+		vis: ['#7C4DA2', '#7C4DA2', '#7C4DA2'], visited: '#7C4DA2', visitedBand: '#7C4DA2', flow: '#3b4a66',
 		front: '#b000c4', frontEdge: '#b000c4', path: '#c23a1e',
 		start: '#e94c0e', arrowBack: '#f6a07e', startOutline: '#7a2406',
 		duck: '#ffd000', duckWing: '#e6b800', duckEdge: '#8a6410', beak: '#e8701c', beak2: '#c4541a', eye: '#1f1b16',
@@ -109,7 +111,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#c9cbe3', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.55)', contact: 'rgba(0,0,0,0.60)',
 		w: ['#5d5848', '#7a6a4c', '#2f5f80'], wUnder: ['#4a463a', '#5f523b', '#244a64'], wEdge: '#e6e3c8', stamp: '#f4f1e2',
-		vis: ['#3f9a7a', '#3f9a7a', '#3f9a7a'], visited: '#3f9a7a',
+		vis: ['#3f9a7a', '#3f9a7a', '#3f9a7a'], visited: '#3f9a7a', visitedBand: '#3f9a7a', flow: '#c9cbe3',
 		front: '#00FFBB', frontEdge: '#b8ffe9', path: '#FF6347',
 		start: '#ff6a3d', arrowBack: '#ffb092', startOutline: null,
 		duck: '#ffd000', duckWing: '#e6b800', duckEdge: '#ffd000', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',

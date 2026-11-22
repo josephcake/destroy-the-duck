@@ -10,6 +10,7 @@
 // the table sits idle (no walls, nothing in view) and they live in `free` as
 // world cells; every wall is on the Board. See shell/window.ts.
 import { Bounds, Cell, HOME_COLS, HOME_ROWS, idOf } from '../model/cell';
+import { CellAnim } from './cellAnim';
 
 export enum K {
 	Unvisited = 0,
@@ -48,6 +49,8 @@ export class LegacyMirror {
 	silent = false;
 	visitedCount = 0;
 	version = 0;
+	/** Classic runs in the search-motion store: visited only (classic has no frontier, so only phase C). */
+	anim = new CellAnim();
 	private observer: MutationObserver | null = null;
 	private tds: HTMLElement[] = [];
 	private onChange: () => void = () => {};
@@ -94,6 +97,15 @@ export class LegacyMirror {
 			if (kind === K.Visited) this.visitedCount++;
 			this.kind[i] = kind;
 			this.changedAt[i] = now;
+			if (kind === K.Visited || prev === K.Visited) {
+				const q = this.cellAt(i);
+				const j = this.anim.index(q.r, q.c);
+				if (kind === K.Visited) {
+					if (this.anim.empty) this.anim.runStart = now;
+					this.anim.visitAt(j, now - this.anim.runStart, now === 0);
+				} else if (this.visitedCount === 0) this.anim.reset();
+				else this.anim.clear(j);
+			}
 		}
 		if (kind === K.Start) this.start = i;
 		if (kind === K.End) this.end = i;

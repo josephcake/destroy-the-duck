@@ -46,7 +46,7 @@ test('duck tool adds duck 2 and shows Nearest / All / Tour', async () => {
 test('a dragged one-way lane makes JPS unavailable, and the UI says why', async () => {
 	mount();
 	const canvas = document.querySelector('canvas');
-	fireEvent.click(screen.getByTitle('One-way (O)'));
+	fireEvent.click(screen.getByTitle(/^One-way \(O\)/));
 	act(() => void fireEvent.pointerDown(canvas, at(5, 5)));
 	for (let c = 6; c <= 9; c++) act(() => void fireEvent.pointerMove(canvas, at(5, c)));
 	act(() => void fireEvent.pointerUp(canvas, at(5, 9)));

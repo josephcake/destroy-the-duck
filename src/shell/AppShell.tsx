@@ -9,12 +9,13 @@ import Main from '../Main/Main';
 import { Board, Weight } from '../model/board';
 import { HOME_COLS, HOME_ROWS, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
+import { CellAnim } from '../canvas/cellAnim';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, migrateCellSet } from '../canvas/palette';
 import { SwatchKind } from '../canvas/render';
 import { Swatch } from './Swatch';
 import { searchAsync, wideAsync } from '../engine/runner';
-import { ClassicAlgo, FindMode, Trace, TracedAlgo } from '../engine/trace';
+import { ClassicAlgo, FindMode, Trace, TraceEvent, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, contentBox, lonePads } from './snapshot';
 import { classicFrame, dragTableCell, moveWindow, placeEndpoint, wideJob } from './window';
@@ -47,7 +48,34 @@ export function closerDuckGap(w: number): number | null {
 	return cols >= 49 ? null : Math.max(6, cols);
 }
 
-type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
+/** Trace events [from, to) into the motion store: the same events TraceState.apply reads (motion spec §6). */
+export function recordEvents(anim: CellAnim, events: readonly TraceEvent[], from: number, to: number, t: number, instant: boolean) {
+	for (let i = from; i < to; i++) {
+		const e = events[i];
+		switch (e.action) {
+			case 'init':
+			case 'push':
+			case 'relax': {
+				const q = parseId(e.node);
+				anim.frontierAt(anim.index(q.r, q.c), t, e.g ?? NaN, instant);
+				break;
+			}
+			case 'pop':
+			case 'visit': {
+				const q = parseId(e.node);
+				anim.visitAt(anim.index(q.r, q.c), t, instant);
+				break;
+			}
+			case 'leg':
+				anim.clearFrontier();
+				break;
+		}
+	}
+}
+
+const ARROW_DIR: Record<string, Dir> = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 };
+
+type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName; bands?: boolean };
 const PREFS_KEY = 'dtd.ui.v1';
 // The classic player's own default is Norm (100 ms a cell: BFS on an open
 // board takes minutes). The new UI starts at Fast and remembers the choice.
@@ -60,16 +88,17 @@ const loadPrefs = (): Prefs => {
 			chrome: p.chrome === 'dark' ? 'dark' : 'light',
 			cells: migrateCellSet(p.cells),
 			speed: SPEEDS.some((s) => s.name === p.speed) ? p.speed : DEFAULT_SPEED,
+			bands: p.bands === true,
 		};
 	} catch {
 		return fallback;
 	}
 };
 
-const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string }[] = [
+const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string; title?: string }[] = [
 	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Duck to move them.' },
 	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
-	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; a click uses the arrow below. Enter and leave only along the arrow.' },
+	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; tap a lane to turn it a quarter. Arrow keys set the direction for taps. Enter and leave only along the arrows.', title: 'One-way (O): drag to lay a lane in the direction you drag. Tap a lane to turn it.' },
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
 	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
@@ -140,10 +169,14 @@ export default function AppShell() {
 	const mirror = useMemo(() => new LegacyMirror(), []);
 	const palette = PALETTES[`${prefs.cells}-${prefs.chrome}`];
 	const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion, bestPath: null });
+	const anim = useMemo(() => new CellAnim(), []); // search motion: the traced run's cells (cellAnim.ts)
+	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, anim, speed: DEFAULT_SPEED, learnCurrent: false, reducedMotion, bestPath: null });
 	scene.current.palette = palette;
 	scene.current.trace = traceState;
 	scene.current.learnCurrent = tab === 'learn';
+	// a Learn step uses the Slow timings whatever the speed, so one click always animates (motion spec §1)
+	scene.current.speed = tab === 'learn' && !playing ? 'slow' : prefs.speed;
+	scene.current.bands = !!prefs.bands;
 	// Classic runs: after a successful run, the best path (same Dijkstra the
 	// Show Best Path button uses) is drawn as an overlay and fills Path/Cost.
 	// Nothing is written to the classic table, so visit order is untouched.
@@ -200,12 +233,12 @@ export default function AppShell() {
 			if (!st) return;
 			const before = st.applied;
 			st.seek(n);
-			const now = performance.now();
-			if (st.applied > before) {
-				for (let i = before; i < st.applied; i++) {
-					const e = st.trace.events[i];
-					if (e.action === 'pop') scene.current.traceTimes.set(e.node, st.applied - before > 200 ? 0 : now);
-				}
+			const t = performance.now() - anim.runStart;
+			if (st.applied > before) recordEvents(anim, st.trace.events, before, st.applied, t, st.applied - before > 200);
+			else if (st.applied < before) {
+				// stepping back replays from 0 (TraceState does too): everything lands settled
+				anim.reset(anim.runStart);
+				recordEvents(anim, st.trace.events, 0, st.applied, t, true);
 			}
 			setApplied(st.applied);
 			if (st.done) {
@@ -276,7 +309,7 @@ export default function AppShell() {
 		const snap = buildSnapshot(board, mirror, { findMode });
 		if (unsupported(which, snap)) return;
 		const trace: Trace = await searchAsync(which, snap);
-		scene.current.traceTimes = new Map();
+		anim.reset(performance.now());
 		const st = new TraceState(trace);
 		setTraceState(st);
 		setApplied(0);
@@ -299,13 +332,14 @@ export default function AppShell() {
 			setWideToast(res.reason);
 			return;
 		}
-		scene.current.traceTimes = new Map();
+		anim.reset(performance.now());
 		setTraceState(new TraceState(res.trace));
 		setApplied(0);
 		setPlaying(true);
 	};
 
 	const clearTrace = () => {
+		anim.reset(performance.now());
 		setTraceState(null);
 		setPlaying(false);
 		setApplied(0);
@@ -384,7 +418,10 @@ export default function AppShell() {
 			else if (k === 'f') stage.current?.fit();
 			else if (k === '+' || k === '=') stage.current?.zoomStep(1);
 			else if (k === '-') stage.current?.zoomStep(-1);
-			else if (tab === 'learn' && traceState && k === '.') seek(traceState.endOf(traceState.position + (e.shiftKey ? 10 : 1)));
+			else if (tool === 'oneway' && ARROW_DIR[e.key] !== undefined) {
+				e.preventDefault();
+				setDir(ARROW_DIR[e.key]); // one-way spec §1.4: arrows set the tap direction
+			} else if (tab === 'learn' && traceState && k === '.') seek(traceState.endOf(traceState.position + (e.shiftKey ? 10 : 1)));
 			else if (tab === 'learn' && traceState && k === ',') seek(traceState.endOf(traceState.position - (e.shiftKey ? 10 : 1)));
 			else {
 				const t = TOOLS.find((x) => x.key === k);
@@ -393,7 +430,7 @@ export default function AppShell() {
 		};
 		window.addEventListener('keydown', onKey);
 		return () => window.removeEventListener('keydown', onKey);
-	}, [tab, traceState, seek]);
+	}, [tab, traceState, seek, tool]);
 
 	// ---------- derived ----------
 	const weights = [...board.entries()].filter(([, , t]) => t.kind === 'weight');
@@ -630,7 +667,7 @@ export default function AppShell() {
 						<h2 className="section__title">Draw</h2>
 						<div className="tools" role="group" aria-label="Draw tools">
 							{TOOLS.map((t) => (
-								<button key={t.id} className="tool" aria-pressed={tool === t.id} title={`${t.label} (${t.key.toUpperCase()})`} onClick={() => setTool(t.id)}>
+								<button key={t.id} className="tool" aria-pressed={tool === t.id} title={t.title ?? `${t.label} (${t.key.toUpperCase()})`} onClick={() => setTool(t.id)}>
 									<t.icon />
 									{t.label}
 								</button>
@@ -646,7 +683,7 @@ export default function AppShell() {
 							</div>
 						)}
 						{tool === 'oneway' && (
-							<div className="seg" role="group" aria-label="Lane direction" style={{ marginTop: 8 }}>
+							<div className="seg" role="group" aria-label="Tap direction" style={{ marginTop: 8 }}>
 								{(['↑ N', '→ E', '↓ S', '← W'] as const).map((l, i) => (
 									<button key={l} aria-pressed={dir === i} onClick={() => setDir(i as Dir)}>
 										{l}
@@ -727,6 +764,12 @@ export default function AppShell() {
 							<div className="stat pk-well"><b className="pk-number">{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
 							<div className="stat pk-well" title={tr ? 'Engine time' : 'Run time, Go to last cell'}><b className="pk-number">{tr ? `${Math.round(tr.trace.result.engineMs)}` : classicMs !== null ? `${Math.round(classicMs)}` : '–'}</b><span>ms</span></div>
 						</div>
+						{activeAlgo && isTraced(activeAlgo) && (
+							<button className="chip chip--toggle" aria-pressed={!!prefs.bands} data-testid="cost-bands" title="Tint visited cells in bands of 8 cost units: circles for Dijkstra, ellipses for A*" onClick={() => setPrefs({ ...prefs, bands: !prefs.bands })}>
+								Cost bands
+							</button>
+						)}
+
 					</section>
 
 					<section className="section">
@@ -786,6 +829,7 @@ export default function AppShell() {
 					fitBounds={fitBounds}
 					onEndpointDrop={onEndpointDrop}
 					dir={dir}
+					onLaneDir={setDir}
 				/>
 
 				{!panelOpen && (
@@ -836,7 +880,7 @@ export default function AppShell() {
 
 				{tr && tab === 'learn' && (
 					<>
-						<Inspector state={tr} />
+						<Inspector state={tr} hasLanes={oneways > 0} />
 						<StepBar state={tr} playing={playing} onSeek={(p) => { setPlaying(false); seek(tr.endOf(p)); }} onPlay={() => setPlaying((p) => !p)} />
 					</>
 				)}

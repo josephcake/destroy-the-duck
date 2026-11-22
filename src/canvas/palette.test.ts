@@ -1,7 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
-import { VISITED_ALPHA } from './render';
+import { VISITED_ALPHA, settleRamp } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -106,4 +106,35 @@ test('Classic Dark retires the #626262 board for #24242a / #c9cbe3 walls', () =>
 test('Prism review must-fix 3 (spec v2.2): the Night Paper duck edge carries 3:1 on its own, not just via the body', () => {
 	expect(PALETTES['paper-dark'].duckEdge).toBe('#a37a18');
 	expect(contrast(PALETTES['paper-dark'].duckEdge, PALETTES['paper-dark'].home)).toBeGreaterThanOrEqual(3);
+});
+
+// Prism search-motion spec §2: cost bands and the settle ramp, blended over home
+describe.each([['Paper', P], ['Night Paper', NP]] as const)('search motion: %s', (_n, p) => {
+	test('both band tints read at .8 (>= 3:1), at the spec figures', () => {
+		expect(contrast(blend(p.visited, p.home, VISITED_ALPHA), p.home)).toBeGreaterThanOrEqual(3);
+		expect(contrast(blend(p.visitedBand, p.home, VISITED_ALPHA), p.home)).toBeGreaterThanOrEqual(3);
+		expect(contrast(blend(p.visitedBand, p.home, VISITED_ALPHA), p.home)).toBeCloseTo(p === P ? 3.85 : 4.35, 1);
+	});
+	test('every step of the settle ramp (frontEdge -> visited, alpha 1 -> .8) is >= 3:1', () => {
+		const ramp = settleRamp(p);
+		expect(ramp).toHaveLength(8);
+		const min = Math.min(...ramp.map((c, b) => contrast(blend(c, p.home, 1 - (1 - VISITED_ALPHA) * ((b + 0.5) / 8)), p.home)));
+		expect(min).toBeGreaterThanOrEqual(3);
+	});
+});
+
+// Prism one-way spec §2: the chevrons carry the cue on the board and on the .45 tile
+describe.each([['Paper', P, 4.91, 4.42], ['Night Paper', NP, 8.81, 6.91]] as const)('one-way flow: %s', (_n, p, onHome, onTile) => {
+	test('flow chevrons are >= 3:1 on home and on the tile, at the spec figures', () => {
+		const tile = blend(p.oneway, p.home, 0.45);
+		expect(contrast(p.flow, p.home)).toBeCloseTo(onHome, 1);
+		expect(contrast(p.flow, tile)).toBeCloseTo(onTile, 1);
+		expect(Math.min(contrast(p.flow, p.home), contrast(p.flow, tile))).toBeGreaterThanOrEqual(3);
+	});
+});
+test('Classic palettes: no band tint (= visited), flow = the existing onewayFg', () => {
+	for (const p of [CL, CD]) {
+		expect(p.visitedBand).toBe(p.visited);
+		expect(p.flow).toBe(p.onewayFg);
+	}
 });

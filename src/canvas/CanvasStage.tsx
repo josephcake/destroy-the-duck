@@ -2,7 +2,7 @@
 import { BOARD, inBoard } from '../model/bounds';
 import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { Board, Dir, Weight } from '../model/board';
+import { Board, Dir, Tile, Weight } from '../model/board';
 import { dirOf, nextDuck, nextPadPair } from '../model/nodes';
 import { Bounds, HOME } from '../model/cell';
 import { TraceState } from '../learn/player';
@@ -11,6 +11,9 @@ import { Palette } from './palette';
 import { render, Scene } from './render';
 import { Insets, View, cellAt, frame, nextStop, visibleBounds, zoomAt } from './view';
 import { clampView } from './view';
+import { CellAnim, Speed } from './cellAnim';
+import { LaneDrag, laneEnd, laneMove, laneStart, turn } from './laneDrag';
+import { CELL } from './view';
 
 export type Tool = 'wall' | 'weight' | 'oneway' | 'pad' | 'duck' | 'erase' | 'pan';
 /** Tools that place one node per click (no drag painting). */
@@ -21,12 +24,18 @@ export type SceneInput = {
 	mirror: LegacyMirror;
 	palette: Palette;
 	trace: TraceState | null;
-	traceTimes: Map<string, number>;
+	/** the traced run's cells for the search motion (cellAnim.ts) */
+	anim: CellAnim;
+	/** the playback speed: picks the motion timings */
+	speed: Speed;
 	learnCurrent: boolean;
 	reducedMotion: boolean;
 	bestPath: { r: number; c: number }[] | null; // classic run: overlay only, never written to the table
 	classicWindow?: Bounds | null;
 	ghost?: { kind: 'start' | 'end'; r: number; c: number } | null;
+	bands?: boolean;
+	/** the head of a lane drag, for the lead arrow (one-way spec §1.3) */
+	drag?: { r: number; c: number; dir: Dir } | null;
 };
 
 export type StageApi = {
@@ -57,6 +66,8 @@ type Props = {
 	homeMinZoom?: number;
 	/** What Fit frames: everything placed. */
 	fitBounds?: () => Bounds;
+	/** A lane drag ended: its direction becomes the tap direction (one-way spec §1.2). */
+	onLaneDir?: (d: Dir) => void;
 	/** The Arrow or Duck was dropped outside the classic window. */
 	onEndpointDrop?: (which: 'start' | 'end', cell: { r: number; c: number }) => void;
 };
@@ -66,6 +77,7 @@ type Gesture =
 	| { mode: 'pan'; x: number; y: number }
 	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: 'start' | 'end' | null; ghost?: { r: number; c: number } | null; undo?: () => void }
 	| { mode: 'paint'; last: { r: number; c: number }; undo?: () => void }
+	| { mode: 'lane'; drag: LaneDrag; touched: Map<string, Tile | undefined>; shift: boolean }
 	| { mode: 'pinch'; dist: number; mx: number; my: number };
 
 function* line(a: { r: number; c: number }, b: { r: number; c: number }) {
@@ -202,6 +214,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				height: size.current.h,
 				dpr: size.current.dpr,
 				hover: live.current.editable ? hover.current : null,
+				tool: live.current.tool,
+				tapDir: live.current.dir ?? 1,
 				now,
 				activeAt: activeAt.current,
 			};
@@ -236,6 +250,17 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	useEffect(() => {
 		const down = (e: KeyboardEvent) => {
+			const g = gesture.current;
+			if (e.key === 'Escape' && g.mode === 'lane') {
+				// cancel the drag: every cell it touched goes back
+				restoreLane(g);
+				gesture.current = { mode: 'none' };
+				return;
+			}
+			if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey && live.current.tool === 'oneway' && live.current.editable && hover.current && !(e.target instanceof HTMLInputElement)) {
+				turnLane(hover.current.r, hover.current.c, e.shiftKey);
+				return;
+			}
 			if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLButtonElement)) {
 				space.current = true;
 				e.preventDefault();
@@ -271,6 +296,39 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const k = mirror.at(r, c);
 		return k !== K.Start && k !== K.End && k !== K.Wall;
 	};
+	// ---- one-way lanes (one-way spec §1)
+	const world = (p: { x: number; y: number }) => {
+		const sz = CELL * view.current.zoom;
+		return { x: (p.x - view.current.panX) / sz, y: (p.y - view.current.panY) / sz };
+	};
+	const restoreLane = (g: Extract<Gesture, { mode: 'lane' }>) => {
+		const { board } = live.current.scene.current;
+		for (const [k, prev] of g.touched) {
+			const [r, c] = k.split(',').map(Number);
+			board.set(r, c, prev);
+		}
+		g.touched.clear();
+		live.current.scene.current.drag = null;
+		dirty.current = true;
+	};
+	/** Tap on a lane: a quarter turn, clockwise (Shift: counter-clockwise). Returns false when there's no lane. */
+	const turnLane = (r: number, c: number, ccw: boolean) => {
+		const { board } = live.current.scene.current;
+		const t = board.get(r, c);
+		if (t?.kind !== 'oneway') return false;
+		board.set(r, c, { kind: 'oneway', dir: turn(t.dir, ccw) });
+		dirty.current = true;
+		return true;
+	};
+	const layLane = (g: Extract<Gesture, { mode: 'lane' }>) => (r: number, c: number, d: Dir) => {
+		if (!placeable(r, c)) return; // walls, the Arrow and the Duck are skipped
+		const { board } = live.current.scene.current;
+		const k = `${r},${c}`;
+		if (!g.touched.has(k)) g.touched.set(k, board.get(r, c));
+		board.set(r, c, { kind: 'oneway', dir: d });
+		dirty.current = true;
+	};
+
 	const paintCell = (r: number, c: number, dir?: Dir) => {
 		const { tool, weight, scene } = live.current;
 		const { board, mirror } = scene.current;
@@ -321,6 +379,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			const g0 = gesture.current;
 			// a second finger within the first cell means "pan/zoom", not "draw": take the first cell back
 			if ((g0.mode === 'legacy' || g0.mode === 'paint') && g0.undo) g0.undo();
+			if (g0.mode === 'lane') restoreLane(g0);
 			if (g0.mode === 'legacy') legacy.up();
 			clearGhost();
 			const [a, b] = [...pointers.current.values()];
@@ -328,6 +387,15 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			return;
 		}
 		const { tool, editable, scene } = live.current;
+		if (e.button === 2 && tool === 'oneway' && editable) {
+			// right-click with One-way: erase the lane (desktop)
+			const cell = cellAt(view.current, p.x, p.y);
+			if (scene.current.board.get(cell.r, cell.c)?.kind === 'oneway') {
+				scene.current.board.set(cell.r, cell.c, undefined);
+				dirty.current = true;
+			}
+			return;
+		}
 		if (e.button === 1 || space.current || tool === 'pan' || e.button === 2) {
 			gesture.current = { mode: 'pan', x: p.x, y: p.y };
 			return;
@@ -362,6 +430,12 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			if (!endpoint && tool === 'wall') legacy.move(id);
 			const undo = !endpoint && tool === 'wall' && k !== K.Wall && e.pointerType !== 'mouse' ? () => legacy.eraseWall(id) : undefined;
 			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint, undo };
+			return;
+		}
+		if (tool === 'oneway') {
+			if (!inBoard(cell.r, cell.c)) return;
+			const w = world(p);
+			gesture.current = { mode: 'lane', drag: laneStart(w.x, w.y), touched: new Map(), shift: e.shiftKey };
 			return;
 		}
 		const prev = scene.current.board.get(cell.r, cell.c);
@@ -407,18 +481,19 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				dirty.current = true;
 				gesture.current = { ...g, last: cell, ghost, undo: undefined };
 			}
+		} else if (g.mode === 'lane') {
+			const w = world(p);
+			laneMove(g.drag, w.x, w.y, layLane(g));
+			const d = g.drag;
+			const head = d.dir !== null ? { ...d.cur, dir: d.dir } : null;
+			const cur = live.current.scene.current.drag;
+			if (head?.r !== cur?.r || head?.c !== cur?.c || head?.dir !== cur?.dir) {
+				live.current.scene.current.drag = head;
+				dirty.current = true;
+			}
 		} else if (g.mode === 'paint') {
 			if ((cell.r !== g.last.r || cell.c !== g.last.c) && !CLICK_TOOLS.has(live.current.tool)) {
-				let prev = g.last;
-				for (const q of line(g.last, cell)) {
-					if (live.current.tool === 'oneway') {
-						// a dragged lane points the way the pointer moved
-						const d = dirOf(prev, q) ?? undefined;
-						paintCell(prev.r, prev.c, d);
-						paintCell(q.r, q.c, d);
-					} else paintCell(q.r, q.c);
-					prev = q;
-				}
+				for (const q of line(g.last, cell)) paintCell(q.r, q.c);
 				gesture.current = { mode: 'paint', last: cell, undo: undefined };
 			}
 		}
@@ -435,6 +510,26 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			clearGhost();
 			live.current.onEndpointDrop?.(g.endpoint, g.ghost);
 		} else if (g.mode === 'legacy' && g.pointerType !== 'mouse') legacy.up();
+		else if (g.mode === 'lane' && e.type !== 'pointercancel') {
+			const d = g.drag;
+			if (!d.axis) {
+				// a tap: turn the lane under it, or place one in the tap direction
+				const { r, c } = d.cur;
+				if (!turnLane(r, c, g.shift || e.shiftKey) && placeable(r, c)) {
+					live.current.scene.current.board.set(r, c, { kind: 'oneway', dir: live.current.dir ?? 1 });
+					dirty.current = true;
+				}
+			} else {
+				const w = world(local(e));
+				laneEnd(d, w.x, w.y, layLane(g));
+				if (d.dir !== null) live.current.onLaneDir?.(d.dir);
+			}
+			live.current.scene.current.drag = null;
+			dirty.current = true;
+		} else if (g.mode === 'lane') {
+			live.current.scene.current.drag = null; // a cancelled pointer keeps what it laid (Esc and a second finger undo)
+			dirty.current = true;
+		}
 		gesture.current = { mode: 'none' };
 	};
 

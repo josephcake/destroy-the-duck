@@ -1,4 +1,5 @@
 // Mochi check 3: pad letters stay readable when a path crosses the pad.
+import { CellAnim } from './cellAnim';
 import { padLetterGeometry, padRing, render, type Scene } from './render';
 import { PALETTES } from './palette';
 import { Board } from '../model/board';
@@ -29,7 +30,7 @@ test('pad letters (A, A′, lone C) draw after the path line, white in the punch
 	board.set(15, 5, { kind: 'pad', pair: 2 });
 	const scene: Scene = {
 		view: { panX: 0, panY: 0, zoom: 2 }, width: 2000, height: 1000, dpr: 1, palette: p, board,
-		mirror: new LegacyMirror(), trace: null, traceTimes: new Map(), learnCurrent: false, hover: null,
+		mirror: new LegacyMirror(), trace: null, anim: new CellAnim(), speed: 'fast' as const, learnCurrent: false, hover: null,
 		bestPath: [{ r: 10, c: 8 }, { r: 10, c: 9 }, { r: 10, c: 10 }, { r: 10, c: 20 }, { r: 10, c: 21 }],
 		now: 1e9, activeAt: 0, reducedMotion: true,
 	};

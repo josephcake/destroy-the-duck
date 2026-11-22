@@ -1,6 +1,9 @@
 // The new board store: everything the legacy 35x80 table does not hold
 // (walls outside Home, weights everywhere). Chunked 32x32, sparse.
 import { Bounds, keyOf } from './cell';
+import { BOARD_COLS, BOARD_ROWS, inBoard } from './bounds';
+
+const LANE_N = BOARD_ROWS * BOARD_COLS;
 
 export const CHUNK = 32;
 export type Weight = 2 | 5 | 10;
@@ -65,6 +68,31 @@ export class Board {
 	private chunks = new Map<number, { cr: number; cc: number; chunk: Chunk }>();
 	private listeners = new Set<() => void>();
 	version = 0;
+	/** One-way lanes on the bounded board (one-way spec §3): -1 none, else the Dir; kept in sync by set(). */
+	readonly laneDir = new Int8Array(LANE_N).fill(-1);
+	/** Lane cell indices (r * BOARD_COLS + c) per direction, with laneCount[d] in use. */
+	readonly laneIdx: Int32Array[] = [0, 1, 2, 3].map(() => new Int32Array(LANE_N));
+	readonly laneCount = new Int32Array(4);
+	private lanePos = new Int32Array(LANE_N).fill(-1);
+
+	private syncLane(r: number, c: number, tile: Tile | undefined) {
+		if (!inBoard(r, c)) return;
+		const i = r * BOARD_COLS + c;
+		const was = this.laneDir[i];
+		const now = tile?.kind === 'oneway' ? tile.dir : -1;
+		if (was === now) return;
+		if (was >= 0) {
+			const list = this.laneIdx[was], p = this.lanePos[i], last = list[--this.laneCount[was]];
+			list[p] = last;
+			this.lanePos[last] = p;
+			this.lanePos[i] = -1;
+		}
+		if (now >= 0) {
+			this.lanePos[i] = this.laneCount[now];
+			this.laneIdx[now][this.laneCount[now]++] = i;
+		}
+		this.laneDir[i] = now;
+	}
 
 	get(r: number, c: number): Tile | undefined {
 		const [cr, lr] = split(r);
@@ -94,6 +122,7 @@ export class Board {
 		if (ch.kind[i] !== KIND_EMPTY && kind === KIND_EMPTY) ch.count--;
 		ch.kind[i] = kind;
 		ch.arg[i] = arg;
+		this.syncLane(r, c, tile);
 		if (ch.count === 0) this.chunks.delete(k);
 		this.bump();
 		return true;
@@ -102,6 +131,9 @@ export class Board {
 	clear(filter?: (t: Tile) => boolean) {
 		if (!filter) {
 			this.chunks.clear();
+			this.laneDir.fill(-1);
+			this.lanePos.fill(-1);
+			this.laneCount.fill(0);
 		} else {
 			for (const [r, c, t] of this.entries()) if (filter(t)) this.set(r, c, undefined);
 		}

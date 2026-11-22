@@ -2,9 +2,10 @@
 // proportional to content, not to viewport area: it walks Home (2,800 cells),
 // board chunks in view and the trace overlay. Expensive bitmaps (wall
 // chunks, weight piles) are baked once and blitted.
-import { BOARD } from '../model/bounds';
-import { Board, Weight } from '../model/board';
-import { parseId } from '../model/cell';
+import { BOARD, BOARD_COLS, inBoard } from '../model/bounds';
+import { Board, Dir, Weight } from '../model/board';
+import { Bounds, parseId } from '../model/cell';
+import { CellAnim, MOTION, Speed, St, Timing } from './cellAnim';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls, paintWalls } from './walls';
@@ -12,7 +13,7 @@ import { padLabel } from '../model/nodes';
 import { Palette, weightColor, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 import {
-	CellRef, DURATION, EASE, Shadow, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
+	CellRef, DURATION, EASE, Shadow, bezier, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
 } from '../vendor/paper-kit/paper-kit';
 
 
@@ -25,7 +26,16 @@ export type Scene = {
 	board: Board;
 	mirror: LegacyMirror;
 	trace: TraceState | null;
-	traceTimes: Map<string, number>; // node -> ms when it became visited
+	/** the traced run's cells (search motion, cellAnim.ts); classic runs use mirror.anim */
+	anim: CellAnim;
+	/** playback speed: picks the motion timings (motion spec §1) */
+	speed: Speed;
+	/** cost bands (motion spec §2), off by default */
+	bands?: boolean;
+	/** the active tool, the tap direction and the lane drag head (one-way spec §1.3) */
+	tool?: string;
+	tapDir?: Dir;
+	drag?: { r: number; c: number; dir: Dir } | null;
 	learnCurrent: boolean; // ring the current trace node (Learn mode)
 	hover: { r: number; c: number } | null;
 	bestPath: { r: number; c: number }[] | null;
@@ -37,11 +47,11 @@ export type Scene = {
 	reducedMotion: boolean;
 };
 
-const ENTER_MS = DURATION.enter; // 480
 const BOB_MS = DURATION.bob; // 2400
 const CHUNK = 16;
 const BAKE_CAP = 1100; // §8: K·s·dpr ≤ 1100, else draw live
 const pathStarts = new Map<string, number>();
+const traceStarts = new WeakMap<TraceState, number>();
 const wallCaches = new WeakMap<object, WallCache>();
 
 type Layer = HTMLCanvasElement | OffscreenCanvas;
@@ -105,80 +115,102 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const m = scene.mirror;
 	drawWalls(ctx, { isWall: (r: number, c: number) => isWallAt(scene, r, c) }, view, vb, p, dpr, cache);
 
-	// visited: one short thin dash per cell, on top of weights
-	const dots = new DashDrawer(ctx, s, p);
-	const enter = (born: number) => {
-		if (!motion || born === 0) return 1;
-		const t = Math.min(1, (scene.now - born) / ENTER_MS);
-		if (t < 1) animating = true;
-		return Math.max(0, EASE.pop(t));
-	};
-	if (m.visitedCount > 0 && !m.free)
-		for (let i = 0; i < m.kind.length; i++)
-			if (m.kind[i] === K.Visited) {
-				const { r, c } = m.cellAt(i);
-				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) dots.add(r, c, view, enter(m.changedAt[i]));
-			}
+	// §4.10 path legs and their timing first: the visited layer recedes while a thread traces (motion spec §3)
 	const tr = scene.trace;
-	if (tr) {
-		for (const id of tr.visited.keys()) {
-			const { r, c } = parseId(id);
-			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
-			dots.add(r, c, view, enter(scene.traceTimes.get(id) ?? 0));
+	const T = MOTION[scene.speed] ?? MOTION.fast;
+	const legsIn: { r: number; c: number }[][] = [];
+	let t0 = Infinity;
+	if (tr && tr.paths.length) {
+		for (const g of tr.paths) legsIn.push(g.nodes.map(parseId));
+		t0 = traceStarts.get(tr) ?? (traceStarts.set(tr, scene.now), scene.now);
+	} else if (scene.bestPath && scene.bestPath.length > 1 && !m.previewOrder.length) {
+		const a = scene.bestPath[0], b = scene.bestPath[scene.bestPath.length - 1];
+		const key = `${a.r},${a.c}>${b.r},${b.c}|${scene.bestPath.length}`;
+		if (!pathStarts.has(key)) {
+			if (pathStarts.size > 32) pathStarts.clear();
+			pathStarts.set(key, scene.now);
+		}
+		t0 = pathStarts.get(key)!;
+		legsIn.push(scene.bestPath);
+	}
+	const legs = motion ? scheduleLegs(legsIn, t0) : [];
+	const traceEnd = legs.length ? Math.max(...legs.map((l) => l.start + l.dur)) + NEEDLE_RETRACT + DURATION.tug : -Infinity;
+	let visA = VISITED_ALPHA;
+	if (legs.length) {
+		const el = scene.now - t0;
+		if (scene.now < traceEnd) visA = VISITED_ALPHA - (VISITED_ALPHA - RECEDE_ALPHA) * EASE.out(Math.min(1, el / 160));
+		else {
+			const u = Math.min(1, (scene.now - traceEnd) / 300);
+			visA = RECEDE_ALPHA + (VISITED_ALPHA - RECEDE_ALPHA) * EASE.out(u);
+			if (u < 1) animating = true;
 		}
 	}
-	dots.flush();
 
-	// frontier: a still vertical amber tick per cell (distinct from the visited dashes, quiet)
-	if (tr) {
-		const cells: { r: number; c: number }[] = [];
-		for (const id of tr.frontier.keys()) {
-			const q = parseId(id);
-			if (q.r >= vb.r0 && q.r <= vb.r1 && q.c >= vb.c0 && q.c <= vb.c1) cells.push(q);
+	// search motion (motion spec §1, §6): settled dashes from a cached layer, then
+	// only the live cells (tick enters, tick turns into the dash), then the still frontier
+	const anims: CellAnim[] = [];
+	if (m.visitedCount > 0 && !m.free) anims.push(m.anim);
+	if (tr) anims.push(scene.anim);
+	const tOf = (a: CellAnim) => scene.now - a.runStart;
+	for (const a of anims) {
+		if (!motion) a.settleAll();
+		else {
+			if (legs.length && a.boostAt === Infinity) a.boostAt = t0 - a.runStart; // in-flight settles finish at 2x
+			a.step(tOf(a), T);
 		}
-		drawFrontier(ctx, cells, view, s, p);
+		drawVisitedLayer(ctx, a, scene, s, visA, !!scene.bands);
 	}
+	for (const a of anims) if (motion && drawLiveCells(ctx, a, scene, vb, s, tOf(a), T)) animating = true;
+	if (tr) drawFrontierHold(ctx, scene.anim, scene, vb, s);
+	const waving = anims.some((a) => a.liveCount > 0) || !!(tr && !tr.done);
 
-	// §4.3 one-way and §4.4 teleporters (z2), over visited dots
+	// §4.3 one-way lanes (one-way spec §2): batched drifting chevrons
+	const lanesRun = scene.tool === 'oneway' || scene.now - scene.activeAt < FLOW_ACTIVE_MS || waving || legs.some((l) => scene.now < l.start + l.dur);
+	if (drawLanes(ctx, scene, vb, s, { motion, running: lanesRun, wave: waving && !!tr && !tr.done, anims, t: tOf, T, key: ctx })) animating = true;
+
+	// §4.4 teleporters (z2), over visited dots
 	const padEnds = new Map<number, number[]>(); // pair -> keys in reading order
 	const padLabels: { x: number; y: number; label: string; color: string; s: number }[] = []; // drawn above paths
 	for (const [r, c, t] of scene.board.entries()) if (t.kind === 'pad') (padEnds.get(t.pair) ?? padEnds.set(t.pair, []).get(t.pair)!).push(r * 1e6 + c);
 	for (const ends of padEnds.values()) ends.sort((a, b) => a - b);
 	for (const [r, c, t] of scene.board.entries(vb)) {
-		if ((t.kind !== 'oneway' && t.kind !== 'pad') || isWallAt(scene, r, c)) continue;
+		if (t.kind !== 'pad' || isWallAt(scene, r, c)) continue;
 		const { x, y } = cellToScreen(view, r, c);
-		if (t.kind === 'oneway') drawOneWay(ctx, x, y, s, t.dir, p, dpr);
-		else {
-			const ends = padEnds.get(t.pair) ?? [];
-			const color = p.pads[t.pair % p.pads.length];
-			drawPad(ctx, x + s / 2, y + s / 2, s, color, ends.length < 2, p, dpr);
-			padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color, s });
-		}
+		const ends = padEnds.get(t.pair) ?? [];
+		const color = p.pads[t.pair % p.pads.length];
+		drawPad(ctx, x + s / 2, y + s / 2, s, color, ends.length < 2, p, dpr);
+		padLabels.push({ x: x + s / 2, y: y + s / 2, label: padLabel(t.pair, ends.indexOf(r * 1e6 + c) === 1), color, s });
 	}
 
-	// §4.10 paths: stitched thread (traced path, and the classic Show Best Path preview)
-	const drawPath = (cells: { r: number; c: number }[], animate: boolean) => {
+	// §4.10 paths: the thread pulls from the Arrow to the Duck (motion spec §3)
+	const arrivals = new Map<string, number>();
+	const drawLeg = (cells: { r: number; c: number }[], leg: Leg | null) => {
 		if (cells.length < 1) return;
-		let k = 1;
-		let tug = 0;
-		let el = Infinity;
-		if (animate && motion && cells.length > 1) {
-			const a = cells[0], b = cells[cells.length - 1];
-			const key = `${a.r},${a.c}>${b.r},${b.c}|${cells.length}`;
-			let t0 = pathStarts.get(key);
-			if (t0 === undefined) {
-				if (pathStarts.size > 32) pathStarts.clear();
-				pathStarts.set(key, (t0 = scene.now));
+		let k = 1, tug = 0, needle = 0;
+		let jumpsT: number[] | null = null;
+		const w = Math.max(1.6, 0.11 * s);
+		let lw = w;
+		if (leg && cells.length > 1) {
+			const at = legAt(leg, scene.now);
+			if (!at.started) {
+				animating = true;
+				return;
 			}
-			const drawMs = Math.min(DURATION.drawMax, DURATION.drawPerUnit * cells.length); // 12 ms/cell, ≤ 1.2 s, linear
-			el = scene.now - t0;
-			k = Math.min(1, el / drawMs);
-			if (k < 1) animating = true;
-			else if (el - drawMs < DURATION.tug) {
-				tug = EASE.out((el - drawMs) / DURATION.tug); // one 240 ms tug, then still
+			k = at.k;
+			jumpsT = at.jumps;
+			lw = w * (0.6 + 0.4 * EASE.out(Math.min(1, k / 0.25)));
+			const b = cells[cells.length - 1];
+			arrivals.set(`${b.r},${b.c}`, leg.start + leg.dur);
+			if (at.after < 0) {
+				needle = 0.5 * s;
+				animating = true;
+			} else if (at.after < NEEDLE_RETRACT) {
+				needle = 0.5 * s * (1 - at.after / NEEDLE_RETRACT);
+				animating = true;
+			} else if (at.after - NEEDLE_RETRACT < DURATION.tug) {
+				tug = EASE.out((at.after - NEEDLE_RETRACT) / DURATION.tug);
 				animating = true;
 			} else tug = 1;
-			el -= drawMs;
 		}
 		const pts: ({ x: number; y: number } | null)[] = [];
 		const jumps: [{ x: number; y: number }, { x: number; y: number }, string][] = [];
@@ -198,24 +230,24 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		});
 		if (cells.length === 1) pts.push({ x: pts[0]!.x + 0.01, y: pts[0]!.y });
 		threadPath(ctx, pts, {
-			color: p.path, halo: p.home, width: Math.max(1.6, 0.11 * s), dash: [Math.max(4, 0.34 * s), Math.max(2.5, 0.17 * s)], progress: k, tug,
+			color: p.path, halo: p.home, width: lw, dash: [Math.max(4, 0.34 * s), Math.max(2.5, 0.17 * s)], progress: k, tug,
 			knot: s >= 20, holes: s >= 20 ? { color: p.hole } : null, shadow: { color: p.contact, dx: 0.4, dy: Math.max(1, 0.045 * s), blur: Math.max(1, 0.06 * s) }, dpr,
 		});
-		if (k >= 1)
-			for (const [a, b, col] of jumps) {
-				// §4.4: fold trail in the pair colour, and a paper plane that flies once (420 ms)
-				const ft = motion && el < DURATION.flight ? EASE.flight(Math.max(0, el) / DURATION.flight) : 1;
-				if (ft < 1) animating = true;
-				drawJump(ctx, a, b, s, col, p, ft, motion);
-			}
+		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.path);
+		jumps.forEach(([a, b, col], j) => {
+			// §4.4: fold trail in the pair colour; the paper plane flies once (420 ms) when the head reaches the pad
+			const ft = jumpsT ? jumpsT[j] : 1;
+			if (ft < 0) return;
+			drawJump(ctx, a, b, s, col, p, ft, motion);
+		});
 	};
-	if (tr) for (const g of tr.paths) drawPath(g.nodes.map(parseId), true);
-	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
+	if (legs.length) for (const leg of legs) drawLeg(leg.cells, leg);
+	else for (const cells of legsIn) drawLeg(cells, null);
 	if (m.previewOrder.length) {
 		const cells = m.previewOrder.map((i) => m.cellAt(i));
 		const a = m.startCell();
 		if (a) cells.unshift(a);
-		drawPath(cells, false); // the classic player already animates it
+		drawLeg(cells, null); // the classic player already animates it
 	}
 
 	// Pair letters sit above paths (a jump starts and ends on a pad)
@@ -239,9 +271,12 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const ang = duckCell ? Math.atan2(duckCell.r - a.r, duckCell.c - a.c) : 0;
 		drawStart(ctx, q.x + s / 2, q.y + s / 2, s, ang, p, dpr);
 	}
-	// §4.5 v2.2: 3 cycles after the last change, then still (an endless bob kept the frame loop busy)
-	const age = scene.now - scene.activeAt;
-	const bob = motion && age < 3 * BOB_MS ? 0.03 * s * Math.sin((2 * Math.PI * age) / BOB_MS) : 0;
+	// §4.5 v2.2: 3 cycles after the last change, then still; a found duck's reaction comes first (motion spec §4)
+	let lastArrive = -Infinity;
+	for (const v of arrivals.values()) if (scene.now >= v) lastArrive = Math.max(lastArrive, v);
+	const bobFrom = Math.max(scene.activeAt, lastArrive + REACTION_MS);
+	const age = scene.now - bobFrom;
+	const bob = motion && age >= 0 && age < 3 * BOB_MS ? 0.03 * s * Math.sin((2 * Math.PI * age) / BOB_MS) : 0;
 	const extra: { n: number; r: number; c: number }[] = [];
 	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'duck' && !isWallAt(scene, r, c)) extra.push({ n: t.n, r, c });
 	const multi = extra.length > 0 || [...scene.board.entries()].some(([, , t]) => t.kind === 'duck');
@@ -252,10 +287,27 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	for (const d of extra) ducks.push({ r: d.r, c: d.c, n: order.indexOf(d.n) + 2, found: reached(order.indexOf(d.n) + 2) });
 	for (const d of ducks) {
 		const q = cellToScreen(view, d.r, d.c);
-		drawDuck(ctx, q.x + s / 2, q.y + s / 2 + bob, s, p, dpr);
-		if (d.n !== null) drawDuckBadge(ctx, q.x + s / 2, q.y + s / 2 + bob, s, d.n, d.found, p, dpr);
+		const cx = q.x + s / 2, cy = q.y + s / 2 + bob;
+		const at = motion ? arrivals.get(`${d.r},${d.c}`) : undefined;
+		const rt = at === undefined ? Infinity : scene.now - at; // ms since her leg arrived
+		if (at !== undefined && rt < REACTION_MS) animating = true;
+		const rx = rt >= 0 ? duckReaction(rt) : duckReaction(0);
+		const fy = cy + 0.3 * s; // transform origin at her feet
+		ctx.save();
+		ctx.translate(cx, fy + rx.ty * s);
+		ctx.rotate((rx.rot * Math.PI) / 180);
+		ctx.scale(rx.sx, rx.sy);
+		ctx.translate(-cx, -fy);
+		drawDuck(ctx, cx, cy, s, p, dpr);
+		ctx.restore();
+		if (d.n !== null) {
+			// the found tick waits for the thread, then pops in (0.6 -> 1, 230-400 ms)
+			const found = d.found && rt >= 230;
+			const tick = rt === Infinity ? 1 : 0.6 + 0.4 * EASE.pop(Math.max(0, Math.min(1, (rt - 230) / 170)));
+			drawDuckBadge(ctx, cx, cy + rx.ty * s, s, d.n, found || (d.found && at === undefined), p, dpr, tick);
+		}
 	}
-	if (motion && age < 3 * BOB_MS && ducks.length) animating = true; // bob still running (off under reduced motion)
+	if (motion && age < 3 * BOB_MS && ducks.length) animating = true; // bob still to run (off under reduced motion)
 
 	// an Arrow or Duck dragged past the classic window: a faint sticker under the pointer until the drop
 	if (scene.ghost) {
@@ -268,6 +320,17 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.restore();
 	}
 
+	// one-way spec §1.3: the hover ghost (what a click does) and the lead arrow one cell ahead of a drag
+	if (scene.tool === 'oneway') {
+		if (scene.drag) {
+			const [dx, dy] = [[0, -1], [1, 0], [0, 1], [-1, 0]][scene.drag.dir];
+			drawLaneGhost(ctx, view, p, s, scene.drag.r + dy, scene.drag.c + dx, scene.drag.dir, 1.6, 0.7);
+		} else if (scene.hover) {
+			const cur = scene.board.get(scene.hover.r, scene.hover.c);
+			const d = cur?.kind === 'oneway' ? (cur.dir + 1) % 4 : (scene.tapDir ?? 1);
+			drawLaneGhost(ctx, view, p, s, scene.hover.r, scene.hover.c, d, 1, 0.5);
+		}
+	}
 	// §4.9 hover: a rounded pencil guide
 	if (scene.hover) {
 		const { x, y } = cellToScreen(view, scene.hover.r, scene.hover.c);
@@ -354,126 +417,407 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 	}
 }
 
-// ------------------------------------------------------------------ visited
-/** One short, thin, low-contrast dash per visited cell, all in one path (one stroke a frame). */
-class DashDrawer {
-	private path = new Path2D();
-	private any = false;
-	constructor(private ctx: CanvasRenderingContext2D, private s: number, private p: Palette) {}
-	/** k: 0 -> 1 as the cell enters (the dash grows from its centre). */
-	add(r: number, c: number, view: View, k: number) {
-		if (k <= 0.01) return;
-		const { x, y } = cellToScreen(view, r, c);
-		const h = 0.2 * this.s * (0.5 + 0.5 * k); // half length: 0.2 -> 0.4 cell as it enters (never a dot)
-		this.path.moveTo(x + this.s / 2 - h, y + this.s / 2);
-		this.path.lineTo(x + this.s / 2 + h, y + this.s / 2);
-		this.any = true;
-	}
-	flush() {
-		if (!this.any) return;
-		const ctx = this.ctx;
-		ctx.save();
-		ctx.strokeStyle = this.p.visited;
-		ctx.globalAlpha = VISITED_ALPHA;
-		ctx.lineWidth = Math.max(1.5, 0.1 * this.s);
-		ctx.lineCap = 'round';
-		ctx.stroke(this.path);
-		ctx.restore();
-	}
-}
-/** The dash is drawn at this alpha over the board (palette.test checks its blended contrast). */
+// ------------------------------------------------------------------ search motion (Prism motion spec §1, §2, §6)
+/** The settled dash is drawn at this alpha over the board (palette.test checks its blended contrast). */
 export const VISITED_ALPHA = 0.8;
+/** While a path traces, settled dashes recede to this alpha so the thread is the subject (§3). */
+export const RECEDE_ALPHA = 0.6;
+const EASE_SETTLE = bezier(0.4, 0, 0.2, 1);
+const ENTER_BUCKETS = 4;
+const SETTLE_BUCKETS = 8;
+/** Cost bands: fixed 8-unit iso-cost contours (§2). */
+export const bandOf = (g: number) => (Number.isFinite(g) && Math.floor(g / 8) % 2 === 1 ? 1 : 0);
+const lineW = (s: number) => Math.max(1.5, 0.1 * s);
+/** The settle ramp: SETTLE_BUCKETS steps from frontEdge to visited (§2 table). */
+export function settleRamp(p: Palette): string[] {
+	const x = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+	const mixHex = (a: string, b: string, k: number) => '#' + [0, 1, 2].map((i) => Math.round(x(a, i) + (x(b, i) - x(a, i)) * k).toString(16).padStart(2, '0')).join('');
+	return Array.from({ length: SETTLE_BUCKETS }, (_, b) => mixHex(p.frontEdge, p.visited, (b + 0.5) / SETTLE_BUCKETS));
+}
+const rampCache = new WeakMap<Palette, string[]>();
 
-// ------------------------------------------------------------------ frontier
-/** Frontier: one short vertical tick per cell in the deep amber (visited is a horizontal teal dash). */
-function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: number }[], view: View, s: number, p: Palette) {
-	if (!cells.length) return;
+/** Settled dashes as two appendable paths in cell units (band 0, band 1); one per CellAnim. */
+const settledCache = new WeakMap<CellAnim, { epoch: number; n: number; p: [Path2D, Path2D] }>();
+function settledPaths(anim: CellAnim, board: Board) {
+	let c = settledCache.get(anim);
+	if (!c || c.epoch !== anim.epoch) settledCache.set(anim, (c = { epoch: anim.epoch, n: 0, p: [new Path2D(), new Path2D()] }));
+	for (; c.n < anim.settledCount; c.n++) {
+		const i = anim.settled[c.n];
+		if (board.laneDir[i] >= 0) continue; // a lane shows "explored" with its tile tint (one-way spec §4)
+		const r = (i / anim.cols) | 0, col = i - r * anim.cols;
+		const path = c.p[bandOf(anim.g[i])];
+		path.moveTo(col + 0.3, r + 0.5);
+		path.lineTo(col + 0.7, r + 0.5);
+	}
+	return c.p;
+}
+
+/**
+ * Phase D: every settled dash, two strokes, no per-frame walk. The dashes are
+ * appended to a cached path in cell units as cells settle and stroked through
+ * the view transform. This stands in for the spec's per-chunk bitmaps: the
+ * board is bounded at 35 x 80 (2,800 cells), and the measured stroke cost is
+ * well under the 4 ms budget (PLAN.md §12).
+ */
+function drawVisitedLayer(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, s: number, alpha: number, bands: boolean) {
+	if (!anim.settledCount) return;
+	const { view, dpr, palette: p } = scene;
+	const [b0, b1] = settledPaths(anim, scene.board);
+	ctx.save();
+	ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * view.panX, dpr * view.panY);
+	ctx.lineCap = 'round';
+	ctx.lineWidth = lineW(s) / s;
+	ctx.globalAlpha = alpha;
+	ctx.strokeStyle = p.visited;
+	ctx.stroke(b0);
+	ctx.strokeStyle = bands ? p.visitedBand : p.visited;
+	ctx.stroke(b1);
+	ctx.restore();
+}
+
+/**
+ * Phases A and C: walk only the live cells, into at most 4 enter buckets (+4
+ * glow) and 8 settle buckets, so at most 16 strokes. Lane cells are skipped
+ * (the lane renderer draws them). Returns true while any cell is live.
+ */
+export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, vb: Bounds, s: number, t: number, T: Timing) {
+	if (!anim.liveCount) return false;
+	const { view, palette: p, board } = scene;
+	const enter: (Path2D | null)[] = Array(ENTER_BUCKETS).fill(null);
+	const glow: (Path2D | null)[] = Array(ENTER_BUCKETS).fill(null);
+	const settle: (Path2D | null)[] = Array(SETTLE_BUCKETS).fill(null);
+	const L = 0.4 * s;
+	for (let k = 0; k < anim.liveCount; k++) {
+		const i = anim.live[k];
+		const r = (i / anim.cols) | 0, c = i - r * anim.cols;
+		if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1 || board.laneDir[i] >= 0) continue;
+		const cx = view.panX + (c + 0.5) * s, cy = view.panY + (r + 0.5) * s;
+		const u = Math.max(0, Math.min(0.999, anim.progress(i, t, T)));
+		if (anim.state[i] === St.Enter) {
+			const b = Math.min(ENTER_BUCKETS - 1, Math.floor(EASE.out(u) * ENTER_BUCKETS));
+			const h = (L / 2) * (0.5 + 0.5 * ((b + 1) / ENTER_BUCKETS));
+			const m = (enter[b] ??= new Path2D());
+			m.moveTo(cx, cy - h);
+			m.lineTo(cx, cy + h);
+			const g = (glow[b] ??= new Path2D());
+			g.moveTo(cx, cy - h);
+			g.lineTo(cx, cy + h);
+		} else {
+			const b = Math.min(SETTLE_BUCKETS - 1, Math.floor(EASE_SETTLE(u) * SETTLE_BUCKETS));
+			const th = (1 - (b + 0.5) / SETTLE_BUCKETS) * (Math.PI / 2); // vertical tick -> horizontal dash
+			const dx = (L / 2) * Math.cos(th), dy = (L / 2) * Math.sin(th);
+			const m = (settle[b] ??= new Path2D());
+			m.moveTo(cx - dx, cy - dy);
+			m.lineTo(cx + dx, cy + dy);
+		}
+	}
+	let ramp = rampCache.get(p);
+	if (!ramp) rampCache.set(p, (ramp = settleRamp(p)));
+	ctx.save();
+	ctx.lineCap = 'round';
+	const w = lineW(s);
+	for (let b = 0; b < ENTER_BUCKETS; b++) {
+		const k = (b + 1) / ENTER_BUCKETS;
+		if (glow[b]) {
+			ctx.lineWidth = 2.4 * w;
+			ctx.globalAlpha = 0.25 * (1 - k);
+			ctx.strokeStyle = p.front;
+			ctx.stroke(glow[b]!);
+		}
+		if (enter[b]) {
+			ctx.lineWidth = w;
+			ctx.globalAlpha = 0.25 + 0.75 * k;
+			ctx.strokeStyle = p.frontEdge;
+			ctx.stroke(enter[b]!);
+		}
+	}
+	ctx.lineWidth = w;
+	for (let b = 0; b < SETTLE_BUCKETS; b++) {
+		if (!settle[b]) continue;
+		const k = (b + 0.5) / SETTLE_BUCKETS;
+		ctx.globalAlpha = 1 - (1 - VISITED_ALPHA) * k;
+		ctx.strokeStyle = ramp[b];
+		ctx.stroke(settle[b]!);
+	}
+	ctx.restore();
+	return true;
+}
+
+/** Phase B: the still frontier ticks, one path, one stroke (lane cells: amber chevrons instead). */
+function drawFrontierHold(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, vb: Bounds, s: number) {
+	if (!anim.frontierCount) return;
+	const { view, palette: p, board } = scene;
 	const h = 0.2 * s;
+	const tick = new Path2D();
+	let any = false;
+	for (let k = 0; k < anim.frontierCount; k++) {
+		const i = anim.frontier[k];
+		if (anim.state[i] !== St.Hold || board.laneDir[i] >= 0) continue;
+		const r = (i / anim.cols) | 0, c = i - r * anim.cols;
+		if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
+		const cx = view.panX + (c + 0.5) * s, cy = view.panY + (r + 0.5) * s;
+		tick.moveTo(cx, cy - h);
+		tick.lineTo(cx, cy + h);
+		any = true;
+	}
+	if (!any) return;
 	ctx.save();
 	ctx.strokeStyle = p.frontEdge;
-	ctx.lineWidth = Math.max(1.5, 0.1 * s);
+	ctx.lineWidth = lineW(s);
 	ctx.lineCap = 'round';
-	ctx.beginPath();
-	for (const { r, c } of cells) {
-		const { x, y } = cellToScreen(view, r, c);
-		ctx.moveTo(x + s / 2, y + s / 2 - h);
-		ctx.lineTo(x + s / 2, y + s / 2 + h);
+	ctx.stroke(tick);
+	ctx.restore();
+}
+
+// ------------------------------------------------------------------ path trace (motion spec §3)
+/** Trace duration for a leg of L cells. */
+export const traceMs = (L: number) => Math.min(1400, 360 + 10 * L);
+export const LEG_GAP = 120;
+export const NEEDLE_RETRACT = 120;
+const FLIGHT = DURATION.flight; // 420
+const flightInv = (f: number) => {
+	let lo = 0, hi = 1;
+	for (let k = 0; k < 24; k++) {
+		const mid = (lo + hi) / 2;
+		if (EASE.flight(mid) < f) lo = mid;
+		else hi = mid;
 	}
-	ctx.stroke();
+	return (lo + hi) / 2;
+};
+export type Leg = { cells: { r: number; c: number }[]; start: number; T: number; jumpsA: number[]; dur: number };
+/** Legs one after another with a 120 ms gap; beyond 3 legs the rest trace alongside the third. */
+export function scheduleLegs(legs: { r: number; c: number }[][], t0: number): Leg[] {
+	let cursor = t0, third = t0;
+	return legs.map((cells, i) => {
+		const T = traceMs(cells.length);
+		let steps = 0;
+		const fr: number[] = [];
+		for (let k = 1; k < cells.length; k++) {
+			if (Math.abs(cells[k].r - cells[k - 1].r) + Math.abs(cells[k].c - cells[k - 1].c) > 1) fr.push(steps);
+			else steps++;
+		}
+		const jumpsA = fr.map((n) => T * flightInv(steps ? n / steps : 1));
+		const dur = T + FLIGHT * jumpsA.length;
+		let start: number;
+		if (i <= 2) {
+			start = cursor;
+			if (i === 2) third = start;
+			cursor = start + dur + LEG_GAP;
+		} else start = third;
+		return { cells, start, T, jumpsA, dur };
+	});
+}
+/** Where a leg is at `now`: k (eased distance 0..1), ms since k reached 1, and each jump's flight (-1 not yet). */
+export function legAt(leg: Leg, now: number) {
+	const el = now - leg.start;
+	let acc = 0, a = el;
+	const jumps = leg.jumpsA.map(() => -1);
+	for (let j = 0; j < leg.jumpsA.length; j++) {
+		const aj = leg.jumpsA[j];
+		if (el - acc < aj) break;
+		if (el - acc < aj + FLIGHT) {
+			jumps[j] = (el - acc - aj) / FLIGHT; // the trace pauses for the plane
+			a = aj;
+			acc = NaN;
+			break;
+		}
+		jumps[j] = 1;
+		acc += FLIGHT;
+	}
+	if (!Number.isNaN(acc)) a = el - acc;
+	const k = el < 0 ? 0 : EASE.flight(Math.max(0, Math.min(1, a / leg.T)));
+	return { k, after: Number.isNaN(acc) ? -1 : a - leg.T, jumps, started: el >= 0 };
+}
+
+// ------------------------------------------------------------------ duck reaction (motion spec §4)
+const KEYS: [number, number, number, number, number, ((t: number) => number) | null][] = [
+	[0, 0, 1, 1, 0, null],
+	[90, 0, 1.08, 0.88, 0, bezier(0.3, 0, 0.7, 1)],
+	[230, -0.28, 0.95, 1.06, -8, EASE.out],
+	[370, 0, 1.06, 0.92, 0, bezier(0.5, 0, 0.75, 0)],
+	[520, 0, 1, 1, 0, EASE.out],
+];
+export const REACTION_MS = 520;
+/** The duck's squash, hop and land at t ms after her leg's trace arrives: ty in duck units, scales, degrees. */
+export function duckReaction(t: number) {
+	if (t <= 0 || t >= REACTION_MS) return { ty: 0, sx: 1, sy: 1, rot: 0 };
+	let k = 1;
+	while (KEYS[k][0] < t) k++;
+	const [t0, y0, sx0, sy0, r0] = KEYS[k - 1];
+	const [t1, y1, sx1, sy1, r1, ease] = KEYS[k];
+	const u = ease!((t - t0) / (t1 - t0));
+	const L = (a: number, b: number) => a + (b - a) * u;
+	return { ty: L(y0, y1), sx: L(sx0, sx1), sy: L(sy0, sy1), rot: L(r0, r1) };
+}
+
+// ------------------------------------------------------------------ one-way lanes (Prism one-way spec §2-§4)
+/** Drift speed in cells per second; chevrons are 0.5 cell apart. */
+export const FLOW_CPS = 1.5;
+const FLOW_STOP_MS = 400;
+const FLOW_ACTIVE_MS = 3 * DURATION.bob; // the bob's window after the last change
+const DIRV = [
+	[0, -1],
+	[1, 0],
+	[0, 1],
+	[-1, 0],
+] as const; // N E S W as (dx, dy)
+/** The flow clock: advances while lanes should move, eases to a stop over 400 ms otherwise. */
+type Flow = { t: number; last: number; stopAt: number; v: number };
+const flows = new WeakMap<object, Flow>();
+/** Phase of the shared drift, 0..1 per half cell (spec §3). */
+export const flowPhase = (flowMs: number) => (((flowMs * FLOW_CPS) / 1000 / 0.5) % 1 + 1) % 1;
+
+/** "›" pointing along (dx, dy), apex at (x, y): an open stroke of three points. */
+function chev(path: Path2D, x: number, y: number, dx: number, dy: number, h: number, depth: number) {
+	path.moveTo(x - dx * depth - dy * h, y - dy * depth + dx * h);
+	path.lineTo(x, y);
+	path.lineTo(x - dx * depth + dy * h, y - dy * depth - dx * h);
+}
+
+type LaneOpts = { motion: boolean; running: boolean; wave: boolean; anims: CellAnim[]; t: (a: CellAnim) => number; T: Timing; key: object };
+/**
+ * Every lane in view, batched: tiles in a few fills, chevrons in at most 8
+ * strokes (4 directions x 2 alpha buckets), no save/restore, clip, shadow or
+ * rotate per cell. Returns true while the drift is moving.
+ */
+function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: number, o: LaneOpts) {
+	const { board, view, palette: p } = scene;
+	let any = false;
+	for (let d = 0; d < 4 && !any; d++)
+		for (let k = 0; k < board.laneCount[d]; k++) {
+			const i = board.laneIdx[d][k], r = (i / BOARD_COLS) | 0, c = i - r * BOARD_COLS;
+			if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) {
+				any = true;
+				break;
+			}
+		}
+	if (!any) return false; // no lanes in view: zero cost
+	// flow clock
+	let f = flows.get(o.key);
+	if (!f) flows.set(o.key, (f = { t: 0, last: scene.now, stopAt: -Infinity, v: 0 }));
+	const dt = Math.max(0, Math.min(100, scene.now - f.last));
+	f.last = scene.now;
+	if (!o.motion) f.v = 0;
+	else if (o.running) {
+		f.v = 1;
+		f.stopAt = Infinity;
+	} else {
+		if (f.stopAt === Infinity) f.stopAt = scene.now;
+		f.v = f.stopAt === -Infinity ? 0 : 1 - EASE.out(Math.min(1, (scene.now - f.stopAt) / FLOW_STOP_MS));
+	}
+	f.t += dt * f.v;
+	const phase = flowPhase(f.t);
+	// what the search did to each lane cell: 0 untouched, 1 frontier, 2 settling (u), 3 settled
+	const stateAt = (i: number): [number, number] => {
+		for (const a of o.anims) {
+			const st = a.state[i];
+			if (st === St.Enter || st === St.Hold) return [1, 0];
+			if (st === St.Settle) return [2, Math.max(0, Math.min(1, a.progress(i, o.t(a), o.T)))];
+			if (st === St.Done) return [3, 1];
+		}
+		return [0, 0];
+	};
+	const small = s < 10;
+	const tile = new Path2D(), tint: Path2D[] = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+	const ch: Path2D[][] = [0, 1, 2, 3].map(() => [new Path2D(), new Path2D()]); // [dir][0 full, 1 faded]
+	const amber = new Path2D(); // frontier lane cells
+	let hasTint = 0, hasAmber = false;
+	const inset = 0.08 * s, rad = 0.14 * s;
+	const h = 0.16 * s;
+	for (let d = 0; d < 4; d++) {
+		const [dx, dy] = DIRV[d];
+		for (let k = 0; k < board.laneCount[d]; k++) {
+			const i = board.laneIdx[d][k], r = (i / BOARD_COLS) | 0, c = i - r * BOARD_COLS;
+			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1 || isWallAt(scene, r, c)) continue;
+			const x = view.panX + c * s, y = view.panY + r * s;
+			const [st, u] = stateAt(i);
+			if (!small) {
+				if (st === 3 || (st === 2 && !o.motion)) {
+					tint[3].roundRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset, rad);
+					hasTint |= 8;
+				} else if (st === 2) {
+					const b = Math.min(3, Math.floor(u * 4));
+					tint[b].roundRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset, rad);
+					hasTint |= 1 << b;
+				} else tile.roundRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset, rad);
+			}
+			const cx = x + s / 2, cy = y + s / 2;
+			const target = st === 1 ? amber : null;
+			if (small || !o.motion) {
+				// one static chevron, centred (1.2x below 10 px, 1.3x under reduced motion)
+				const z = small ? 1.2 : 1.3;
+				chev(target ?? ch[d][0], cx + dx * 0.5 * h * z, cy + dy * 0.5 * h * z, dx, dy, h * z, h * z);
+				if (target) hasAmber = true;
+				continue;
+			}
+			// lane ends: the next cell along isn't this lane's direction (end), or the previous one isn't (start)
+			const nr = r + dy, nc = c + dx, pr = r - dy, pc = c - dx;
+			const endF = !inBoard(nr, nc) || board.laneDir[nr * BOARD_COLS + nc] !== d;
+			const startF = !inBoard(pr, pc) || board.laneDir[pr * BOARD_COLS + pc] !== d;
+			for (let q = 0; q < 2; q++) {
+				const pos = (0.5 * phase + 0.5 * q) % 1; // 0 at the entry edge, 1 at the exit edge
+				const faded = (endF && pos > 0.88) || (startF && pos < 0.12);
+				const off = (pos - 0.5) * s;
+				chev(target ?? ch[d][faded ? 1 : 0], cx + dx * off, cy + dy * off, dx, dy, h, h * 0.8);
+				if (target) hasAmber = true;
+			}
+		}
+	}
+	const waveA = o.wave ? 0.7 : 1;
+	ctx.save();
+	if (!small) {
+		ctx.globalAlpha = 0.45;
+		ctx.fillStyle = p.oneway;
+		ctx.fill(tile);
+		for (let b = 0; b < 4; b++) {
+			if (!(hasTint & (1 << b))) continue;
+			const u = b === 3 ? 1 : (b + 0.5) / 4;
+			if (u < 1) {
+				ctx.globalAlpha = 0.45 * (1 - u);
+				ctx.fillStyle = p.oneway;
+				ctx.fill(tint[b]);
+			}
+			ctx.globalAlpha = 0.18 * u;
+			ctx.fillStyle = p.visited;
+			ctx.fill(tint[b]);
+		}
+	}
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	ctx.lineWidth = Math.max(1.25, 0.07 * s) * (small || !o.motion ? (small ? 1.2 : 1.3) : 1);
+	ctx.strokeStyle = p.flow;
+	for (let d = 0; d < 4; d++)
+		for (let q = 0; q < 2; q++) {
+			ctx.globalAlpha = (q ? 0.45 : 1) * waveA;
+			ctx.stroke(ch[d][q]);
+		}
+	if (hasAmber) {
+		ctx.globalAlpha = 1;
+		ctx.strokeStyle = p.frontEdge;
+		ctx.stroke(amber);
+	}
+	ctx.restore();
+	return o.motion && f.v > 0;
+}
+
+/** One chevron at (r, c) pointing d: the hover ghost (scale 1, alpha .5) or the lead arrow (1.6x, .7). */
+function drawLaneGhost(ctx: CanvasRenderingContext2D, view: View, p: Palette, s: number, r: number, c: number, d: number, scale: number, alpha: number) {
+	if (!inBoard(r, c)) return;
+	const [dx, dy] = DIRV[d & 3];
+	const h = 0.16 * s * scale, cx = view.panX + (c + 0.5) * s, cy = view.panY + (r + 0.5) * s;
+	const path = new Path2D();
+	chev(path, cx + dx * 0.5 * h, cy + dy * 0.5 * h, dx, dy, h, h);
+	ctx.save();
+	ctx.globalAlpha = alpha;
+	ctx.strokeStyle = p.flow;
+	ctx.lineWidth = Math.max(1.25, 0.07 * s) * scale;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	ctx.stroke(path);
 	ctx.restore();
 }
 
 // ------------------------------------------------------------------ one-way, teleporters, jump
-/** Chevron pointing +x, centred (Prism's paper.js shape); arms ±0.22 s, bar 0.13 s. */
-function chevron(ctx: Ctx2D, s: number) {
-	const a = 0.22 * s, b = 0.13 * s;
-	ctx.beginPath();
-	ctx.moveTo(-a * 0.7, -a);
-	ctx.lineTo(-a * 0.7 + b, -a);
-	ctx.lineTo(a * 0.75, 0);
-	ctx.lineTo(-a * 0.7 + b, a);
-	ctx.lineTo(-a * 0.7, a);
-	ctx.lineTo(a * 0.75 - b, 0);
-	ctx.closePath();
-}
-function drawOneWay(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, dir: number, p: Palette, dpr: number) {
-	const ang = ((dir - 1) * Math.PI) / 2; // model: 0 N, 1 E, 2 S, 3 W; the chevron points E at 0
-	const cx = x + s / 2, cy = y + s / 2;
-	if (s < 10) {
-		// below 10 px: no tile, a solid chevron at 1.2x
-		ctx.save();
-		ctx.translate(cx, cy);
-		ctx.rotate(ang);
-		chevron(ctx, s * 1.2);
-		ctx.fillStyle = p.onewayFg;
-		ctx.fill();
-		ctx.restore();
-		return;
-	}
-	const ins = 0.08 * s;
-	ctx.save();
-	ctx.beginPath();
-	roundRectPath(ctx, x + ins, y + ins, s - 2 * ins, s - 2 * ins, [0.14 * s, 0.14 * s, 0.14 * s, 0.14 * s]);
-	ctx.save();
-	ctx.shadowColor = p.contact;
-	ctx.shadowOffsetY = Math.max(1, 0.03 * s) * dpr;
-	ctx.shadowBlur = Math.min(0.06 * s, 4) * dpr;
-	ctx.fillStyle = p.oneway;
-	ctx.fill();
-	ctx.restore();
-	ctx.save();
-	ctx.clip();
-	ctx.strokeStyle = p.onewayFg;
-	ctx.lineWidth = 2; // 1dp inside the clip
-	ctx.stroke();
-	ctx.restore();
-	// punched chevron: the hole colour with an inner shadow along the up-facing edge
-	ctx.translate(cx, cy);
-	ctx.rotate(ang);
-	chevron(ctx, s);
-	ctx.fillStyle = p.hole;
-	ctx.fill();
-	ctx.clip();
-	ctx.rotate(-ang);
-	ctx.shadowColor = p.holeShadow;
-	ctx.shadowBlur = Math.max(1, 0.05 * s) * dpr;
-	ctx.shadowOffsetY = Math.max(1, 0.04 * s) * dpr;
-	ctx.beginPath();
-	ctx.rect(-s, -s, 2 * s, 2 * s);
-	ctx.rotate(ang);
-	const a = 0.22 * s, b = 0.13 * s;
-	ctx.moveTo(-a * 0.7, -a);
-	ctx.lineTo(a * 0.75 - b, 0);
-	ctx.lineTo(-a * 0.7, a);
-	ctx.lineTo(-a * 0.7 + b, a);
-	ctx.lineTo(a * 0.75, 0);
-	ctx.lineTo(-a * 0.7 + b, -a);
-	ctx.closePath();
-	ctx.fillStyle = p.holeShadow;
-	ctx.fill('evenodd');
-	ctx.restore();
-}
-
 /** §4.4 + gate: ring radius; at least 5 px so pairs still read at 35 % on phones. */
 export const padRing = (s: number) => ({ ri: Math.max(1.5, 0.24 * s), ro: Math.max(5, 0.44 * s) });
 function drawPad(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string, lone: boolean, p: Palette, dpr: number) {
@@ -700,7 +1044,7 @@ export function badgeGeometry(cx: number, cy: number, s: number) {
 	const rad = Math.max(7, 0.17 * u);
 	return { cx: cx + 0.36 * u, cy: cy - 0.38 * u, rad };
 }
-function drawDuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, n: number, found: boolean, p: Palette, dpr: number) {
+function drawDuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, n: number, found: boolean, p: Palette, dpr: number, tick = 1) {
 	if (s < 6) return; // below 30 % the whole board is a thumbnail
 	const { cx, cy, rad } = badgeGeometry(x, y, s);
 	const u = Math.max(1.3 * s, 16);
@@ -708,6 +1052,7 @@ function drawDuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: n
 	sticker(ctx, cx, cy, circ, { fill: found ? p.vis[1] : p.sticker, border: p.sticker, borderWidth: Math.max(1, 0.03 * u), edge: p.stickerEdge, peel: 0.55, rotate: -0.12, contact: { color: p.contact, dx: 0, dy: 1, blur: 2 }, dpr }, (c) => {
 		if (found) {
 			// a drawn tick, not a glyph
+			c.scale(tick, tick);
 			c.beginPath();
 			c.moveTo(-0.45 * rad, 0.02 * rad);
 			c.lineTo(-0.12 * rad, 0.36 * rad);
@@ -728,6 +1073,56 @@ function drawDuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: n
 }
 
 // ------------------------------------------------------------------ helpers
+/** The trace head: a solid needle `len` px long ending where the thread has reached (progress k). */
+function drawNeedle(ctx: CanvasRenderingContext2D, pts: (Pt | null)[], k: number, len: number, width: number, color: string) {
+	const segs: Pt[][] = [];
+	let cur: Pt[] = [];
+	for (const q of pts) {
+		if (!q) {
+			if (cur.length > 1) segs.push(cur);
+			cur = [];
+		} else cur.push(q);
+	}
+	if (cur.length > 1) segs.push(cur);
+	let total = 0;
+	for (const sg of segs) for (let i = 1; i < sg.length; i++) total += Math.hypot(sg[i].x - sg[i - 1].x, sg[i].y - sg[i - 1].y);
+	if (!total) return;
+	// walk to the head, remembering this segment's points so the needle can bend round a corner
+	let budget = total * k;
+	for (const sg of segs) {
+		let segLen = 0;
+		for (let i = 1; i < sg.length; i++) segLen += Math.hypot(sg[i].x - sg[i - 1].x, sg[i].y - sg[i - 1].y);
+		if (budget > segLen + 1e-6) {
+			budget -= segLen;
+			continue;
+		}
+		const at = (d: number): Pt => {
+			d = Math.max(0, d);
+			for (let i = 1; i < sg.length; i++) {
+				const l = Math.hypot(sg[i].x - sg[i - 1].x, sg[i].y - sg[i - 1].y);
+				if (d <= l) return { x: sg[i - 1].x + ((sg[i].x - sg[i - 1].x) * d) / (l || 1), y: sg[i - 1].y + ((sg[i].y - sg[i - 1].y) * d) / (l || 1) };
+				d -= l;
+			}
+			return sg[sg.length - 1];
+		};
+		const path = new Path2D();
+		const n = 6;
+		for (let q = 0; q <= n; q++) {
+			const pt = at(budget - len + (len * q) / n);
+			if (q) path.lineTo(pt.x, pt.y);
+			else path.moveTo(pt.x, pt.y);
+		}
+		ctx.save();
+		ctx.setLineDash([]);
+		ctx.strokeStyle = color;
+		ctx.lineWidth = width;
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		ctx.stroke(path);
+		ctx.restore();
+		return;
+	}
+}
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
 	ctx.beginPath();
 	roundRectPath(ctx, x, y, w, h, [r, r, r, r]);
@@ -799,9 +1194,23 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			ctx.lineTo(Z / 2, Z / 2 + 4);
 			ctx.stroke();
 			return;
-		case 'oneway':
-			drawOneWay(ctx, 0, 0, Z, 1, p, dpr);
+		case 'oneway': {
+			// the lane look (one-way spec §2): flat tile at .45 and two chevrons in `flow`
+			ctx.globalAlpha = 0.45;
+			ctx.fillStyle = p.oneway;
+			roundRect(ctx, 0.08 * Z, 0.08 * Z, 0.84 * Z, 0.84 * Z, 0.14 * Z);
+			ctx.fill();
+			ctx.globalAlpha = 1;
+			const path = new Path2D();
+			chev(path, Z * 0.42, Z / 2, 1, 0, 0.16 * Z, 0.13 * Z);
+			chev(path, Z * 0.72, Z / 2, 1, 0, 0.16 * Z, 0.13 * Z);
+			ctx.strokeStyle = p.flow;
+			ctx.lineWidth = Math.max(1.25, 0.07 * Z);
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
+			ctx.stroke(path);
 			return;
+		}
 		case 'pad':
 			drawPad(ctx, Z / 2, Z / 2, 20, p.pads[0], false, p, dpr);
 			return;
