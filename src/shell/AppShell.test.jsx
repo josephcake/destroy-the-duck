@@ -148,7 +148,7 @@ test('phone: starting a step-through closes the bottom sheet so the floats do no
 	}
 });
 
-test('Prism 6: the collapsed panel is inert, so Tab cannot land inside it', () => {
+test('Prism P5: the collapsed panel is inert, so Tab cannot land inside it', () => {
 	const { container } = render(
 		<TableContextProvider>
 			<AppShell />

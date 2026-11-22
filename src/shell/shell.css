@@ -160,15 +160,19 @@ kbd { font: 500 11px/14px var(--f-mono); border: 1px solid var(--line-ui); borde
 	.app[data-panel='open'] .stage .float { display: none; }
 	.mini { left: 8px; right: 8px; top: 8px; justify-content: space-between; }
 	.mini__algo { display: none; }
-	.pill { top: 64px; right: 8px; }
-	.inspector { left: 8px; right: 8px; width: auto; top: 64px; bottom: auto; max-height: min(34vh, calc(100% - 64px - 128px)); }
+	.pill { top: 68px; right: 8px; }
+	.inspector { left: 8px; right: 8px; width: auto; top: 68px; bottom: auto; max-height: min(34vh, calc(100% - 68px - 140px)); }
 	.narration { min-height: 0; }
-	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 64px; padding: 4px; gap: 0; }
-	.stepbar .icon-btn { width: 32px; }
-	.stepbar input[type='range'] { min-width: 40px; }
+	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 70px; padding: 4px; gap: 0; }
+	.stepbar input[type='range'] { min-width: 40px; height: 44px; }
 	.stepbar__count { min-width: 0; font-size: 12px; }
-	.landing { top: 64px; }
+	.landing { top: 68px; }
 	.zoom { bottom: 8px; right: 8px; }
 	.toast { bottom: 120px; }
 	.legend-pin { display: none; }
+	/* tap targets >= 44px (WCAG 2.5.5 / design §6) */
+	.icon-btn, .mini .go { min-width: 44px; height: 44px; }
+	.seg > button, .tabs > button { min-height: 44px; }
+	.zoom__pct { height: 44px; }
+	.landing .row .go, .landing .row .btn { min-height: 44px; }
 }

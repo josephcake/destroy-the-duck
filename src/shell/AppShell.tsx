@@ -300,7 +300,7 @@ export default function AppShell() {
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
 	const insets = phone
-		? { top: learnFloats ? 72 + Math.round(0.34 * window.innerHeight) : 64, right: 12, bottom: learnFloats ? 124 : 64, left: 12 }
+		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
 		: { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	const legendRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
