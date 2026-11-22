@@ -31,7 +31,7 @@ test('pad letters (A, A′, lone C) draw after the path line, white in the punch
 		view: { panX: 0, panY: 0, zoom: 2 }, width: 2000, height: 1000, dpr: 1, palette: p, board,
 		mirror: new LegacyMirror(), trace: null, traceTimes: new Map(), learnCurrent: false, hover: null,
 		bestPath: [{ r: 10, c: 8 }, { r: 10, c: 9 }, { r: 10, c: 10 }, { r: 10, c: 20 }, { r: 10, c: 21 }],
-		now: 1e9, reducedMotion: true,
+		now: 1e9, activeAt: 0, reducedMotion: true,
 	};
 	const { ctx, calls } = recorder();
 	render(ctx, scene);

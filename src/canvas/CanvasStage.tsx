@@ -1,6 +1,6 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
 import { flushSync } from 'react-dom';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { Board, Dir, Weight } from '../model/board';
 import { dirOf, nextDuck, nextPadPair } from '../model/nodes';
 import { Bounds, HOME, idOf, inHome } from '../model/cell';
@@ -76,7 +76,22 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const view = useRef<View>({ panX: 0, panY: 0, zoom: 1 });
 	const size = useRef({ w: 0, h: 0, dpr: 1 });
-	const dirty = useRef(true);
+	// Setting dirty.current = true wakes the frame loop, which otherwise sleeps
+	// (no rAF scheduled) once nothing animates: an idle board costs no frames.
+	const wake = useRef<() => void>(() => {});
+	const dirty = useMemo(() => {
+		let v = true;
+		return {
+			get current() {
+				return v;
+			},
+			set current(x: boolean) {
+				v = x;
+				if (x) wake.current();
+			},
+		};
+	}, []);
+	const activeAt = useRef(0); // last change: the duck bob runs 3 cycles after it (§4.5 v2.2)
 	const hover = useRef<{ r: number; c: number } | null>(null);
 	const gesture = useRef<Gesture>({ mode: 'none' });
 	const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -158,8 +173,10 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		let raf = 0;
 		let animating = false;
 		const loop = () => {
-			raf = requestAnimationFrame(loop);
-			if (!ctx || (!dirty.current && !animating)) return;
+			raf = 0;
+			if (!ctx || (!dirty.current && !animating)) return; // idle: no next frame until dirty wakes it
+			const now = performance.now();
+			if (dirty.current) activeAt.current = now;
 			dirty.current = false;
 			const s = live.current.scene.current;
 			const scene: Scene = {
@@ -169,12 +186,20 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				height: size.current.h,
 				dpr: size.current.dpr,
 				hover: live.current.editable ? hover.current : null,
-				now: performance.now(),
+				now,
+				activeAt: activeAt.current,
 			};
 			animating = render(ctx, scene);
+			if (animating) raf = requestAnimationFrame(loop);
+		};
+		wake.current = () => {
+			if (!raf) raf = requestAnimationFrame(loop);
 		};
 		raf = requestAnimationFrame(loop);
+		// canvas text (stamps, letters, badges) uses web fonts: repaint once they load
+		document.fonts?.ready.then(() => (dirty.current = true)).catch(() => {});
 		return () => {
+			wake.current = () => {};
 			cancelAnimationFrame(raf);
 			ro?.disconnect();
 		};

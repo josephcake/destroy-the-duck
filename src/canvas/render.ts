@@ -39,6 +39,8 @@ export type Scene = {
 	hover: { r: number; c: number } | null;
 	bestPath: { r: number; c: number }[] | null;
 	now: number;
+	/** ms of the last change (edit, view, search step); the duck bob runs 3 cycles after it */
+	activeAt: number;
 	reducedMotion: boolean;
 };
 
@@ -281,7 +283,9 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const ang = duckCell ? Math.atan2(duckCell.r - a.r, duckCell.c - a.c) : 0;
 		drawStart(ctx, q.x + s / 2, q.y + s / 2, s, ang, p, dpr);
 	}
-	const bob = motion ? 0.03 * s * Math.sin((2 * Math.PI * (scene.now % BOB_MS)) / BOB_MS) : 0;
+	// §4.5 v2.2: 3 cycles after the last change, then still (an endless bob kept the frame loop busy)
+	const age = scene.now - scene.activeAt;
+	const bob = motion && age < 3 * BOB_MS ? 0.03 * s * Math.sin((2 * Math.PI * age) / BOB_MS) : 0;
 	const extra: { n: number; r: number; c: number }[] = [];
 	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'duck' && !isWallAt(scene, r, c)) extra.push({ n: t.n, r, c });
 	const multi = extra.length > 0 || [...scene.board.entries()].some(([, , t]) => t.kind === 'duck');
@@ -295,7 +299,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		drawDuck(ctx, q.x + s / 2, q.y + s / 2 + bob, s, p, dpr);
 		if (d.n !== null) drawDuckBadge(ctx, q.x + s / 2, q.y + s / 2 + bob, s, d.n, d.found, p, dpr);
 	}
-	if (bob && ducks.length) animating = true; // idle bob (off under reduced motion)
+	if (motion && age < 3 * BOB_MS && ducks.length) animating = true; // bob still running (off under reduced motion)
 
 	// §4.9 hover: a rounded pencil guide
 	if (scene.hover) {
