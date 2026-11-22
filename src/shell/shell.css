@@ -32,7 +32,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 /* ---------- panel ---------- */
 .panel { width: var(--panel-w); flex: none; height: 100%; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; transition: margin-left var(--d-3) var(--ease-out); z-index: 20; }
 .panel[data-open='false'] { margin-left: calc(-1 * var(--panel-w)); }
-.panel__scroll { flex: 1; overflow-y: auto; padding: 0 var(--s-3) var(--s-4); }
+.panel__scroll { flex: 1; overflow-y: auto; scrollbar-gutter: stable; overflow-anchor: none; padding: 0 var(--s-3) var(--s-4); }
 .panel__head { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-4) var(--s-3) var(--s-2); }
 .brand { font: 700 20px/24px var(--f-display); letter-spacing: -.01em; flex: 1; display: flex; align-items: center; gap: 10px; }
 .brand img, .landing img { transition: filter .2s; }
