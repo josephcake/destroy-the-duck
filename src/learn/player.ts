@@ -93,13 +93,13 @@ export class TraceState {
 	}
 
 	/** Index just past the end of the next pop step (Sandbox playback unit). */
-	nextStepEnd(): number {
+	nextStepEnd(from = this.applied): number {
 		const ev = this.trace.events;
-		let i = this.applied;
+		let i = from;
 		if (i >= ev.length) return i;
 		const step = ev[i].step;
 		while (i < ev.length && ev[i].step === step && ev[i].action !== 'path' && ev[i].action !== 'done') i++;
-		if (i === this.applied) i++; // path/done events advance one at a time
+		if (i === from) i++; // path/done events advance one at a time
 		return i;
 	}
 

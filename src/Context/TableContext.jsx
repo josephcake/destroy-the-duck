@@ -219,6 +219,11 @@ export class TableContextProvider extends Component {
 			this.resetToast();
 		});
 	};
+	// Cells painted per timer tick. Norm, Slow and Sloth paint one (the goldens
+	// pin Norm). Chained timeouts are clamped to about 4 ms in browsers, so one
+	// cell a tick capped Fast near 10 ms a cell (BFS on 35x80 took ~20 s) and
+	// Light near 4 ms. Batching keeps the visit order and only groups ticks.
+	cellsPerTick = () => (this.state.speedText === LIGHT ? 40 : this.state.speedText === 'fast' ? 4 : 1);
 	setSpeed = (e) => {
 		let name = e.currentTarget.attributes.name.value;
 		// Partial update only: a full {...this.state} copy taken while another
@@ -551,19 +556,21 @@ export class TableContextProvider extends Component {
 			const helper = () => {
 				if (this.state.isPaused) return;
 				let timer = setTimeout(() => {
-					let currentCell = document.getElementById(queue[counter]);
-					let classname = currentCell.className.replace(UNVISITED, VISITED);
-					currentCell.className = classname;
-					counter++;
-					if (counter >= queue.length) {
-						clearTimeout(timer);
-						if (queue.indexOf(ending) === -1) {
-							return this.cannotFindDuck();
+					for (let n = this.cellsPerTick(); n > 0; n--) {
+						let currentCell = document.getElementById(queue[counter]);
+						let classname = currentCell.className.replace(UNVISITED, VISITED);
+						currentCell.className = classname;
+						counter++;
+						if (counter >= queue.length) {
+							clearTimeout(timer);
+							if (queue.indexOf(ending) === -1) {
+								return this.cannotFindDuck();
+							} else {
+								return this.setRunning(false);
+							}
 						} else {
-							return this.setRunning(false);
+							if (n === 1) helper();
 						}
-					} else {
-						helper();
 					}
 				}, this.state.speed);
 			};
@@ -587,35 +594,37 @@ export class TableContextProvider extends Component {
 			const helper = () => {
 				if (this.state.isPaused) return;
 				let timer = setTimeout(() => {
-					let cellOne = document.getElementById(
-						startingQueue[starting_counter],
-					);
-					if (cellOne) {
-						let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
-						cellOne.className = classnameOne;
-					}
-					let cellTwo = document.getElementById(endingQueue[ending_counter]);
-					if (cellTwo) {
-						let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
-						cellTwo.className = classnameTwo;
-					}
-					starting_counter++;
-					ending_counter++;
-					if (
-						ending_counter >= endingQueue.length &&
-						starting_counter >= startingQueue.length
-					) {
-						clearTimeout(timer);
-						if (
-							endingQueue.indexOf(lastQueueToRender) > -1 &&
-							startingQueue.indexOf(lastQueueToRender) > -1
-						) {
-							return this.setRunning(false);
-						} else {
-							return this.cannotFindDuck();
+					for (let n = this.cellsPerTick(); n > 0; n--) {
+						let cellOne = document.getElementById(
+							startingQueue[starting_counter],
+						);
+						if (cellOne) {
+							let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
+							cellOne.className = classnameOne;
 						}
-					} else {
-						helper();
+						let cellTwo = document.getElementById(endingQueue[ending_counter]);
+						if (cellTwo) {
+							let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
+							cellTwo.className = classnameTwo;
+						}
+						starting_counter++;
+						ending_counter++;
+						if (
+							ending_counter >= endingQueue.length &&
+							starting_counter >= startingQueue.length
+						) {
+							clearTimeout(timer);
+							if (
+								endingQueue.indexOf(lastQueueToRender) > -1 &&
+								startingQueue.indexOf(lastQueueToRender) > -1
+							) {
+								return this.setRunning(false);
+							} else {
+								return this.cannotFindDuck();
+							}
+						} else {
+							if (n === 1) helper();
+						}
 					}
 				}, this.state.speed);
 			};
@@ -637,34 +646,36 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let cellOne = document.getElementById(queue.startingQueue[counter]);
-				if (cellOne) {
-					let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
-					cellOne.className = classnameOne;
-				}
-				let cellTwo = document.getElementById(queue.endingQueue[counter]);
-				if (cellTwo) {
-					let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
-					cellTwo.className = classnameTwo;
-				}
-				counter++;
-				if (
-					counter >= queue.endingQueue.length &&
-					counter >= queue.startingQueue.length
-				) {
-					clearTimeout(timer);
-					if (
-						queue.endingQueue.indexOf(queue.lastQueueToRender) > -1 &&
-						queue.startingQueue.indexOf(queue.lastQueueToRender) > -1
-					) {
-						return this.setRunning(false);
-					} else if (queue.lastQueueToRender) {
-						return this.setRunning(false);
-					} else {
-						return this.cannotFindDuck();
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let cellOne = document.getElementById(queue.startingQueue[counter]);
+					if (cellOne) {
+						let classnameOne = cellOne.className.replace(UNVISITED, VISITED);
+						cellOne.className = classnameOne;
 					}
-				} else {
-					helper();
+					let cellTwo = document.getElementById(queue.endingQueue[counter]);
+					if (cellTwo) {
+						let classnameTwo = cellTwo.className.replace(UNVISITED, VISITED);
+						cellTwo.className = classnameTwo;
+					}
+					counter++;
+					if (
+						counter >= queue.endingQueue.length &&
+						counter >= queue.startingQueue.length
+					) {
+						clearTimeout(timer);
+						if (
+							queue.endingQueue.indexOf(queue.lastQueueToRender) > -1 &&
+							queue.startingQueue.indexOf(queue.lastQueueToRender) > -1
+						) {
+							return this.setRunning(false);
+						} else if (queue.lastQueueToRender) {
+							return this.setRunning(false);
+						} else {
+							return this.cannotFindDuck();
+						}
+					} else {
+						if (n === 1) helper();
+					}
 				}
 			}, this.state.speed);
 		};
@@ -680,19 +691,21 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace(UNVISITED, VISITED);
-				currentCell.className = classname;
-				counter++;
-				if (counter >= queue.length) {
-					clearTimeout(timer);
-					if (queue.indexOf(ending) === -1) {
-						return this.cannotFindDuck();
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let currentCell = document.getElementById(queue[counter]);
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(ending) === -1) {
+							return this.cannotFindDuck();
+						} else {
+							return this.setRunning(false);
+						}
 					} else {
-						return this.setRunning(false);
+						if (n === 1) helper();
 					}
-				} else {
-					helper();
 				}
 			}, this.state.speed);
 		};
@@ -708,33 +721,35 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let validCells = checkValidCells(queue[counter]);
-				const { currentCell, upNext, downNext, leftNext, rightNext } =
-					validCells;
-				let classname = currentCell.className.replace(UNVISITED, VISITED);
-				currentCell.className = classname;
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let validCells = checkValidCells(queue[counter]);
+					const { currentCell, upNext, downNext, leftNext, rightNext } =
+						validCells;
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
 
-				if (
-					queue[counter] === ending ||
-					upNext === ending ||
-					downNext === ending ||
-					leftNext === ending ||
-					rightNext === ending
-				) {
-					clearTimeout(timer);
-					this.setRunning(false);
-					return;
-				}
-				counter++;
-				if (counter >= queue.length) {
-					clearTimeout(timer);
-					if (queue.indexOf(ending) === -1) {
-						return this.cannotFindDuck();
-					} else {
-						return this.setRunning(false);
+					if (
+						queue[counter] === ending ||
+						upNext === ending ||
+						downNext === ending ||
+						leftNext === ending ||
+						rightNext === ending
+					) {
+						clearTimeout(timer);
+						this.setRunning(false);
+						return;
 					}
-				} else {
-					helper();
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(ending) === -1) {
+							return this.cannotFindDuck();
+						} else {
+							return this.setRunning(false);
+						}
+					} else {
+						if (n === 1) helper();
+					}
 				}
 			}, this.state.speed);
 		};
@@ -750,19 +765,21 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace(UNVISITED, VISITED);
-				currentCell.className = classname;
-				counter++;
-				if (counter >= queue.length) {
-					clearTimeout(timer);
-					if (queue.indexOf(starting) === -1) {
-						return this.cannotFindDuck();
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let currentCell = document.getElementById(queue[counter]);
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(starting) === -1) {
+							return this.cannotFindDuck();
+						} else {
+							return this.setRunning(false);
+						}
 					} else {
-						return this.setRunning(false);
+						if (n === 1) helper();
 					}
-				} else {
-					helper();
 				}
 			}, this.state.speed);
 		};
@@ -778,19 +795,21 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace(UNVISITED, VISITED);
-				currentCell.className = classname;
-				counter++;
-				if (counter >= queue.length) {
-					clearTimeout(timer);
-					if (queue.indexOf(ending) === -1) {
-						return this.cannotFindDuck();
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let currentCell = document.getElementById(queue[counter]);
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(ending) === -1) {
+							return this.cannotFindDuck();
+						} else {
+							return this.setRunning(false);
+						}
 					} else {
-						return this.setRunning(false);
+						if (n === 1) helper();
 					}
-				} else {
-					helper();
 				}
 			}, this.state.speed);
 		};
@@ -807,19 +826,21 @@ export class TableContextProvider extends Component {
 		const helper = () => {
 			if (this.state.isPaused) return;
 			let timer = setTimeout(() => {
-				let currentCell = document.getElementById(queue[counter]);
-				let classname = currentCell.className.replace(UNVISITED, VISITED);
-				currentCell.className = classname;
-				counter++;
-				if (counter >= queue.length) {
-					clearTimeout(timer);
-					if (queue.indexOf(ending) === -1) {
-						return this.breadthFirstSearch();
+				for (let n = this.cellsPerTick(); n > 0; n--) {
+					let currentCell = document.getElementById(queue[counter]);
+					let classname = currentCell.className.replace(UNVISITED, VISITED);
+					currentCell.className = classname;
+					counter++;
+					if (counter >= queue.length) {
+						clearTimeout(timer);
+						if (queue.indexOf(ending) === -1) {
+							return this.breadthFirstSearch();
+						} else {
+							return this.setRunning(false);
+						}
 					} else {
-						return this.setRunning(false);
+						if (n === 1) helper();
 					}
-				} else {
-					helper();
 				}
 			}, this.state.speed);
 		};

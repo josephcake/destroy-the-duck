@@ -50,8 +50,8 @@ export const SPEEDS: { name: SpeedName; label: string; title?: string }[] = [
 	{ name: 'sloth', label: 'Sloth' },
 	{ name: 'slow', label: 'Slow' },
 	{ name: 'norm', label: 'Norm' },
-	{ name: 'fast', label: 'Fast' },
-	{ name: 'light', label: 'Light', title: 'light speed' },
+	{ name: 'fast', label: 'Fast', title: '4 cells every 10 ms' },
+	{ name: 'light', label: 'Light', title: 'light speed: 40 cells a tick' },
 ];
 
 export const MAZES = [

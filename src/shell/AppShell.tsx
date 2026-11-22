@@ -103,9 +103,14 @@ export default function AppShell() {
 	const [bestPath, setBestPath] = useState<string[] | null>(null);
 	scene.current.bestPath = bestPath ? bestPath.map(parseId) : null;
 	const classicRun = useRef(false);
+	// ms stat for classic runs: wall-clock time of the animated run (Go to the
+	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
+	const classicStart = useRef(0);
+	const [classicMs, setClassicMs] = useState<number | null>(null);
 	useEffect(() => {
 		if (ctx.running || !classicRun.current) return;
 		classicRun.current = false;
+		setClassicMs(performance.now() - classicStart.current);
 		if (ctx.isToastVisible) return;
 		setBestPath(classicBestPath(ctx.starting, ctx.ending));
 	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
@@ -168,7 +173,13 @@ export default function AppShell() {
 		if (!playing || !traceState) return;
 		let timer = 0;
 		let raf = 0;
-		const step = () => seek(traceState.nextStepEnd());
+		// Same batching as the classic player: Fast takes 4 steps a tick.
+		const batch = ctx.speedText === 'fast' ? 4 : 1;
+		const step = () => {
+			let to = traceState.applied;
+			for (let k = 0; k < batch; k++) to = traceState.nextStepEnd(to);
+			seek(to);
+		};
 		if (ctx.speed === 0) {
 			const loop = () => {
 				for (let k = 0; k < 25 && !traceState.done; k++) traceState.seek(traceState.nextStepEnd());
@@ -187,7 +198,7 @@ export default function AppShell() {
 			clearTimeout(timer);
 			cancelAnimationFrame(raf);
 		};
-	}, [playing, traceState, ctx.speed, seek]);
+	}, [playing, traceState, ctx.speed, ctx.speedText, seek]);
 
 	useEffect(() => {
 		if (!newToast) return;
@@ -213,6 +224,7 @@ export default function AppShell() {
 		setLanding(false);
 		closeSheetOnPhone();
 		setBestPath(null);
+		setClassicMs(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		const snap = buildSnapshot(board, mirror, { findMode });
@@ -249,6 +261,8 @@ export default function AppShell() {
 		clearTrace();
 		setBestPath(null);
 		classicRun.current = true;
+		classicStart.current = performance.now();
+		setClassicMs(null);
 		ctx.go();
 	};
 	const stepOnce = () => {
@@ -260,6 +274,7 @@ export default function AppShell() {
 	const reset = () => {
 		clearTrace();
 		setBestPath(null);
+		setClassicMs(null);
 		if (ctx.isPreviewing) ctx.hideBestPath(); // Show Best Path cells would otherwise keep 'preview'
 		ctx.clearBoard('visited');
 	};
@@ -572,7 +587,7 @@ export default function AppShell() {
 							<div className="stat"><b>{tr ? tr.visited.size : mirror.visitedCount}</b><span>Visited</span></div>
 							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : !tr && bestPath ? bestPath.length : '–'}</b><span>Path</span></div>
 							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
-							<div className="stat"><b>{tr ? `${Math.round(tr.trace.result.engineMs)}` : '–'}</b><span>ms</span></div>
+							<div className="stat" title={tr ? 'Engine time' : 'Run time, Go to last cell'}><b>{tr ? `${Math.round(tr.trace.result.engineMs)}` : classicMs !== null ? `${Math.round(classicMs)}` : '–'}</b><span>ms</span></div>
 						</div>
 					</section>
 

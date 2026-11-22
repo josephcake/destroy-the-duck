@@ -115,7 +115,7 @@ test('the new UI starts at Fast and remembers the chosen speed', () => {
 	);
 	const speed = () => screen.getByRole('group', { name: 'Speed' }).querySelector('[aria-pressed="true"]').textContent;
 	expect(speed()).toBe('Fast');
-	fireEvent.click(screen.getByRole('group', { name: 'Speed' }).querySelector('[title="light speed"]'));
+	fireEvent.click(screen.getByRole('group', { name: 'Speed' }).querySelector('[title^="light speed"]'));
 	expect(speed()).toBe('Light');
 	unmount();
 	render(
