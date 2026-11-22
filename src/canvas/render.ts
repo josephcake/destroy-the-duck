@@ -36,6 +36,7 @@ export type Scene = {
 };
 
 const ENTER_MS = 480;
+const pathStarts = new Map<string, number>();
 const wallCaches = new WeakMap<CanvasRenderingContext2D, WallCache>();
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
@@ -282,14 +283,37 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	ctx.fillText('HOME · 35 × 80', home.x, home.y - 6);
 
 	// Paths: traced path, and the classic Show Best Path preview (in tag order)
-	const drawPath = (cells: { r: number; c: number }[]) => {
+	const drawPath = (cells: { r: number; c: number }[], animate: boolean) => {
 		if (cells.length < 1) return;
+		// Draw-on (linear, <= 1.2 s), then a white dash runs the line twice.
+		const L = Math.max(1, cells.length - 1) * s;
+		let k = 1;
+		let dashT = -1;
+		if (animate && !scene.reducedMotion && cells.length > 1) {
+			const a = cells[0], b = cells[cells.length - 1];
+			const key = `${a.r},${a.c}>${b.r},${b.c}|${cells.length}`;
+			let t0 = pathStarts.get(key);
+			if (t0 === undefined) {
+				if (pathStarts.size > 32) pathStarts.clear();
+				pathStarts.set(key, (t0 = scene.now));
+			}
+			const drawMs = Math.min(1200, 12 * cells.length);
+			const el = scene.now - t0;
+			k = Math.min(1, el / drawMs);
+			const passMs = (cells.length - 1) * 90;
+			if (k < 1) animating = true;
+			else if (el - drawMs < 2 * passMs) {
+				dashT = el - drawMs;
+				animating = true;
+			}
+		}
 		ctx.save();
 		ctx.globalAlpha = 0.14;
 		ctx.fillStyle = p.path;
 		for (const { r, c } of cells) {
 			const { x, y } = cellToScreen(view, r, c);
-			ctx.fillRect(x, y, s, s);
+			roundRect(ctx, x + 0.05 * s, y + 0.05 * s, s - 0.1 * s, s - 0.1 * s, 0.18 * s);
+			ctx.fill();
 		}
 		ctx.globalAlpha = 1;
 		ctx.strokeStyle = p.path;
@@ -308,15 +332,24 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			const { x, y } = cellToScreen(view, cells[0].r, cells[0].c);
 			ctx.lineTo(x + s / 2 + 0.01, y + s / 2);
 		}
+		if (k < 1) ctx.setLineDash([L * k, L + s]);
 		ctx.stroke();
+		if (dashT >= 0) {
+			ctx.shadowBlur = 0;
+			ctx.setLineDash([0.6 * s, 1.8 * s]);
+			ctx.lineDashOffset = -Math.floor(dashT / 90) * s;
+			ctx.lineWidth = Math.max(1, 0.12 * s);
+			ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+			ctx.stroke();
+		}
 		ctx.restore();
 	};
-	if (tr && tr.path.length) drawPath(tr.path.map(parseId));
-	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath);
+	if (tr && tr.path.length) drawPath(tr.path.map(parseId), true);
+	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
 	if (m.previewOrder.length) {
 		const cells = m.previewOrder.map((i) => LegacyMirror.cellAt(i));
 		if (m.start >= 0) cells.unshift(LegacyMirror.cellAt(m.start));
-		drawPath(cells);
+		drawPath(cells, false); // the classic player already animates it
 	}
 
 	// Learn: ring the node the current event is about
