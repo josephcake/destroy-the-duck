@@ -1,4 +1,5 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
+import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Board, Weight } from '../model/board';
 import { Bounds, HOME, idOf, inHome } from '../model/cell';
@@ -18,6 +19,7 @@ export type SceneInput = {
 	traceTimes: Map<string, number>;
 	learnCurrent: boolean;
 	reducedMotion: boolean;
+	bestPath: { r: number; c: number }[] | null; // classic run: overlay only, never written to the table
 };
 
 export type StageApi = {
@@ -41,7 +43,7 @@ type Props = {
 type Gesture =
 	| { mode: 'none' }
 	| { mode: 'pan'; x: number; y: number }
-	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number } }
+	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: boolean }
 	| { mode: 'paint'; last: { r: number; c: number } }
 	| { mode: 'pinch'; dist: number; mx: number; my: number };
 
@@ -49,6 +51,16 @@ function* line(a: { r: number; c: number }, b: { r: number; c: number }) {
 	const n = Math.max(Math.abs(b.r - a.r), Math.abs(b.c - a.c));
 	for (let i = 1; i <= n; i++)
 		yield { r: Math.round(a.r + ((b.r - a.r) * i) / n), c: Math.round(a.c + ((b.c - a.c) * i) / n) };
+}
+
+/**
+ * A drag that began on the classic table: inside Home the table's own
+ * handlers decide (they move the Arrow/Duck or build walls). Outside Home a
+ * wall drag keeps painting board walls, but an Arrow/Duck drag never paints.
+ */
+export function legacyDragAction(endpoint: boolean, tool: Tool, inside: boolean): 'legacy' | 'paint' | 'none' {
+	if (inside) return 'legacy';
+	return !endpoint && tool === 'wall' ? 'paint' : 'none';
 }
 
 export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(props, ref) {
@@ -66,6 +78,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 
 	const setView = (v: View) => {
 		const zoomChanged = v.zoom !== view.current.zoom;
+		// the cell under a still pointer changes with the view; drop the stale outline
+		if (zoomChanged || v.panX !== view.current.panX || v.panY !== view.current.panY) hover.current = null;
 		view.current = v;
 		dirty.current = true;
 		if (zoomChanged) live.current.onZoom(v.zoom);
@@ -144,11 +158,11 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// re-frame Home when insets change (pinned legend)
+	// re-frame Home when insets change (pinned legend, phone Learn layout)
 	useEffect(() => {
 		if (framed.current) api.home();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [props.insets.bottom]);
+	}, [props.insets.bottom, props.insets.top]);
 
 	useEffect(() => {
 		const down = (e: KeyboardEvent) => {
@@ -212,8 +226,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		const k = inside ? scene.current.mirror.at(cell.r, cell.c) : K.Unvisited;
 		if (inside && (k === K.Start || k === K.End || tool === 'wall')) {
 			// Classic gestures: the legacy table's own handlers do the work.
-			legacy.down(idOf(cell.r, cell.c));
-			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell };
+			const id = idOf(cell.r, cell.c);
+			const endpoint = k === K.Start || k === K.End;
+			// Commit the table's isBuilding before the first move: the original
+			// painted the pressed cell on the first mousemove inside it, so a
+			// plain click paints one wall.
+			flushSync(() => legacy.down(id));
+			if (!endpoint && tool === 'wall') legacy.move(id);
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint };
 			return;
 		}
 		paintCell(cell.r, cell.c);
@@ -245,8 +265,9 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// mouseover per cell, so replay every cell along the line.
 			if (cell.r !== g.last.r || cell.c !== g.last.c) {
 				for (const q of line(g.last, cell)) {
-					if (inHome(q.r, q.c)) legacy.move(idOf(q.r, q.c));
-					else if (live.current.tool === 'wall') paintCell(q.r, q.c);
+					const act = legacyDragAction(g.endpoint, live.current.tool, inHome(q.r, q.c));
+					if (act === 'legacy') legacy.move(idOf(q.r, q.c));
+					else if (act === 'paint') paintCell(q.r, q.c);
 				}
 				gesture.current = { ...g, last: cell };
 			}

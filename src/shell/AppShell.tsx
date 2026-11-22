@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Main from '../Main/Main';
 import duckImage from '../Images/duck.png';
 import { Board, Weight } from '../model/board';
-import { HOME_COLS, HOME_ROWS, inHome } from '../model/cell';
+import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, weightColor } from '../canvas/palette';
@@ -14,20 +14,31 @@ import { searchAsync } from '../engine/runner';
 import { Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, BUDGET } from './snapshot';
-import { CLASSIC, MAZES, SPEEDS, speedEvent, useLegacy } from './legacy';
+import { classicBestPath } from './classicBest';
+import { CLASSIC, MAZES, SPEEDS, SpeedName, speedEvent, useLegacy } from './legacy';
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import './shell.css';
 
-type Prefs = { chrome: Chrome; cells: CellSet };
+const PHONE = '(max-width: 599px)'; // keep in step with shell.css
+
+type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
 const PREFS_KEY = 'dtd.ui.v1';
+// The classic player's own default is Norm (100 ms a cell: BFS on an open
+// board takes minutes). The new UI starts at Fast and remembers the choice.
+export const DEFAULT_SPEED: SpeedName = 'fast';
 const loadPrefs = (): Prefs => {
+	const fallback: Prefs = { chrome: 'light', cells: 'pond', speed: DEFAULT_SPEED }; // decision 7: Pond is the default
 	try {
 		const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
-		return { chrome: p.chrome === 'dark' ? 'dark' : 'light', cells: p.cells === 'classic' ? 'classic' : 'pond' };
+		return {
+			chrome: p.chrome === 'dark' ? 'dark' : 'light',
+			cells: p.cells === 'classic' ? 'classic' : 'pond',
+			speed: SPEEDS.some((s) => s.name === p.speed) ? p.speed : DEFAULT_SPEED,
+		};
 	} catch {
-		return { chrome: 'light', cells: 'pond' }; // decision 7: Pond is the default
+		return fallback;
 	}
 };
 
@@ -38,6 +49,14 @@ const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElem
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless pond.' },
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
+
+/** Shortcuts stay live everywhere except where the user is typing text. */
+export function isTyping(t: EventTarget | null) {
+	if (!(t instanceof HTMLElement)) return false;
+	if (t.isContentEditable || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return true;
+	if (!(t instanceof HTMLInputElement)) return false;
+	return !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color'].includes(t.type);
+}
 
 export default function AppShell() {
 	const ctx = useLegacy();
@@ -65,10 +84,23 @@ export default function AppShell() {
 	const mirror = useMemo(() => new LegacyMirror(), []);
 	const palette = PALETTES[`${prefs.cells}-${prefs.chrome}`];
 	const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion });
+	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion, bestPath: null });
 	scene.current.palette = palette;
 	scene.current.trace = traceState;
 	scene.current.learnCurrent = tab === 'learn';
+	// Classic runs: after a successful run, the best path (same Dijkstra the
+	// Show Best Path button uses) is drawn as an overlay and fills Path/Cost.
+	// Nothing is written to the classic table, so visit order is untouched.
+	const [bestPath, setBestPath] = useState<string[] | null>(null);
+	scene.current.bestPath = bestPath ? bestPath.map(parseId) : null;
+	const classicRun = useRef(false);
+	useEffect(() => {
+		if (ctx.running || !classicRun.current) return;
+		classicRun.current = false;
+		if (ctx.isToastVisible) return;
+		setBestPath(classicBestPath(ctx.starting, ctx.ending));
+	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
+	useEffect(() => stage.current?.invalidate(), [bestPath]);
 
 	const rerender = useRef(0);
 	const scheduleRender = useCallback(() => {
@@ -89,6 +121,10 @@ export default function AppShell() {
 		};
 	}, [board, mirror, scheduleRender]);
 
+	useEffect(() => {
+		if (ctx.speedText !== prefs.speed) ctx.setSpeed(speedEvent(prefs.speed));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [prefs.speed]);
 	useEffect(() => {
 		localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 		stage.current?.invalidate();
@@ -150,7 +186,24 @@ export default function AppShell() {
 		return () => clearTimeout(t);
 	}, [newToast]);
 
+	const [phone, setPhone] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches);
+	useEffect(() => {
+		if (typeof window.matchMedia !== 'function') return;
+		const mq = window.matchMedia(PHONE);
+		const on = () => setPhone(mq.matches);
+		mq.addEventListener?.('change', on);
+		return () => mq.removeEventListener?.('change', on);
+	}, []);
+
+	// Phone: the panel is a bottom sheet; get it out of the way once a search starts.
+	const closeSheetOnPhone = () => {
+		if (typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches) setPanelOpen(false);
+	};
+
 	const startTrace = async (which: TracedAlgo, autoplay: boolean) => {
+		setLanding(false);
+		closeSheetOnPhone();
+		setBestPath(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		const trace: Trace = await searchAsync(which, buildSnapshot(board, mirror));
@@ -179,9 +232,12 @@ export default function AppShell() {
 
 	const go = () => {
 		setLanding(false);
+		closeSheetOnPhone();
 		if (!algo) return setPickerOpen(true);
 		if (isTraced(algo)) return void startTrace(algo, true);
 		clearTrace();
+		setBestPath(null);
+		classicRun.current = true;
 		ctx.go();
 	};
 	const stepOnce = () => {
@@ -192,9 +248,12 @@ export default function AppShell() {
 	};
 	const reset = () => {
 		clearTrace();
+		setBestPath(null);
+		if (ctx.isPreviewing) ctx.hideBestPath(); // Show Best Path cells would otherwise keep 'preview'
 		ctx.clearBoard('visited');
 	};
 	const clear = (what: 'board' | 'wall' | 'path') => {
+		setBestPath(null);
 		if (what === 'board') {
 			ctx.clearBoard(null);
 			board.clear();
@@ -207,21 +266,22 @@ export default function AppShell() {
 	const buildMaze = () => {
 		setLanding(false);
 		clearTrace();
+		setBestPath(null);
 		ctx.buildMaze(maze);
 	};
 
 	// ---------- keyboard ----------
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
-			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.metaKey || e.ctrlKey) return;
+			if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
 			const k = e.key.toLowerCase();
 			if (k === '[') setPanelOpen((o) => !o);
 			else if (k === 'h') stage.current?.home();
 			else if (k === 'f') stage.current?.fit();
 			else if (k === '+' || k === '=') stage.current?.zoomStep(1);
 			else if (k === '-') stage.current?.zoomStep(-1);
-			else if (tab === 'learn' && traceState && k === '.') seek(traceState.applied + (e.shiftKey ? 10 : 1));
-			else if (tab === 'learn' && traceState && k === ',') seek(traceState.applied - (e.shiftKey ? 10 : 1));
+			else if (tab === 'learn' && traceState && k === '.') seek(traceState.endOf(traceState.position + (e.shiftKey ? 10 : 1)));
+			else if (tab === 'learn' && traceState && k === ',') seek(traceState.endOf(traceState.position - (e.shiftKey ? 10 : 1)));
 			else {
 				const t = TOOLS.find((x) => x.key === k);
 				if (t) setTool(t.id);
@@ -237,7 +297,11 @@ export default function AppShell() {
 	const classic = algo && !isTraced(algo) ? CLASSIC.find((c) => c.id === algo)! : null;
 	const showBestPathBtn = classic && classic.id !== 'dijkstra';
 	const tr = traceState;
-	const insets = { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
+	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
+	const learnFloats = !!tr && tab === 'learn';
+	const insets = phone
+		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
+		: { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	const legendRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!legendPinned || !legendRef.current) return;
@@ -249,6 +313,8 @@ export default function AppShell() {
 		return () => ro?.disconnect();
 	}, [legendPinned]);
 
+	// What the collapsed bar names: the algorithm the visible tab would run.
+	const activeAlgo: AlgoId | null = tab === 'learn' ? learnAlgo : algo;
 	const tracePaused = tab === 'sandbox' && !!tr && !tr.done && !playing && applied > 0 && tr.trace.algo === algo;
 	const goButton = (compact = false) => {
 		if (ctx.running && !ctx.mazeRunning)
@@ -293,13 +359,14 @@ export default function AppShell() {
 	);
 
 	return (
-		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells}>
+		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-panel={panelOpen ? 'open' : 'closed'}>
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
 				<Main rows={HOME_ROWS} cols={HOME_COLS} />
 			</div>
 
-			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen}>
+			{panelOpen && <button className="sheet-scrim" aria-label="Close panel" tabIndex={-1} onClick={() => setPanelOpen(false)} />}
+			<nav className="panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
 				<div className="panel__head">
 					<div className="brand">
 						<img src={duckImage} alt="" /> Destroy the Duck
@@ -366,7 +433,7 @@ export default function AppShell() {
 						<h2 className="section__title">Speed</h2>
 						<div className="seg" role="group" aria-label="Speed">
 							{SPEEDS.map((s) => (
-								<button key={s.name} aria-pressed={ctx.speedText === s.name} title={s.title} onClick={() => ctx.setSpeed(speedEvent(s.name))}>
+								<button key={s.name} aria-pressed={ctx.speedText === s.name} title={s.title} onClick={() => setPrefs({ ...prefs, speed: s.name })}>
 									{s.label}
 								</button>
 							))}
@@ -425,8 +492,8 @@ export default function AppShell() {
 						<h2 className="section__title">Stats</h2>
 						<div className="stats" data-testid="stats">
 							<div className="stat"><b>{tr ? tr.visited.size : mirror.visitedCount}</b><span>Visited</span></div>
-							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : '–'}</b><span>Path</span></div>
-							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : '–'}</b><span>Cost</span></div>
+							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : !tr && bestPath ? bestPath.length : '–'}</b><span>Path</span></div>
+							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
 							<div className="stat"><b>{tr ? `${Math.round(tr.trace.result.engineMs)}` : '–'}</b><span>ms</span></div>
 						</div>
 					</section>
@@ -474,7 +541,10 @@ export default function AppShell() {
 					weight={weight}
 					editable={editable}
 					insets={insets}
-					onInteract={() => setLanding(false)}
+					onInteract={() => {
+						setLanding(false);
+						setBestPath(null);
+					}}
 					onZoom={setZoom}
 				/>
 
@@ -483,8 +553,14 @@ export default function AppShell() {
 						<button className="icon-btn" aria-label="Open panel" title="Open panel ([)" onClick={() => setPanelOpen(true)}>
 							<Icon.menu />
 						</button>
-						<span className="mini__algo">{algoLabel(algo)}</span>
-						{goButton(true)}
+						<span className="mini__algo" data-testid="mini-algo">{algoLabel(activeAlgo)}</span>
+						{tab === 'learn' ? (
+							<button className="go" data-testid="mini-learn-start" disabled={ctx.running} onClick={() => startTrace(learnAlgo, false)}>
+								Start
+							</button>
+						) : (
+							goButton(true)
+						)}
 						{TOOLS.map((t) => (
 							<button key={t.id} className="icon-btn" aria-pressed={tool === t.id} aria-label={t.label} title={t.label} onClick={() => setTool(t.id)} style={tool === t.id ? { background: 'var(--raised)' } : undefined}>
 								<t.icon />
@@ -521,7 +597,7 @@ export default function AppShell() {
 				{tr && tab === 'learn' && (
 					<>
 						<Inspector state={tr} />
-						<StepBar state={tr} applied={applied} playing={playing} onSeek={(n) => { setPlaying(false); seek(n); }} onPlay={() => setPlaying((p) => !p)} />
+						<StepBar state={tr} playing={playing} onSeek={(p) => { setPlaying(false); seek(tr.endOf(p)); }} onPlay={() => setPlaying((p) => !p)} />
 					</>
 				)}
 

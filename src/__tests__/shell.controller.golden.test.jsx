@@ -19,6 +19,10 @@ const BOARDS = ['open', 'detour', 'enclosedDuck', 'basic'];
 beforeEach(() => {
 	T.useFakeTimers();
 	localStorage.clear();
+	// The goldens were recorded at the classic default speed (Norm); tick
+	// grouping under fake timers depends on it. Visit order does not (see
+	// shell.bestpath 'default speed' test).
+	localStorage.setItem('dtd.ui.v1', JSON.stringify({ speed: 'norm' }));
 });
 afterEach(() => T.useRealTimers());
 

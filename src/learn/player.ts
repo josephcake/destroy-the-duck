@@ -10,7 +10,37 @@ export class TraceState {
 	frontier = new Map<string, FrontierEntry>();
 	path: string[] = [];
 	current: string | null = null;
-	constructor(readonly trace: Trace) {}
+	/** stepEnds[s] = event index just past the last event of step s. */
+	private readonly stepEnds: number[] = [];
+	constructor(readonly trace: Trace) {
+		trace.events.forEach((e, i) => {
+			this.stepEnds[e.step] = i + 1;
+		});
+		for (let s = 1; s < this.stepEnds.length; s++) this.stepEnds[s] ??= this.stepEnds[s - 1];
+	}
+
+	/**
+	 * The one step unit the step bar, its counter, the inspector header and
+	 * the . / , keys share: position p = steps completed (0 = nothing yet;
+	 * step 1 = the start, then one per expansion, then one for the path).
+	 */
+	get totalSteps() {
+		return this.stepEnds.length;
+	}
+	get position() {
+		return this.applied ? this.trace.events[this.applied - 1].step + 1 : 0;
+	}
+	/** Event index at the end of position p. */
+	endOf(p: number) {
+		const q = Math.max(0, Math.min(p, this.totalSteps));
+		return q === 0 ? 0 : this.stepEnds[q - 1];
+	}
+	/** Events of the step most recently completed (for narration). */
+	get stepEvents(): TraceEvent[] {
+		if (!this.applied) return [];
+		const s = this.trace.events[this.applied - 1].step;
+		return this.trace.events.slice(this.endOf(s), this.applied);
+	}
 
 	private apply(e: TraceEvent) {
 		this.current = e.node;
