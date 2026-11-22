@@ -505,6 +505,9 @@ export default function AppShell() {
 								{algo && isTraced(algo) && <span className="chip">Searches the whole pond (budget {BUDGET / 1000}k)</span>}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
 								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
+								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
+									<span className="chip" data-testid="tour-order">Tour: Arrow → {Array.from({ length: extraDucks + 1 }, (_, i) => i + 1).join(' → ')}</span>
+								)}
 								{lone.length > 0 && <span className="chip" data-testid="lone-pad">Pad {lone.map(PAD_LETTER).join(', ')} has no partner yet</span>}
 							</div>
 						</section>

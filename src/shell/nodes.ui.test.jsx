@@ -57,12 +57,32 @@ test('a dragged one-way lane makes JPS unavailable, and the UI says why', async 
 	expect(jps.getAttribute('title')).toMatch(/one-way lanes/);
 });
 
-test('the duck number badge stays inside its cell at every zoom up to 400%', () => {
-	for (const s of [14, 20, 40, 80]) {
+test('Mochi check 3: duck numbers are legible at every zoom; inside the cell from 200 % up to 400 %', () => {
+	for (const s of [6, 10, 14, 20, 30]) {
 		const { cx, cy, rad } = badgeGeometry(100, 200, s);
+		expect(rad).toBeGreaterThanOrEqual(7); // 9 px digits
+		expect(Math.hypot(cx - (100 + s), cy - 200)).toBe(0); // on the top-right corner, off the sprite's centre
+	}
+	for (const s of [40, 60, 80]) {
+		const { cx, cy, rad } = badgeGeometry(100, 200, s);
+		expect(rad).toBeGreaterThanOrEqual(7);
 		expect(cx - rad).toBeGreaterThanOrEqual(100);
 		expect(cx + rad).toBeLessThanOrEqual(100 + s);
 		expect(cy - rad).toBeGreaterThanOrEqual(200);
 		expect(cy + rad).toBeLessThanOrEqual(200 + s);
 	}
+});
+
+test('Tour mode spells out the duck order', async () => {
+	mount();
+	const canvas = document.querySelector('canvas');
+	fireEvent.click(screen.getByTitle('Duck (D)'));
+	await click(canvas, 30, 10);
+	await click(canvas, 5, 40);
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getByRole('option', { name: /^A\*/ }));
+	fireEvent.click(screen.getByTestId('find-tour'));
+	expect(screen.getByTestId('tour-order').textContent).toBe('Tour: Arrow → 1 → 2 → 3');
+	fireEvent.click(screen.getByTestId('find-all'));
+	expect(screen.queryByTestId('tour-order')).toBeNull();
 });

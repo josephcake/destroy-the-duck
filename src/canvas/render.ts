@@ -601,21 +601,34 @@ function drawChevron(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: n
  * Duck number badge, kept inside the cell's own bounds at every zoom
  * (top-right corner, radius <= 0.24 s). Hidden when cells are too small.
  */
+/**
+ * Duck number badge. Readable at every zoom (radius >= 7 px, digits >= 9 px):
+ * from 40 px cells (200 %) it sits inside the cell's top-right corner; below
+ * that the cell is too small for a legible number, so the badge sits on the
+ * corner, half outside, where it doesn't cover the duck sprite.
+ */
 export function badgeGeometry(x: number, y: number, s: number) {
-	const rad = Math.min(0.24 * s, 14);
-	return { cx: x + s - rad - 0.02 * s, cy: y + rad + 0.02 * s, rad };
+	if (s >= 40) {
+		const rad = Math.min(0.3 * s, 16);
+		return { cx: x + s - rad - 0.02 * s, cy: y + rad + 0.02 * s, rad };
+	}
+	const rad = 7;
+	return { cx: x + s, cy: y, rad };
 }
 function drawDuckBadge(ctx: CanvasRenderingContext2D, view: View, r: number, c: number, n: number, p: Palette) {
 	const { x, y, s } = cellToScreen(view, r, c);
-	if (s < 14) return;
+	if (s < 6) return; // below 30 % the whole board is a thumbnail
 	const { cx, cy, rad } = badgeGeometry(x, y, s);
 	ctx.save();
 	ctx.fillStyle = p.ink;
+	ctx.strokeStyle = p.paper; // a paper ring keeps it legible over cells and paths
+	ctx.lineWidth = 1.5;
 	ctx.beginPath();
 	ctx.arc(cx, cy, rad, 0, Math.PI * 2);
 	ctx.fill();
+	ctx.stroke();
 	ctx.fillStyle = p.paper;
-	ctx.font = `700 ${rad * 1.25}px "DM Mono", monospace`;
+	ctx.font = `700 ${Math.max(9, rad * 1.25)}px "DM Mono", monospace`;
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	ctx.fillText(String(n), cx, cy + rad * 0.06);
