@@ -19,6 +19,7 @@ export type Scene = {
 	traceTimes: Map<string, number>; // node -> ms when it became visited
 	learnCurrent: boolean; // ring the current trace node (Learn mode)
 	hover: { r: number; c: number } | null;
+	bestPath: { r: number; c: number }[] | null;
 	now: number;
 	reducedMotion: boolean;
 };
@@ -213,6 +214,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.restore();
 	};
 	if (tr && tr.path.length) drawPath(tr.path.map(parseId));
+	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath);
 	if (m.previewOrder.length) {
 		const cells = m.previewOrder.map((i) => LegacyMirror.cellAt(i));
 		if (m.start >= 0) cells.unshift(LegacyMirror.cellAt(m.start));

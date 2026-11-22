@@ -18,6 +18,7 @@ export type SceneInput = {
 	traceTimes: Map<string, number>;
 	learnCurrent: boolean;
 	reducedMotion: boolean;
+	bestPath: { r: number; c: number }[] | null; // classic run: overlay only, never written to the table
 };
 
 export type StageApi = {

@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Main from '../Main/Main';
 import duckImage from '../Images/duck.png';
 import { Board, Weight } from '../model/board';
-import { HOME_COLS, HOME_ROWS, inHome } from '../model/cell';
+import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, weightColor } from '../canvas/palette';
@@ -14,6 +14,7 @@ import { searchAsync } from '../engine/runner';
 import { Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, BUDGET } from './snapshot';
+import { classicBestPath } from './classicBest';
 import { CLASSIC, MAZES, SPEEDS, speedEvent, useLegacy } from './legacy';
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
@@ -65,10 +66,23 @@ export default function AppShell() {
 	const mirror = useMemo(() => new LegacyMirror(), []);
 	const palette = PALETTES[`${prefs.cells}-${prefs.chrome}`];
 	const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion });
+	const scene = useRef<SceneInput>({ board, mirror, palette, trace: null, traceTimes: new Map(), learnCurrent: false, reducedMotion, bestPath: null });
 	scene.current.palette = palette;
 	scene.current.trace = traceState;
 	scene.current.learnCurrent = tab === 'learn';
+	// Classic runs: after a successful run, the best path (same Dijkstra the
+	// Show Best Path button uses) is drawn as an overlay and fills Path/Cost.
+	// Nothing is written to the classic table, so visit order is untouched.
+	const [bestPath, setBestPath] = useState<string[] | null>(null);
+	scene.current.bestPath = bestPath ? bestPath.map(parseId) : null;
+	const classicRun = useRef(false);
+	useEffect(() => {
+		if (ctx.running || !classicRun.current) return;
+		classicRun.current = false;
+		if (ctx.isToastVisible) return;
+		setBestPath(classicBestPath(ctx.starting, ctx.ending));
+	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
+	useEffect(() => stage.current?.invalidate(), [bestPath]);
 
 	const rerender = useRef(0);
 	const scheduleRender = useCallback(() => {
@@ -151,6 +165,7 @@ export default function AppShell() {
 	}, [newToast]);
 
 	const startTrace = async (which: TracedAlgo, autoplay: boolean) => {
+		setBestPath(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		const trace: Trace = await searchAsync(which, buildSnapshot(board, mirror));
@@ -182,6 +197,8 @@ export default function AppShell() {
 		if (!algo) return setPickerOpen(true);
 		if (isTraced(algo)) return void startTrace(algo, true);
 		clearTrace();
+		setBestPath(null);
+		classicRun.current = true;
 		ctx.go();
 	};
 	const stepOnce = () => {
@@ -192,9 +209,11 @@ export default function AppShell() {
 	};
 	const reset = () => {
 		clearTrace();
+		setBestPath(null);
 		ctx.clearBoard('visited');
 	};
 	const clear = (what: 'board' | 'wall' | 'path') => {
+		setBestPath(null);
 		if (what === 'board') {
 			ctx.clearBoard(null);
 			board.clear();
@@ -207,6 +226,7 @@ export default function AppShell() {
 	const buildMaze = () => {
 		setLanding(false);
 		clearTrace();
+		setBestPath(null);
 		ctx.buildMaze(maze);
 	};
 
@@ -427,8 +447,8 @@ export default function AppShell() {
 						<h2 className="section__title">Stats</h2>
 						<div className="stats" data-testid="stats">
 							<div className="stat"><b>{tr ? tr.visited.size : mirror.visitedCount}</b><span>Visited</span></div>
-							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : '–'}</b><span>Path</span></div>
-							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : '–'}</b><span>Cost</span></div>
+							<div className="stat"><b>{tr && tr.path.length ? tr.path.length : !tr && bestPath ? bestPath.length : '–'}</b><span>Path</span></div>
+							<div className="stat"><b>{tr && tr.done && tr.trace.result.found ? tr.trace.result.pathCost : !tr && bestPath ? bestPath.length - 1 : '–'}</b><span>Cost</span></div>
 							<div className="stat"><b>{tr ? `${Math.round(tr.trace.result.engineMs)}` : '–'}</b><span>ms</span></div>
 						</div>
 					</section>
@@ -476,7 +496,10 @@ export default function AppShell() {
 					weight={weight}
 					editable={editable}
 					insets={insets}
-					onInteract={() => setLanding(false)}
+					onInteract={() => {
+						setLanding(false);
+						setBestPath(null);
+					}}
 					onZoom={setZoom}
 				/>
 
