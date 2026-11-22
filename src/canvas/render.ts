@@ -10,7 +10,7 @@ import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls, paintWalls } from './walls';
 import { padLabel } from '../model/nodes';
-import { Palette, weightColor, weightUnder } from './palette';
+import { Palette, mix, weightColor, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 import {
 	CellRef, DURATION, EASE, Shadow, bezier, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker,
@@ -54,21 +54,37 @@ export type Scene = {
 	march?: MarchItem[];
 };
 
-/** A marching path leg, in screen px of the view it was built for. */
-export type MarchItem = { pts: ({ x: number; y: number } | null)[]; gap: number; L: number; r: number; hw: number; flowFrom: number; speed: number; color: string; halo: string; skip: { x: number; y: number }[]; skipR: number };
+/** A flowing path leg, in screen px of the view it was built for: its fixed dots and the pulse clock. */
+export type MarchItem = { dots: { x: number; y: number; u: number }[]; pts: ({ x: number; y: number } | null)[]; L: number; r: number; hw: number; flowFrom: number; v: number; span: number; color: string; halo: string; hi: string; skip: { x: number; y: number }[]; skipR: number };
 
-/** Where the march dots fall at `now` (shared by render() and the overlay). */
-function marchDots(m: MarchItem, now: number) {
-	const phase = (((now - m.flowFrom) / 1000) * m.speed) % m.gap;
-	return pathDots(m.pts, m.gap, phase);
+/** Where the pulse head is (arc px from the Arrow) at `now`; it runs Arrow -> Duck, rests, repeats. */
+export function pulseHead(m: { L: number; v: number; span: number; flowFrom: number }, now: number) {
+	const run = ((m.L + 2 * m.span) / m.v) * 1000;
+	const t = (((now - m.flowFrom) % (run + PATH_DOT.pulseRest)) + run + PATH_DOT.pulseRest) % (run + PATH_DOT.pulseRest);
+	return -m.span + (t / 1000) * m.v;
 }
-const marchR = (m: MarchItem) => (u: number) => m.r * Math.max(0, Math.min(1, u / m.gap, (m.L - u) / m.gap + 0.5));
+/** Pulse weight 0..1 of a dot at arc position u (a raised-cosine bump around the head). */
+export const pulseW = (u: number, head: number, span: number) => (Math.abs(u - head) < span ? 0.5 * (1 + Math.cos((Math.PI * (u - head)) / span)) : 0);
 
-/** The overlay box (screen px) that holds every march dot, or null. */
+/** Draw the pulse over the solid dots: the dots under it swell a little and light up from the centre. */
+function drawPulse(ctx: CanvasRenderingContext2D, m: MarchItem, now: number, w: number, h: number, skip: boolean) {
+	const head = pulseHead(m, now);
+	const lit: { x: number; y: number; u: number }[] = [];
+	for (const d of m.dots) {
+		if (Math.abs(d.u - head) >= m.span) continue;
+		if (skip && m.skip.some((q) => Math.abs(q.x - d.x) < m.skipR && Math.abs(q.y - d.y) < m.skipR)) continue;
+		lit.push(d);
+	}
+	if (!lit.length) return;
+	const wOf = (u: number) => pulseW(u, head, m.span);
+	drawDots(ctx, lit, (u) => m.r * (1 + PATH_DOT.pulseGrow * wOf(u)), m.color, m.halo, m.hw, w, h, { rOf: (u) => m.r * PATH_DOT.pulseCore * wOf(u), color: m.hi });
+}
+
+/** The overlay box (screen px) that holds every flowing leg, or null. */
 export function marchBox(items: MarchItem[], w: number, h: number) {
 	let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
 	for (const m of items) {
-		const pad = m.r + m.hw + 2;
+		const pad = m.r * (1 + PATH_DOT.pulseGrow) + m.hw + 2;
 		for (const q of m.pts) if (q) {
 			x0 = Math.min(x0, q.x - pad);
 			y0 = Math.min(y0, q.y - pad);
@@ -84,32 +100,32 @@ export function marchBox(items: MarchItem[], w: number, h: number) {
 }
 
 /**
- * Draw the marching dots on the overlay (its origin at box.x, box.y). The overlay sits above
- * the stickers, so dots on the Arrow, the Duck and teleporter pads are left out.
+ * Draw only the pulse on the overlay (its origin at box.x, box.y); the solid dots stay on the
+ * main canvas. The overlay sits above the stickers, so dots on the Arrow, the Duck and pads are left out.
  */
 export function drawMarch(ctx: CanvasRenderingContext2D, items: MarchItem[], now: number, box: { x: number; y: number; w: number; h: number }, dpr: number) {
 	ctx.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
 	ctx.clearRect(box.x, box.y, box.w, box.h);
-	for (const m of items) {
-		const dots = marchDots(m, now).filter((d) => !m.skip.some((q) => Math.abs(q.x - d.x) < m.skipR && Math.abs(q.y - d.y) < m.skipR));
-		drawDots(ctx, dots, marchR(m), m.color, m.halo, m.hw, box.x + box.w, box.y + box.h);
-	}
+	for (const m of items) drawPulse(ctx, m, now, box.x + box.w, box.y + box.h, true);
 }
 
 /**
- * Path dots (Joseph 2026-11-22): the found path is a row of dots that march from
- * the Arrow to the Duck, so its direction reads at a glance. Visited cells stay
- * dashes. The march is a perpetual animation, so it is cheap: one halo fill and
- * one dot fill per frame, at most ~30 fps (frameHint.minGap), none while hidden.
+ * Path dots (Joseph 2026-11-22): the found path is a row of dots. They are laid in
+ * Arrow -> Duck with the trace (traceMs, same easing) as light rings, fill in solid
+ * when the trace lands, then a soft pulse keeps travelling Arrow -> Duck over them so
+ * the direction reads. Visited cells stay dashes. The pulse is cheap: at most ~30 fps
+ * (frameHint.minGap), only the path box redrawn (overlay), none while hidden.
  */
 export const PATH_DOT = {
 	/** dot radius, in cells (floored in px), and the halo ring around it */
 	r: 0.17, rMin: 1.8, halo: 0.07, haloMin: 1,
 	/** spacing between dots, in cells (two per cell), floored at 2.6 radii so they never merge */
 	gap: 0.5,
-	/** march speed, cells per second */
-	speed: 2,
-	/** ~30 fps while only the march is moving */
+	/** while tracing in, each dot is a ring: a hole of this share of the radius (fills over DURATION.tug) */
+	hole: 0.55,
+	/** the pulse: speed (cells/s), half-width (cells), rest between passes (ms), swell, lit core share, core colour (path toward white) */
+	pulseSpeed: 7, pulseSpan: 2.5, pulseRest: 700, pulseGrow: 0.3, pulseCore: 0.6, pulseHi: 0.55,
+	/** ~30 fps while only the pulse is moving */
 	frameMs: 33,
 	/** reduced motion: static dots grow from Arrow to Duck */
 	rmFrom: 0.55, rmTo: 1.35,
@@ -386,24 +402,22 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		for (let i = 1; i < pts.length; i++) if (pts[i] && pts[i - 1]) L += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
 		const flowFrom = leg ? leg.start + leg.dur + NEEDLE_RETRACT + DURATION.tug : -Infinity;
 		const flowing = motion && flow && !!leg && tug >= 1 && scene.now >= flowFrom;
-		const phase = flowing ? (((scene.now - flowFrom) / 1000) * PATH_DOT.speed * s) % gap : 0;
 		if (flowing) pathFlow = true;
 		const hw = Math.max(PATH_DOT.haloMin, PATH_DOT.halo * s);
-		if (flowing && scene.march) {
-			// the overlay draws it (and keeps marching without a full render)
+		const dots = pathDots(pts, gap, 0, k * L + 1e-6);
+		const ramp = !motion && flow;
+		const rOf = (u: number) => (ramp ? r * rmDotScale(u, L) : r);
+		// laid in as rings with the trace; the holes close (fill solid) over the tug once it lands
+		const fill = !leg ? 1 : tug;
+		drawDots(ctx, dots, rOf, p.path, p.home, hw, width, height, fill < 1 ? { rOf: () => r * PATH_DOT.hole * (1 - fill), color: p.home } : undefined);
+		if (flowing) {
 			const skip: { x: number; y: number }[] = [pts[0]!, pts[pts.length - 1]!];
 			jumps.forEach(([a, b]) => skip.push(a, b));
-			scene.march.push({ pts, gap, L, r, hw, flowFrom, speed: PATH_DOT.speed * s, color: p.path, halo: p.home, skip, skipR: 0.5 * s });
+			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.home, hi: mix(p.path, '#ffffff', PATH_DOT.pulseHi), skip, skipR: 0.5 * s };
+			// the overlay draws the pulse (and keeps it moving without a full render); else draw it here
+			if (scene.march) scene.march.push(item);
+			else drawPulse(ctx, item, scene.now, width, height, false);
 		}
-		const dots = flowing && scene.march ? [] : pathDots(pts, gap, phase, k * L + 1e-6);
-		const ramp = !motion && flow;
-		const rOf = (u: number) => {
-			if (ramp) return r * rmDotScale(u, L);
-			if (!flowing) return r;
-			// marching: the dot entering at the Arrow and the one leaving at the Duck grow / shrink
-			return r * Math.max(0, Math.min(1, u / gap, (L - u) / gap + 0.5));
-		};
-		drawDots(ctx, dots, rOf, p.path, p.home, hw, width, height);
 		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.path);
 		jumps.forEach(([a, b, col], j) => {
 			// §4.4: fold trail in the pair colour; the paper plane flies once (420 ms) when the head reaches the pad
@@ -520,20 +534,21 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	return animating || march;
 }
 
-/** One halo fill, then one dot fill (culled to the viewport). */
-function drawDots(ctx: CanvasRenderingContext2D, dots: { x: number; y: number; u: number }[], rOf: (u: number) => number, color: string, halo: string, hw: number, w: number, h: number) {
+/** One halo fill, one dot fill, and optionally one core fill (a hole or a highlight), culled to the viewport. */
+function drawDots(ctx: CanvasRenderingContext2D, dots: { x: number; y: number; u: number }[], rOf: (u: number) => number, color: string, halo: string, hw: number, w: number, h: number, core?: { rOf: (u: number) => number; color: string }) {
 	if (!dots.length) return;
-	for (const pass of [0, 1]) {
+	for (const pass of core ? [0, 1, 2] : [0, 1]) {
 		ctx.beginPath();
 		for (const d of dots) {
 			const rr = rOf(d.u);
 			if (rr <= 0.2) continue;
-			const R = pass ? rr : rr + hw;
+			const R = pass === 2 ? core!.rOf(d.u) : pass ? rr : rr + hw;
+			if (R <= 0.2) continue;
 			if (d.x < -R || d.y < -R || d.x > w + R || d.y > h + R) continue;
 			ctx.moveTo(d.x + R, d.y);
 			ctx.arc(d.x, d.y, R, 0, Math.PI * 2);
 		}
-		ctx.fillStyle = pass ? color : halo;
+		ctx.fillStyle = pass === 2 ? core!.color : pass ? color : halo;
 		ctx.fill();
 	}
 }

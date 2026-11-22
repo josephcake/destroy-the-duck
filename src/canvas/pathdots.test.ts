@@ -1,11 +1,13 @@
-// Path dots (Joseph 2026-11-22): the found path is dots marching Arrow -> Duck;
-// reduced motion: static dots that grow toward the Duck; the march is throttled
-// and stops when the path is cleared, a new run starts, or the tab is hidden.
+// Path dots (Joseph 2026-11-22): the found path is dots laid Arrow -> Duck with the trace
+// as light rings, filled solid when it lands, then a pulse travels Arrow -> Duck over them;
+// reduced motion: solid dots that grow toward the Duck; the pulse is throttled and stops
+// when the path is cleared, a new run starts, or the tab is hidden.
 import { CellAnim } from './cellAnim';
 import { LegacyMirror } from './mirror';
 import { Board } from '../model/board';
 import { PALETTES } from './palette';
-import { PATH_DOT, drawMarch, frameHint, marchBox, pathDots, render, rmDotScale, type MarchItem, type Scene } from './render';
+import { NEEDLE_RETRACT, PATH_DOT, drawMarch, frameHint, marchBox, pathDots, pulseHead, pulseW, render, rmDotScale, traceMs, type MarchItem, type Scene } from './render';
+import { DURATION } from '../vendor/paper-kit/paper-kit';
 
 const arrow = { x: 10, y: 10 }, duck = { x: 110, y: 10 };
 
@@ -20,7 +22,7 @@ test('dots run from the Arrow to the Duck: the first dot is nearest the Arrow, a
 	}
 });
 
-test('the march moves every dot toward the Duck as the phase grows, and the trace-in lays them in order', () => {
+test('dots shift with the phase, and the trace-in lays them in order', () => {
 	const a = pathDots([arrow, duck], 10, 2), b = pathDots([arrow, duck], 10, 5);
 	expect(b[0].x - a[0].x).toBeCloseTo(3); // same dot, 3 px further along
 	expect(pathDots([arrow, duck], 10, 0, 35).map((d) => d.x)).toEqual([10, 20, 30, 40]); // only the first 35 px are laid
@@ -106,22 +108,68 @@ test('a new run (trace still searching, the old path cleared) draws no dots and 
 	expect(frameHint.minGap).toBe(0);
 });
 
-test('overlay: with scene.march the main canvas leaves the marching dots to a small layer that redraws only them, off the Arrow and Duck', () => {
+test('the pulse travels from the Arrow to the Duck, rests, and comes round again', () => {
+	const m = { L: 300, v: 140, span: 50, flowFrom: 1000 };
+	const heads = [0, 200, 400, 800, 1200, 1600].map((t) => pulseHead(m, 1000 + t));
+	for (let i = 1; i < heads.length; i++) expect(heads[i]).toBeGreaterThan(heads[i - 1]); // Arrow -> Duck
+	expect(heads[0]).toBeCloseTo(-m.span); // starts just before the Arrow
+	const cyc = ((m.L + 2 * m.span) / m.v) * 1000 + PATH_DOT.pulseRest;
+	expect(pulseHead(m, 1000 + cyc + 10)).toBeCloseTo(pulseHead(m, 1010)); // repeats
+	expect(pulseW(100, 100, 50)).toBeCloseTo(1);
+	expect(pulseW(125, 100, 50)).toBeCloseTo(0.5);
+	expect(pulseW(150, 100, 50)).toBe(0);
+});
+
+test('the trace lays the dots in order (traceMs, eased) as rings, they fill solid when it lands, then the pulse lights them', () => {
+	const path2 = Array.from({ length: 30 }, (_, i) => ({ r: 14, c: 5 + i })); // a fresh path: its trace starts now
+	const t0 = 6e7, base = scene({ now: t0, bestPath: path2 });
+	const coreFills = (f: { fill: string; radii: number[] }[], color: string) => f.filter((x) => x.fill === color && x.radii.length > 0);
+	const counts: number[] = [];
+	let ringSeen = false;
+	render(recorder().ctx, base);
+	const total = traceMs(path2.length - 1) + NEEDLE_RETRACT + DURATION.tug;
+	for (let t = 0; t <= total + 400; t += 40) {
+		const c = recorder();
+		render(c.ctx, { ...base, now: t0 + t });
+		const d = c.fills.filter((f) => f.fill === p.path).at(0);
+		counts.push(d ? d.radii.length : 0);
+		if (t < traceMs(path2.length - 1) && d && coreFills(c.fills, p.home).some((f) => Math.max(...f.radii) < d.radii[0])) ringSeen = true; // a hole inside each dot
+	}
+	for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
+	expect(counts[0]).toBeLessThan(counts.at(-1)!);
+	expect(ringSeen).toBe(true);
+	// landed: solid (no hole), and the pulse draws a highlight core over some dots
+	const done = recorder();
+	render(done.ctx, { ...base, now: t0 + total + 400 });
+	const solidR = done.fills.find((f) => f.fill === p.path)!.radii[0];
+	expect(coreFills(done.fills, p.home).every((f) => Math.min(...f.radii) > solidR)).toBe(true); // halos only, no holes
+	const hi = done.fills.filter((f) => f.fill.startsWith('rgb(') && f.radii.length > 0);
+	expect(hi.length).toBeGreaterThan(0);
+	expect(hi[0].radii.length).toBeLessThan(counts.at(-1)!); // only the dots under the pulse
+});
+
+test('overlay: with scene.march the main canvas keeps the solid dots and a small layer redraws only the pulse, off the Arrow and Duck', () => {
 	const base = scene({ now: 5e7 });
 	render(recorder().ctx, base);
 	const march: MarchItem[] = [];
 	const main = recorder();
 	expect(render(main.ctx, { ...base, now: 5e7 + 10_000, march })).toBe(true);
-	expect(dotFill(main.fills)).toBeUndefined();
+	expect(dotFill(main.fills)).toBeTruthy();
+	expect(main.fills.some((f) => f.fill.startsWith('rgb('))).toBe(false); // no pulse on the main canvas
 	expect(march.length).toBe(1);
 	const box = marchBox(march, 1280, 800)!;
 	expect(box.w).toBeLessThan(1280);
 	expect(box.h).toBeLessThan(200);
+	const m = march[0];
+	// find a moment the pulse is mid-path
+	const at = (head: number) => { for (let t = m.flowFrom; ; t += 5) if (pulseHead(m, t) >= head) return t; };
 	const o = recorder(), o2 = recorder();
-	drawMarch(o.ctx, march, 5e7 + 10_000, box, 1);
-	drawMarch(o2.ctx, march, 5e7 + 10_100, box, 1);
-	const d = dotFill(o.fills)!;
-	expect(d.radii.length).toBeGreaterThan(20);
-	expect(o.fills.filter((f) => f.fill === p.path)).toHaveLength(1); // one batched dot fill per frame
-	expect(dotFill(o2.fills)).toBeTruthy();
+	drawMarch(o.ctx, march, at(m.L / 3), box, 1);
+	drawMarch(o2.ctx, march, at((2 * m.L) / 3), box, 1);
+	const lit = o.fills.filter((f) => f.fill === p.path)[0], lit2 = o2.fills.filter((f) => f.fill === p.path)[0];
+	expect(lit.radii.length).toBeGreaterThan(0);
+	expect(lit.radii.length).toBeLessThan(m.dots.length);
+	expect(o.fills.filter((f) => f.fill === p.path)).toHaveLength(1); // one batched fill per pass
+	expect(Math.max(...lit.radii)).toBeGreaterThan(m.r * 1.2); // swells under the pulse
+	expect(lit2.radii.length).toBeGreaterThan(0);
 });
