@@ -245,7 +245,8 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.toast { bottom: calc(64px + env(safe-area-inset-bottom)); max-width: calc(100% - 140px); }
 	.legend-pin { display: none; }
 	.inspector { top: 64px; right: calc(8px + env(safe-area-inset-right)); width: 240px; max-height: calc(100% - 64px - 64px); }
-	.stepbar { left: calc(8px + env(safe-area-inset-left)); width: auto; right: 260px; transform: none; bottom: calc(8px + env(safe-area-inset-bottom)); }
+	.stepbar { left: calc(8px + env(safe-area-inset-left)); width: auto; right: calc(300px + env(safe-area-inset-right)); transform: none; bottom: calc(8px + env(safe-area-inset-bottom)); padding: 2px 6px; }
+	.stepbar input[type='range'] { min-width: 40px; height: 44px; }
 	.icon-btn, .mini .go { min-width: 44px; height: 44px; }
 	.seg > button, .tabs > button { min-height: 44px; }
 	.zoom__pct { height: 44px; }
