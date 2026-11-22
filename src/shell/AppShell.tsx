@@ -27,6 +27,9 @@ import { applyGenerator } from './generate';
 import { GENERATORS, GenId } from '../model/generators';
 import './shell.css';
 
+// Generator seeds never touch Math.random: Random Search (and its seeded
+// goldens) draw from it, and one extra call shifts every later visit.
+const newSeed = () => 1 + ((globalThis.crypto?.getRandomValues?.(new Uint32Array(1))[0] ?? Date.now()) % 99999);
 const PHONE = '(max-width: 599px)'; // keep in step with shell.css
 
 type Prefs = { chrome: Chrome; cells: CellSet; speed: SpeedName };
@@ -80,7 +83,7 @@ export default function AppShell() {
 	const [dir, setDir] = useState<Dir>(1);
 	const [findMode, setFindMode] = useState<FindMode>('all');
 	const [maze, setMaze] = useState('basic');
-	const [seed, setSeed] = useState(() => 1 + Math.floor(Math.random() * 99999));
+	const [seed, setSeed] = useState(newSeed);
 	const [landing, setLanding] = useState(true);
 	const [legendPinned, setLegendPinned] = useState(false);
 	const [legendH, setLegendH] = useState(0);
@@ -298,7 +301,7 @@ export default function AppShell() {
 		setBestPath(null);
 		if (!maze.startsWith('gen:')) return ctx.buildMaze(maze);
 		// New generators: Generate rolls a new seed; Enter in the seed field replays one.
-		const s = useSeed ?? 1 + Math.floor(Math.random() * 99999);
+		const s = useSeed ?? newSeed();
 		setSeed(s);
 		if (ctx.isPreviewing) ctx.hideBestPath();
 		ctx.clearBoard('visited');
