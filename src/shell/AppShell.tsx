@@ -646,7 +646,7 @@ export default function AppShell() {
 					<section className="section">
 						<h2 className="section__title">
 							Legend
-							<button className="icon-btn" style={{ width: 28, height: 28 }} aria-pressed={legendPinned} aria-label="Pin legend to canvas" title="Pin to canvas" onClick={() => setLegendPinned((p) => !p)}>
+							<button className="icon-btn" aria-pressed={legendPinned} aria-label="Pin legend to canvas" title="Pin to canvas" onClick={() => setLegendPinned((p) => !p)}>
 								<Icon.pin />
 							</button>
 						</h2>
