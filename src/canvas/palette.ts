@@ -94,7 +94,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		vis: ['#4aa89c', '#3f9a8f', '#56b5a8'], visited: '#3f9a8f',
 		front: '#d9a24a', frontEdge: '#ffe0a0', path: '#ff8a66',
 		start: '#ff6b3d', arrowBack: '#ffb092', startOutline: null,
-		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#8a6410', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',
+		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#a37a18', beak: '#ff8a3d', beak2: '#d9631f', eye: '#1f1b16',
 		oneway: '#3b4c7a', onewayFg: '#9fb3dd', hole: '#070b1c', holeShadow: 'rgba(0,0,0,0.85)',
 		pad: '#4fc1b2', pads: ['#4fc1b2', '#c58ae0', '#fdba74', '#fca5a5', '#93c5fd', '#f0abfc'],
 		sticker: '#fff6e6', stickerEdge: '#c9b993',

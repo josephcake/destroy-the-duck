@@ -29,7 +29,7 @@ const SPEC: [string, string, string, number][] = [
 	['Paper frontEdge', P.frontEdge, P.home, 3.36], ['Night frontEdge', NP.frontEdge, NP.home, 11.6], ['Classic Light front', CL.front, CL.home, 3.85], ['Classic Dark frontEdge', CD.frontEdge, CD.home, 13.6],
 	['Paper thread', P.path, P.home, 5.81], ['Night thread', NP.path, NP.home, 6.39], ['Classic Light thread', CL.path, CL.home, 3.58], ['Classic Dark thread', CD.path, CD.home, 5.24],
 	['Paper start', P.start, P.home, 3.5], ['Night start', NP.start, NP.home, 5.23], ['Classic Light start (fill)', CL.start, CL.home, 2.55], ['Classic Dark start', CD.start, CD.home, 5.42],
-	['Paper duck edge', P.duckEdge, P.home, 4.85], ['Night duck (body)', NP.duck, NP.home, 8.77], ['Classic Light duck edge', CL.duckEdge, CL.home, 3.59], ['Classic Dark duck', CD.duck, CD.home, 10.49],
+	['Paper duck edge', P.duckEdge, P.home, 4.85], ['Night duck (body)', NP.duck, NP.home, 8.77], ['Night duck edge (v2.2)', NP.duckEdge, NP.home, 3.77], ['Classic Light duck edge', CL.duckEdge, CL.home, 3.59], ['Classic Dark duck', CD.duck, CD.home, 10.49],
 	['Paper onewayEdge', P.onewayFg, P.home, 3.36], ['Night onewayEdge', NP.onewayFg, NP.home, 7.02], ['Classic Light onewayEdge', CL.onewayFg, CL.home, 5.95], ['Classic Dark onewayEdge', CD.onewayFg, CD.home, 9.65],
 	['Paper holeDeep', P.hole, P.home, 3.65], ['pair letter (white) on Paper holeDeep', '#ffffff', P.hole, 4.04],
 	['Paper tele A', P.pads[0], P.home, 3.52], ['Paper tele B', P.pads[1], P.home, 5.13], ['Night tele A', NP.pads[0], NP.home, 6.76], ['Night tele B', NP.pads[1], NP.home, 5.69],
@@ -93,4 +93,9 @@ test('§9 #3: stored Pond prefs migrate to Paper', () => {
 test('Classic Dark retires the #626262 board for #24242a / #c9cbe3 walls', () => {
 	expect(CD.home).toBe('#24242a');
 	expect(CD.wall).toBe('#c9cbe3');
+});
+
+test('Prism review must-fix 3 (spec v2.2): the Night Paper duck edge carries 3:1 on its own, not just via the body', () => {
+	expect(PALETTES['paper-dark'].duckEdge).toBe('#a37a18');
+	expect(contrast(PALETTES['paper-dark'].duckEdge, PALETTES['paper-dark'].home)).toBeGreaterThanOrEqual(3);
 });
