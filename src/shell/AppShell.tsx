@@ -11,9 +11,13 @@ import { LegacyMirror } from '../canvas/mirror';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, weightColor } from '../canvas/palette';
 import { searchAsync } from '../engine/runner';
-import { Trace, TracedAlgo } from '../engine/trace';
+import { FindMode, Trace, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
-import { buildSnapshot, BUDGET } from './snapshot';
+import { buildSnapshot, BUDGET, lonePads } from './snapshot';
+import { PAD_LETTER } from '../model/nodes';
+import { unsupported } from '../engine/search';
+import { Dir } from '../model/board';
+import { Bounds, HOME } from '../model/cell';
 import { classicBestPath } from './classicBest';
 import { CLASSIC, MAZES, SPEEDS, SpeedName, speedEvent, useLegacy } from './legacy';
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
@@ -45,7 +49,10 @@ const loadPrefs = (): Prefs => {
 const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string }[] = [
 	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Duck to move them.' },
 	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
-	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls and weights.' },
+	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; a click uses the arrow below. Enter and leave only along the arrow.' },
+	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (a, b, c…); stepping on one jumps to the other for free. Click a pad to remove it.' },
+	{ id: 'duck', label: 'Duck', key: 'd', icon: Icon.duck, hint: 'click to add another duck (2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
+	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra ducks.' },
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the endless pond.' },
 ];
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
@@ -68,6 +75,8 @@ export default function AppShell() {
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [tool, setTool] = useState<Tool>('wall');
 	const [weight, setWeight] = useState<Weight>(5);
+	const [dir, setDir] = useState<Dir>(1);
+	const [findMode, setFindMode] = useState<FindMode>('all');
 	const [maze, setMaze] = useState('basic');
 	const [landing, setLanding] = useState(true);
 	const [legendPinned, setLegendPinned] = useState(false);
@@ -206,7 +215,9 @@ export default function AppShell() {
 		setBestPath(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
-		const trace: Trace = await searchAsync(which, buildSnapshot(board, mirror));
+		const snap = buildSnapshot(board, mirror, { findMode });
+		if (unsupported(which, snap)) return;
+		const trace: Trace = await searchAsync(which, snap);
 		scene.current.traceTimes = new Map();
 		const st = new TraceState(trace);
 		setTraceState(st);
@@ -293,6 +304,14 @@ export default function AppShell() {
 
 	// ---------- derived ----------
 	const weights = [...board.entries()].filter(([, , t]) => t.kind === 'weight');
+	const tiles = [...board.entries()];
+	const oneways = tiles.filter(([, , t]) => t.kind === 'oneway').length;
+	const pads = tiles.filter(([, , t]) => t.kind === 'pad').length;
+	const extraDucks = tiles.filter(([, , t]) => t.kind === 'duck').length;
+	const lone = lonePads(board);
+	const snapNow = buildSnapshot(board, mirror, { findMode });
+	const blocked = (a: TracedAlgo) => unsupported(a, snapNow);
+	const why = algo && isTraced(algo) ? blocked(algo) : null;
 	const outside = [...board.entries()].some(([r, c]) => !inHome(r, c));
 	const classic = algo && !isTraced(algo) ? CLASSIC.find((c) => c.id === algo)! : null;
 	const showBestPathBtn = classic && classic.id !== 'dijkstra';
@@ -301,7 +320,30 @@ export default function AppShell() {
 	const learnFloats = !!tr && tab === 'learn';
 	const insets = phone
 		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
-		: { top: 56, right: 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
+		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
+	// Phone (decision for Mochi b): frame the rows of Home and the columns from
+	// the Arrow to the Duck (±3), so both stay on screen; never below 35 %,
+	// then centre on the Arrow-Duck midpoint and let the user pan sideways.
+	const homeBounds = (): Bounds => {
+		if (!phone || mirror.start < 0 || mirror.end < 0) return HOME;
+		const a = mirror.start % HOME_COLS, d = mirror.end % HOME_COLS;
+		let c0 = Math.min(a, d) - 3, c1 = Math.max(a, d) + 3;
+		const maxCols = Math.floor((window.innerWidth - 24) / (20 * 0.35));
+		if (c1 - c0 + 1 > maxCols) {
+			const mid = Math.round((a + d) / 2);
+			c0 = mid - Math.floor(maxCols / 2);
+			c1 = c0 + maxCols - 1;
+		}
+		return { r0: HOME.r0, r1: HOME.r1, c0, c1 };
+	};
+	// Phone: the first framing runs before the classic table reports the Arrow
+	// and Duck; frame again once it does.
+	const phoneFramed = useRef(false);
+	useEffect(() => {
+		if (!phone || phoneFramed.current || mirror.start < 0 || mirror.end < 0) return;
+		phoneFramed.current = true;
+		stage.current?.home();
+	});
 	const legendRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!legendPinned || !legendRef.current) return;
@@ -336,7 +378,7 @@ export default function AppShell() {
 				</button>
 			);
 		return (
-			<button className="go" onClick={go} data-testid="go" disabled={ctx.running} title={algo ? undefined : 'Pick an algorithm first'}>
+			<button className="go" onClick={go} data-testid="go" disabled={ctx.running || !!why} title={why ?? (algo ? undefined : 'Pick an algorithm first')}>
 				{!compact && <Icon.foot />} Go!
 			</button>
 		);
@@ -354,6 +396,8 @@ export default function AppShell() {
 			{([2, 5, 10] as Weight[]).filter((w) => weights.some(([, , t]) => t.kind === 'weight' && t.cost === w)).map((w) => (
 				<span key={w}><i style={{ background: weightColor(palette, w) }} />Weight {WEIGHT_NAMES[w]}</span>
 			))}
+			{oneways > 0 && <span><i style={{ background: palette.oneway, borderColor: palette.onewayFg }} />One-way</span>}
+			{pads > 0 && <span><i style={{ background: 'transparent', border: `2px solid ${palette.pad}`, borderRadius: 99 }} />Teleport</span>}
 			<span className="legend__goal">Hunt the Quack!!</span>
 		</div>
 	);
@@ -384,10 +428,25 @@ export default function AppShell() {
 					{tab === 'sandbox' ? (
 						<section className="section">
 							<h2 className="section__title">Find the duck</h2>
-							<AlgoPicker value={algo} open={pickerOpen} disabled={busy} onOpen={setPickerOpen} onPick={pickAlgo} />
+							<AlgoPicker value={algo} open={pickerOpen} disabled={busy} onOpen={setPickerOpen} onPick={pickAlgo} blocked={blocked} />
+							{extraDucks > 0 && (
+								<div className="seg" role="group" aria-label="Find" style={{ marginTop: 8 }}>
+									{(
+										[
+											['nearest', 'Nearest', 'Stop at the first duck reached'],
+											['all', 'All', 'A shortest path to every duck'],
+											['tour', 'Tour', 'Visit the ducks in number order'],
+										] as [FindMode, string, string][]
+									).map(([m, label, title]) => (
+										<button key={m} aria-pressed={findMode === m} title={title} data-testid={`find-${m}`} disabled={busy} onClick={() => setFindMode(m)}>
+											{label}
+										</button>
+									))}
+								</div>
+							)}
 							<div className="run-row">
 								{goButton()}
-								<button className="square" aria-label="Step" title="Step (new algorithms)" data-testid="step" disabled={!isTraced(algo) || ctx.running} onClick={stepOnce}>
+								<button className="square" aria-label="Step" title="Step (new algorithms)" data-testid="step" disabled={!isTraced(algo) || ctx.running || !!why} onClick={stepOnce}>
 									<Icon.step />
 								</button>
 								<button className="square" aria-label="Reset" title="Reset (clear path)" disabled={busy} onClick={reset}>
@@ -404,6 +463,9 @@ export default function AppShell() {
 								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
 								{classic && outside && <span className="chip">Classic algorithms search Home only</span>}
 								{algo && isTraced(algo) && <span className="chip">Searches the whole pond (budget {BUDGET / 1000}k)</span>}
+								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
+								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
+								{lone.length > 0 && <span className="chip" data-testid="lone-pad">Pad {lone.map(PAD_LETTER).join(', ')} has no partner yet</span>}
 							</div>
 						</section>
 					) : (
@@ -455,6 +517,15 @@ export default function AppShell() {
 								{([2, 5, 10] as Weight[]).map((w) => (
 									<button key={w} aria-pressed={weight === w} onClick={() => setWeight(w)}>
 										{WEIGHT_NAMES[w]}
+									</button>
+								))}
+							</div>
+						)}
+						{tool === 'oneway' && (
+							<div className="seg" role="group" aria-label="Lane direction" style={{ marginTop: 8 }}>
+								{(['↑ N', '→ E', '↓ S', '← W'] as const).map((l, i) => (
+									<button key={l} aria-pressed={dir === i} onClick={() => setDir(i as Dir)}>
+										{l}
 									</button>
 								))}
 							</div>
@@ -546,6 +617,8 @@ export default function AppShell() {
 						setBestPath(null);
 					}}
 					onZoom={setZoom}
+					homeBounds={homeBounds}
+					dir={dir}
 				/>
 
 				{!panelOpen && (
@@ -561,7 +634,7 @@ export default function AppShell() {
 						) : (
 							goButton(true)
 						)}
-						{TOOLS.map((t) => (
+						{TOOLS.filter((t) => !phone || ['wall', 'erase', 'pan'].includes(t.id) || t.id === tool).map((t) => (
 							<button key={t.id} className="icon-btn" aria-pressed={tool === t.id} aria-label={t.label} title={t.label} onClick={() => setTool(t.id)} style={tool === t.id ? { background: 'var(--raised)' } : undefined}>
 								<t.icon />
 							</button>

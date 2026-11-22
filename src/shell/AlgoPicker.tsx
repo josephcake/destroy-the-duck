@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { ALGO_INFO, TracedAlgo } from '../engine/trace';
+import { ALGO_INFO, TracedAlgo, isTraced as isTracedAlgo } from '../engine/trace';
 import { CLASSIC, ClassicAlgo } from './legacy';
 import { Icon } from './icons';
 
 export type AlgoId = ClassicAlgo | TracedAlgo;
-export const isTraced = (a: AlgoId | null): a is TracedAlgo => a === 'dijkstraW' || a === 'astar';
+export const isTraced = (a: AlgoId | null): a is TracedAlgo => isTracedAlgo(a);
 
 export function algoLabel(a: AlgoId | null) {
 	if (!a) return 'Pick an algorithm';
@@ -21,9 +21,11 @@ type Props = {
 	disabled: boolean;
 	onOpen: (open: boolean) => void;
 	onPick: (a: AlgoId) => void;
+	/** Why a new algorithm cannot run on this board (shown, and the option is disabled). */
+	blocked?: (a: TracedAlgo) => string | null;
 };
 
-export function AlgoPicker({ value, open, disabled, onOpen, onPick }: Props) {
+export function AlgoPicker({ value, open, disabled, onOpen, onPick, blocked }: Props) {
 	const ref = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open) return;
@@ -71,9 +73,9 @@ export function AlgoPicker({ value, open, disabled, onOpen, onPick }: Props) {
 					))}
 					<div className="picker__group">New</div>
 					{(Object.keys(ALGO_INFO) as TracedAlgo[]).map((a) => (
-						<button key={a} className="picker__item" role="option" aria-selected={value === a} onClick={() => pick(a)}>
+						<button key={a} className="picker__item" role="option" aria-selected={value === a} aria-disabled={!!blocked?.(a)} disabled={!!blocked?.(a)} title={blocked?.(a) ?? undefined} onClick={() => pick(a)}>
 							<span>{ALGO_INFO[a].label}</span>
-							<small>{ALGO_INFO[a].blurb}</small>
+							<small>{blocked?.(a) ? 'Unavailable here: needs a plain grid' : ALGO_INFO[a].blurb}</small>
 							<span className="tags">{ALGO_INFO[a].tags}</span>
 						</button>
 					))}

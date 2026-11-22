@@ -58,3 +58,11 @@ describe.each(Object.entries(PALETTES))('%s weights under visited', (_n, p) => {
 		expect(contrast(coveredEdge(p, w), p.visited)).toBeGreaterThanOrEqual(3);
 	});
 });
+
+describe.each(Object.entries(PALETTES))('%s Phase C nodes', (_n, p) => {
+	test('one-way chevrons and teleporter rings read against the board (3:1)', () => {
+		expect(contrast(p.onewayFg, p.home)).toBeGreaterThanOrEqual(3);
+		expect(contrast(p.onewayFg, p.oneway)).toBeGreaterThanOrEqual(3);
+		expect(contrast(p.pad, p.home)).toBeGreaterThanOrEqual(3);
+	});
+});

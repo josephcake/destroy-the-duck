@@ -77,6 +77,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-2); }
 .chip { font: 500 11.5px/16px var(--f-ui); color: var(--ink-2); border: 1px solid var(--line); background: var(--raised); border-radius: var(--r-pill); padding: 2px 8px; }
 .chip--mono { font-family: var(--f-mono); }
+.chip--warn { color: var(--ink); border-color: var(--line-ui); border-radius: var(--r-sm); white-space: normal; }
 
 .tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .tool { border: 1px solid transparent; background: transparent; border-radius: var(--r-sm); padding: 6px 2px; display: grid; justify-items: center; gap: 2px; font: 500 11.5px/14px var(--f-ui); color: var(--ink-2); }

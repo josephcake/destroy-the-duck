@@ -1,7 +1,8 @@
 // The infinite canvas: owns the view, input gestures and the draw loop.
 import { flushSync } from 'react-dom';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { Board, Weight } from '../model/board';
+import { Board, Dir, Weight } from '../model/board';
+import { dirOf, nextDuck, nextPadPair } from '../model/nodes';
 import { Bounds, HOME, idOf, inHome } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror, legacy } from './mirror';
@@ -9,7 +10,9 @@ import { Palette } from './palette';
 import { render, Scene } from './render';
 import { Insets, View, cellAt, frame, nextStop, zoomAt } from './view';
 
-export type Tool = 'wall' | 'weight' | 'erase' | 'pan';
+export type Tool = 'wall' | 'weight' | 'oneway' | 'pad' | 'duck' | 'erase' | 'pan';
+/** Tools that place one node per click (no drag painting). */
+const CLICK_TOOLS = new Set<Tool>(['pad', 'duck']);
 
 export type SceneInput = {
 	board: Board;
@@ -34,10 +37,14 @@ type Props = {
 	scene: React.MutableRefObject<SceneInput>;
 	tool: Tool;
 	weight: Weight;
+	/** One-way direction for clicks (drags follow the pointer). */
+	dir?: Dir;
 	editable: boolean;
 	insets: Insets;
 	onInteract: () => void;
 	onZoom: (z: number) => void;
+	/** What Home (H) frames; defaults to the classic 35x80 board. */
+	homeBounds?: () => Bounds;
 };
 
 type Gesture =
@@ -91,7 +98,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		live.current.onZoom(view.current.zoom);
 	};
 	const api: StageApi = {
-		home: () => frameBounds(HOME),
+		home: () => frameBounds(live.current.homeBounds?.() ?? HOME),
 		fit: () => {
 			const c = live.current.scene.current.board.contentBounds();
 			const b = c
@@ -162,7 +169,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	useEffect(() => {
 		if (framed.current) api.home();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [props.insets.bottom, props.insets.top]);
+	}, [props.insets.bottom, props.insets.top, props.insets.right, props.insets.left]);
 
 	useEffect(() => {
 		const down = (e: KeyboardEvent) => {
@@ -187,9 +194,34 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 	};
 
-	const paintCell = (r: number, c: number) => {
+	/** Where a node may go: not on a Home wall or the Arrow/Duck. */
+	const placeable = (r: number, c: number) => {
+		if (!inHome(r, c)) return live.current.scene.current.board.get(r, c)?.kind !== 'wall';
+		const k = live.current.scene.current.mirror.at(r, c);
+		return k !== K.Start && k !== K.End && k !== K.Wall;
+	};
+	const paintCell = (r: number, c: number, dir?: Dir) => {
 		const { tool, weight, scene } = live.current;
 		const { board, mirror } = scene.current;
+		if (tool === 'oneway') {
+			if (placeable(r, c)) board.set(r, c, { kind: 'oneway', dir: dir ?? live.current.dir ?? 1 });
+			dirty.current = true;
+			return;
+		}
+		if (tool === 'pad' || tool === 'duck') {
+			if (!placeable(r, c)) return;
+			const t = board.get(r, c);
+			if (t && t.kind === tool) board.set(r, c, undefined); // click again removes it
+			else if (tool === 'pad') {
+				const pair = nextPadPair(board);
+				if (pair >= 0) board.set(r, c, { kind: 'pad', pair });
+			} else {
+				const n = nextDuck(board);
+				if (n >= 0) board.set(r, c, { kind: 'duck', n });
+			}
+			dirty.current = true;
+			return;
+		}
 		if (inHome(r, c)) {
 			const k = mirror.at(r, c);
 			if (k === K.Start || k === K.End) return;
@@ -272,8 +304,17 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				gesture.current = { ...g, last: cell };
 			}
 		} else if (g.mode === 'paint') {
-			if (cell.r !== g.last.r || cell.c !== g.last.c) {
-				for (const q of line(g.last, cell)) paintCell(q.r, q.c);
+			if ((cell.r !== g.last.r || cell.c !== g.last.c) && !CLICK_TOOLS.has(live.current.tool)) {
+				let prev = g.last;
+				for (const q of line(g.last, cell)) {
+					if (live.current.tool === 'oneway') {
+						// a dragged lane points the way the pointer moved
+						const d = dirOf(prev, q) ?? undefined;
+						paintCell(prev.r, prev.c, d);
+						paintCell(q.r, q.c, d);
+					} else paintCell(q.r, q.c);
+					prev = q;
+				}
 				gesture.current = { mode: 'paint', last: cell };
 			}
 		}

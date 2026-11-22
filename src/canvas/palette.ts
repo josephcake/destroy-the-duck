@@ -21,6 +21,10 @@ export type Palette = {
 	water: string;
 	/** Weight cell edges (2, 5, 10): >= 3:1 against `home` (WCAG 1.4.11). */
 	wEdge: [string, string, string];
+	/** Phase C nodes (token-driven so the paper restyle can swap them). */
+	oneway: string; // lane fill
+	onewayFg: string; // chevron, >= 3:1 vs home
+	pad: string; // teleporter ring + letter, >= 3:1 vs home
 	highlight: string; // wall top highlight (1dp, up-facing edges)
 	wallDown: string; // wall inner down edge (1dp)
 	wallOutline?: string; // optional 1dp outline (Classic Dark)
@@ -48,6 +52,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wHi: '#a77a4c',
 		water: '#3483b7',
 		wEdge: ['#b08750', '#8a5a2b', '#2d73a8'],
+		oneway: '#e6edf7',
+		onewayFg: '#2b5fb8',
+		pad: '#7b3fc4',
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(28,34,48,0.30)',
@@ -70,6 +77,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wHi: '#9a7650',
 		water: '#3c86b8',
 		wEdge: ['#c9b98f', '#d9a66a', '#7fc0ea'],
+		oneway: '#1c2838',
+		onewayFg: '#7fb0ff',
+		pad: '#c69cff',
 		highlight: 'rgba(255,255,255,0.22)',
 		wallDown: 'rgba(0,0,0,0.35)',
 		shadow: 'rgba(0,0,0,0.6)',
@@ -92,6 +102,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wHi: '#a77a4c',
 		water: '#3483b7',
 		wEdge: ['#7a6a4a', '#5d3d1e', '#1f5e8c'],
+		oneway: '#c2c2c2',
+		onewayFg: '#1f4fa0',
+		pad: '#6a2496',
 		highlight: 'rgba(255,255,255,0.55)',
 		wallDown: 'rgba(0,0,0,0.28)',
 		shadow: 'rgba(0,0,0,0.30)',
@@ -114,6 +127,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wHi: '#b08a55',
 		water: '#3c86b8',
 		wEdge: ['#e6e3c8', '#f0cf9a', '#a8daf7'],
+		oneway: '#585858',
+		onewayFg: '#cfe0ff',
+		pad: '#ead6ff',
 		highlight: 'rgba(255,255,255,0.22)',
 		wallOutline: 'rgba(255,255,255,0.14)',
 		wallDown: 'rgba(0,0,0,0.35)',

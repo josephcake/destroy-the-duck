@@ -5,6 +5,7 @@ import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls } from './walls';
+import { PAD_LETTER } from '../model/nodes';
 import { Palette, coveredEdge, labelOn, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
@@ -269,6 +270,39 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		if (covered) weightDecor(r, c, t.cost, p.visited);
 	}
 
+	// Phase C nodes: one-way lanes and teleporter pads, drawn over visited cells
+	// so they stay readable during a run. (Extra ducks go with the sprites.)
+	const padCount = new Map<number, number>();
+	for (const [, , t] of scene.board.entries()) if (t.kind === 'pad') padCount.set(t.pair, (padCount.get(t.pair) ?? 0) + 1);
+	for (const [r, c, t] of scene.board.entries(vb)) {
+		if ((t.kind !== 'oneway' && t.kind !== 'pad') || isWallAt(scene, r, c)) continue;
+		const { x, y } = cellToScreen(view, r, c);
+		if (t.kind === 'oneway') {
+			ctx.fillStyle = p.oneway;
+			roundRect(ctx, x + 0.04 * s, y + 0.04 * s, s - 0.08 * s, s - 0.08 * s, 0.16 * s);
+			ctx.fill();
+			drawChevron(ctx, x + s / 2, y + s / 2, s, t.dir, p.onewayFg);
+		} else {
+			const lone = (padCount.get(t.pair) ?? 0) < 2;
+			ctx.save();
+			ctx.strokeStyle = p.pad;
+			ctx.lineWidth = Math.max(1.5, 0.1 * s);
+			if (lone) ctx.setLineDash([Math.max(2, 0.12 * s), Math.max(2, 0.1 * s)]);
+			ctx.beginPath();
+			ctx.arc(x + s / 2, y + s / 2, 0.36 * s, 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.restore();
+			if (s >= 14) {
+				ctx.fillStyle = p.pad;
+				ctx.font = `700 ${0.42 * s}px "DM Mono", monospace`;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText(PAD_LETTER(t.pair), x + s / 2, y + s / 2 + 0.02 * s);
+				ctx.textAlign = 'left';
+			}
+		}
+	}
+
 	// Home outline + label, on top of the cells so visited never hides them.
 	// Colours meet 3:1 (line) and 4.5:1 (label) against the paper.
 	ctx.save();
@@ -323,10 +357,17 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		ctx.shadowColor = p.path;
 		ctx.shadowBlur = 0.5 * s;
 		ctx.beginPath();
+		const jumps: [number, number, number, number][] = [];
 		cells.forEach(({ r, c }, i) => {
 			const { x, y } = cellToScreen(view, r, c);
+			const prev = cells[i - 1];
 			if (i === 0) ctx.moveTo(x + s / 2, y + s / 2);
-			else ctx.lineTo(x + s / 2, y + s / 2);
+			else if (Math.abs(prev.r - r) + Math.abs(prev.c - c) > 1) {
+				// teleporter jump: no line through the board, a dashed arc instead
+				const a = cellToScreen(view, prev.r, prev.c);
+				jumps.push([a.x + s / 2, a.y + s / 2, x + s / 2, y + s / 2]);
+				ctx.moveTo(x + s / 2, y + s / 2);
+			} else ctx.lineTo(x + s / 2, y + s / 2);
 		});
 		if (cells.length === 1) {
 			const { x, y } = cellToScreen(view, cells[0].r, cells[0].c);
@@ -334,6 +375,20 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		}
 		if (k < 1) ctx.setLineDash([L * k, L + s]);
 		ctx.stroke();
+		if (jumps.length && k >= 1) {
+			ctx.save();
+			ctx.shadowBlur = 0;
+			ctx.lineWidth = Math.max(1.5, 0.1 * s);
+			ctx.setLineDash([Math.max(3, 0.25 * s), Math.max(3, 0.2 * s)]);
+			ctx.beginPath();
+			for (const [x0, y0, x1, y1] of jumps) {
+				const mx = (x0 + x1) / 2, my = (y0 + y1) / 2 - Math.max(2 * s, 0.25 * Math.hypot(x1 - x0, y1 - y0));
+				ctx.moveTo(x0, y0);
+				ctx.quadraticCurveTo(mx, my, x1, y1);
+			}
+			ctx.stroke();
+			ctx.restore();
+		}
 		if (dashT >= 0) {
 			ctx.shadowBlur = 0;
 			ctx.setLineDash([0.6 * s, 1.8 * s]);
@@ -344,7 +399,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		}
 		ctx.restore();
 	};
-	if (tr && tr.path.length) drawPath(tr.path.map(parseId), true);
+	if (tr) for (const g of tr.paths) drawPath(g.nodes.map(parseId), true);
 	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
 	if (m.previewOrder.length) {
 		const cells = m.previewOrder.map((i) => LegacyMirror.cellAt(i));
@@ -368,7 +423,18 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const a = LegacyMirror.cellAt(m.start);
 		drawArrow(ctx, view, a.r, a.c, duckCell, p);
 	}
-	if (duckCell) drawDuck(ctx, view, duckCell.r, duckCell.c, p, !!(tr && tr.trace.result.found && tr.done));
+	const extra: { n: number; r: number; c: number }[] = [];
+	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'duck' && !isWallAt(scene, r, c)) extra.push({ n: t.n, r, c });
+	const multi = extra.length > 0 || [...scene.board.entries()].some(([, , t]) => t.kind === 'duck');
+	const reached = (n: number) => !!(tr && tr.done && (tr.trace.result.paths ?? []).some((q) => q.duck === n));
+	if (duckCell) drawDuck(ctx, view, duckCell.r, duckCell.c, p, multi ? reached(1) : !!(tr && tr.trace.result.found && tr.done));
+	if (duckCell && multi) drawDuckBadge(ctx, view, duckCell.r, duckCell.c, 1, p);
+	// extra ducks: number order is goal order (duck 1 = the classic Duck)
+	const order = [...scene.board.entries()].filter(([, , t]) => t.kind === 'duck').map(([, , t]) => (t as { n: number }).n).sort((a, b) => a - b);
+	for (const d of extra) {
+		drawDuck(ctx, view, d.r, d.c, p, reached(order.indexOf(d.n) + 2));
+		drawDuckBadge(ctx, view, d.r, d.c, order.indexOf(d.n) + 2, p);
+	}
 
 	// Hover outline
 	if (scene.hover) {
@@ -502,5 +568,47 @@ export function drawDuck(
 	ctx.beginPath();
 	ctx.arc(0.08 * s, 0.08 * s, 0.16 * s, 0.15 * Math.PI, 0.85 * Math.PI);
 	ctx.stroke();
+	ctx.restore();
+}
+
+/** Chevron pointing N/E/S/W (0..3), centred at (cx, cy). */
+function drawChevron(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, dir: number, color: string) {
+	ctx.save();
+	ctx.translate(cx, cy);
+	ctx.rotate((dir * Math.PI) / 2);
+	ctx.strokeStyle = color;
+	ctx.lineWidth = Math.max(1.25, 0.1 * s);
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	ctx.beginPath();
+	ctx.moveTo(-0.22 * s, 0.1 * s);
+	ctx.lineTo(0, -0.14 * s);
+	ctx.lineTo(0.22 * s, 0.1 * s);
+	ctx.stroke();
+	ctx.restore();
+}
+
+/**
+ * Duck number badge, kept inside the cell's own bounds at every zoom
+ * (top-right corner, radius <= 0.24 s). Hidden when cells are too small.
+ */
+export function badgeGeometry(x: number, y: number, s: number) {
+	const rad = Math.min(0.24 * s, 14);
+	return { cx: x + s - rad - 0.02 * s, cy: y + rad + 0.02 * s, rad };
+}
+function drawDuckBadge(ctx: CanvasRenderingContext2D, view: View, r: number, c: number, n: number, p: Palette) {
+	const { x, y, s } = cellToScreen(view, r, c);
+	if (s < 14) return;
+	const { cx, cy, rad } = badgeGeometry(x, y, s);
+	ctx.save();
+	ctx.fillStyle = p.ink;
+	ctx.beginPath();
+	ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.fillStyle = p.paper;
+	ctx.font = `700 ${rad * 1.25}px "DM Mono", monospace`;
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText(String(n), cx, cy + rad * 0.06);
 	ctx.restore();
 }
