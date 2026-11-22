@@ -1,10 +1,10 @@
 // Canvas 2D renderer. Cost is proportional to content, not to viewport area:
 // it walks Home (2,800 cells), board chunks in view and the trace overlay.
-import { Board } from '../model/board';
+import { Board, Weight } from '../model/board';
 import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
-import { Palette, mix, weightColor, weightEdge } from './palette';
+import { Palette, labelOn, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
 const FRONTIER_PULSE_MAX = 2000;
@@ -94,41 +94,92 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 
 
-	// Weight edge + texture. Drawn again over visited cells so the cost stays
-	// readable after the search passes (fix 7): dots = cost (2, 5), waves = water.
-	const weightMarks = (r: number, c: number, cost: number, covered: boolean) => {
-		if (view.zoom < 0.35) return;
+	// Weights: same-cost neighbours merge into one blob (4-neighbour mask, a
+	// shared side has no inset and its corners no radius). The edge stroke
+	// carries the 3:1 contrast (fix 2) and is drawn only on open sides. Over
+	// visited cells the edge, label and texture are drawn again (fix 7).
+	const weightCells: [number, number, Weight][] = [];
+	for (const [r, c, t] of scene.board.entries(vb)) if (t.kind === 'weight' && !isWallAt(scene, r, c)) weightCells.push([r, c, t.cost]);
+	const sameW = (r: number, c: number, cost: number) => {
+		const t = scene.board.get(r, c);
+		return !!t && t.kind === 'weight' && t.cost === cost && !isWallAt(scene, r, c);
+	};
+	const blobs = view.zoom >= 0.5;
+	const wGeom = (r: number, c: number, cost: number, shrink = 0) => {
 		const { x, y } = cellToScreen(view, r, c);
+		const n = sameW(r - 1, c, cost), e = sameW(r, c + 1, cost), so = sameW(r + 1, c, cost), w = sameW(r, c - 1, cost);
+		const ins = (blobs ? 0.06 * s : 0) + shrink;
+		const x0 = x + (w ? 0 : ins), x1 = x + s - (e ? 0 : ins), y0 = y + (n ? 0 : ins), y1 = y + s - (so ? 0 : ins);
+		const R = blobs ? Math.max(0, 0.22 * s - shrink) : 0;
+		// concave corners (both sides shared, diagonal not): notch by the inset so
+		// the blob's outline steps in cleanly instead of poking out a square
+		const k = blobs ? 0.06 * s : 0;
+		const cc = [
+			n && w && !sameW(r - 1, c - 1, cost) ? k : 0,
+			n && e && !sameW(r - 1, c + 1, cost) ? k : 0,
+			so && e && !sameW(r + 1, c + 1, cost) ? k : 0,
+			so && w && !sameW(r + 1, c - 1, cost) ? k : 0,
+		];
+		return { x, y, x0, x1, y0, y1, n, e, so, w, cc, rad: [!n && !w ? R : 0, !n && !e ? R : 0, !so && !e ? R : 0, !so && !w ? R : 0] };
+	};
+	const blobCellPath = (g: ReturnType<typeof wGeom>) => {
+		const { x0, x1, y0, y1, cc } = g;
+		const [tl, tr, br, bl] = g.rad;
+		ctx.moveTo(x0 + Math.max(tl, cc[0]), y0);
+		if (cc[1]) { ctx.lineTo(x1 - cc[1], y0); ctx.lineTo(x1 - cc[1], y0 + cc[1]); ctx.lineTo(x1, y0 + cc[1]); }
+		else { ctx.lineTo(x1 - tr, y0); if (tr) ctx.arcTo(x1, y0, x1, y0 + tr, tr); }
+		if (cc[2]) { ctx.lineTo(x1, y1 - cc[2]); ctx.lineTo(x1 - cc[2], y1 - cc[2]); ctx.lineTo(x1 - cc[2], y1); }
+		else { ctx.lineTo(x1, y1 - br); if (br) ctx.arcTo(x1, y1, x1 - br, y1, br); }
+		if (cc[3]) { ctx.lineTo(x0 + cc[3], y1); ctx.lineTo(x0 + cc[3], y1 - cc[3]); ctx.lineTo(x0, y1 - cc[3]); }
+		else { ctx.lineTo(x0 + bl, y1); if (bl) ctx.arcTo(x0, y1, x0, y1 - bl, bl); }
+		if (cc[0]) { ctx.lineTo(x0, y0 + cc[0]); ctx.lineTo(x0 + cc[0], y0 + cc[0]); ctx.lineTo(x0 + cc[0], y0); }
+		else { ctx.lineTo(x0, y0 + tl); if (tl) ctx.arcTo(x0, y0, x0 + tl, y0, tl); }
+		ctx.closePath();
+	};
+	const weightDecor = (r: number, c: number, cost: Weight, covered: string | null) => {
+		if (view.zoom < 0.35) return;
 		const edge = weightEdge(p, cost);
-		const inset = view.zoom >= 0.5 ? 0.06 * s : 0;
+		const lw = Math.max(1, Math.min(2, 0.08 * s));
+		const g = wGeom(r, c, cost, lw / 2);
+		const [tl, tr, br, bl] = g.rad;
+		ctx.beginPath();
+		if (!g.n) { ctx.moveTo(g.x0 + tl, g.y0); ctx.lineTo(g.x1 - tr, g.y0); if (tr) ctx.arcTo(g.x1, g.y0, g.x1, g.y0 + tr, tr); }
+		if (!g.e) { ctx.moveTo(g.x1, g.y0 + tr); ctx.lineTo(g.x1, g.y1 - br); if (br) ctx.arcTo(g.x1, g.y1, g.x1 - br, g.y1, br); }
+		if (!g.so) { ctx.moveTo(g.x1 - br, g.y1); ctx.lineTo(g.x0 + bl, g.y1); if (bl) ctx.arcTo(g.x0, g.y1, g.x0, g.y1 - bl, bl); }
+		if (!g.w) { ctx.moveTo(g.x0, g.y1 - bl); ctx.lineTo(g.x0, g.y0 + tl); if (tl) ctx.arcTo(g.x0, g.y0, g.x0 + tl, g.y0, tl); }
+		// concave notches: the two short inner edges
+		const o = lw / 2;
+		const [c0, c1, c2, c3] = g.cc;
+		if (c0) { ctx.moveTo(g.x0, g.y0 + c0 + o); ctx.lineTo(g.x0 + c0 + o, g.y0 + c0 + o); ctx.lineTo(g.x0 + c0 + o, g.y0); }
+		if (c1) { ctx.moveTo(g.x1 - c1 - o, g.y0); ctx.lineTo(g.x1 - c1 - o, g.y0 + c1 + o); ctx.lineTo(g.x1, g.y0 + c1 + o); }
+		if (c2) { ctx.moveTo(g.x1, g.y1 - c2 - o); ctx.lineTo(g.x1 - c2 - o, g.y1 - c2 - o); ctx.lineTo(g.x1 - c2 - o, g.y1); }
+		if (c3) { ctx.moveTo(g.x0 + c3 + o, g.y1); ctx.lineTo(g.x0 + c3 + o, g.y1 - c3 - o); ctx.lineTo(g.x0, g.y1 - c3 - o); }
 		ctx.strokeStyle = edge;
-		ctx.lineWidth = Math.max(1, Math.min(2, 0.08 * s));
-		roundRect(ctx, x + inset + 0.75, y + inset + 0.75, s - 2 * inset - 1.5, s - 2 * inset - 1.5, view.zoom >= 0.5 ? 0.2 * s : 0);
+		ctx.lineWidth = lw;
 		ctx.stroke();
-		if (view.zoom >= 2) {
-			ctx.fillStyle = covered ? edge : cost === 10 ? 'rgba(255,255,255,0.85)' : 'rgba(28,34,48,0.72)';
-			ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText(String(cost), x + s / 2, y + s / 2 + 0.02 * s);
-			ctx.textAlign = 'left';
-			return;
-		}
-		if (view.zoom < 0.75) return;
-		ctx.fillStyle = edge;
-		const d = Math.max(1, 0.07 * s);
+		if (view.zoom < 2) return;
+		const { x, y } = g;
+		ctx.fillStyle = labelOn(covered ?? weightColor(p, cost));
+		ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(String(cost), x + s / 2, y + s / 2 + 0.02 * s);
+		ctx.textAlign = 'left';
+		if (view.zoom < 3) return; // texture only up close (design: >= 300%)
+		ctx.strokeStyle = ctx.fillStyle = cost === 10 ? 'rgba(255,255,255,0.45)' : edge;
 		if (cost === 10) {
 			ctx.beginPath();
-			for (const k of [0.38, 0.62]) {
+			for (const k of [0.2, 0.82]) {
 				const yy = y + k * s;
-				ctx.moveTo(x + 0.25 * s, yy);
-				ctx.quadraticCurveTo(x + 0.375 * s, yy - 0.08 * s, x + 0.5 * s, yy);
-				ctx.quadraticCurveTo(x + 0.625 * s, yy + 0.08 * s, x + 0.75 * s, yy);
+				ctx.moveTo(x + 0.22 * s, yy);
+				ctx.quadraticCurveTo(x + 0.36 * s, yy - 0.06 * s, x + 0.5 * s, yy);
+				ctx.quadraticCurveTo(x + 0.64 * s, yy + 0.06 * s, x + 0.78 * s, yy);
 			}
-			ctx.lineWidth = Math.max(1, 0.06 * s);
+			ctx.lineWidth = Math.max(1, 0.035 * s);
 			ctx.stroke();
 		} else {
-			const pts = cost === 2 ? [[0.35, 0.35], [0.65, 0.65]] : [[0.32, 0.32], [0.68, 0.32], [0.5, 0.5], [0.32, 0.68], [0.68, 0.68]];
+			const d = Math.max(1, 0.035 * s);
+			const pts = cost === 2 ? [[0.22, 0.24], [0.78, 0.76]] : [[0.22, 0.24], [0.78, 0.24], [0.22, 0.78], [0.78, 0.78]];
 			ctx.beginPath();
 			for (const [u, v] of pts) {
 				ctx.moveTo(x + u * s + d, y + v * s);
@@ -137,17 +188,19 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			ctx.fill();
 		}
 	};
-
-	// Weights (board store; classic Home walls win over a weight underneath)
-	for (const [r, c, t] of scene.board.entries(vb)) {
-		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
-		const { x, y } = cellToScreen(view, r, c);
-		ctx.fillStyle = weightColor(p, t.cost);
-		const inset = view.zoom >= 0.5 ? 0.06 * s : 0;
-		roundRect(ctx, x + inset, y + inset, s - 2 * inset, s - 2 * inset, view.zoom >= 0.5 ? 0.22 * s : 0);
+	for (const cost of [2, 5, 10] as Weight[]) {
+		ctx.beginPath();
+		let any = false;
+		for (const [r, c, w] of weightCells) {
+			if (w !== cost) continue;
+			any = true;
+			blobCellPath(wGeom(r, c, cost));
+		}
+		if (!any) continue;
+		ctx.fillStyle = weightColor(p, cost);
 		ctx.fill();
-		weightMarks(r, c, t.cost, false);
 	}
+	for (const [r, c, w] of weightCells) weightDecor(r, c, w, null);
 
 	// Walls: merged look, outer corners rounded where both neighbours are open
 	const walls: [number, number][] = [];
@@ -229,7 +282,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
 		const covered = (inHome(r, c) && m.at(r, c) === K.Visited) || !!tr?.visited.has(idOf(r, c));
-		if (covered) weightMarks(r, c, t.cost, true);
+		if (covered) weightDecor(r, c, t.cost, p.visited);
 	}
 
 	// Home outline + label, on top of the cells so visited never hides them.

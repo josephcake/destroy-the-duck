@@ -35,3 +35,19 @@ test('Prism P4: the visited wave stays visible against the board (>= 1.5:1 at fu
 	expect(contrast(PALETTES['pond-light'].visited, PALETTES['pond-light'].home)).toBeGreaterThanOrEqual(1.5);
 	expect(contrast(PALETTES['pond-dark'].visited, PALETTES['pond-dark'].home)).toBeGreaterThanOrEqual(2);
 });
+
+// Prism P3: the cost label picks ink or white by fill luminance.
+import { labelOn, weightColor } from './palette';
+const toHex = (rgb: number[]) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+const parse = (c: string) => (c.startsWith('#') ? [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) : c.match(/[\d.]+/g)!.map(Number));
+const over = (rgba: string, bg: string) => {
+	const [r, g, b, a] = parse(rgba);
+	const B = parse(bg);
+	return toHex([r, g, b].map((v, i) => v * a + B[i] * (1 - a)));
+};
+describe.each(Object.entries(PALETTES))('%s weight labels', (_n, p) => {
+	test.each([2, 5, 10])('label on weight %i reads at >= 3:1', (w) => {
+		const fill = toHex(parse(weightColor(p, w)));
+		expect(contrast(over(labelOn(fill), fill), fill)).toBeGreaterThanOrEqual(3);
+	});
+});

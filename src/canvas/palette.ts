@@ -44,7 +44,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		ink: '#1c2230',
 		wLo: '#efe2c8',
 		wHi: '#a77a4c',
-		water: '#3a8cc2',
+		water: '#3483b7',
 		wEdge: ['#b08750', '#8a5a2b', '#2d73a8'],
 		highlight: 'rgba(255,255,255,0.55)',
 		shadow: 'rgba(0,0,0,0.18)',
@@ -86,7 +86,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		ink: '#1c2230',
 		wLo: '#efe2c8',
 		wHi: '#a77a4c',
-		water: '#3a8cc2',
+		water: '#3483b7',
 		wEdge: ['#7a6a4a', '#5d3d1e', '#1f5e8c'],
 		highlight: 'rgba(255,255,255,0.55)',
 		shadow: 'rgba(0,0,0,0.18)',
@@ -128,6 +128,19 @@ export function weightColor(p: Palette, w: number) {
 	const m = a.map((x, i) => Math.round(x + (b[i] - x) * t));
 	return `rgb(${m[0]},${m[1]},${m[2]})`;
 }
+
+/** WCAG relative luminance of '#rrggbb' or 'rgb(r,g,b)'. */
+export function luminance(color: string) {
+	const m = color.startsWith('#') ? hex(color) : (color.match(/\d+/g) ?? ['0', '0', '0']).slice(0, 3).map(Number);
+	const [r, g, b] = m.map((v) => {
+		const x = v / 255;
+		return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Cost label: ink 72% on light fills, white 80% on dark ones (design §4b). */
+export const labelOn = (fill: string) => (luminance(fill) > 0.35 ? 'rgba(28,34,48,0.72)' : 'rgba(255,255,255,0.8)');
 
 export function mix(c1: string, c2: string, t: number) {
 	const a = hex(c1);
