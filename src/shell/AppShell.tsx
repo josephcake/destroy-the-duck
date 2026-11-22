@@ -249,6 +249,8 @@ export default function AppShell() {
 		return () => ro?.disconnect();
 	}, [legendPinned]);
 
+	// What the collapsed bar names: the algorithm the visible tab would run.
+	const activeAlgo: AlgoId | null = tab === 'learn' ? learnAlgo : algo;
 	const tracePaused = tab === 'sandbox' && !!tr && !tr.done && !playing && applied > 0 && tr.trace.algo === algo;
 	const goButton = (compact = false) => {
 		if (ctx.running && !ctx.mazeRunning)
@@ -483,8 +485,14 @@ export default function AppShell() {
 						<button className="icon-btn" aria-label="Open panel" title="Open panel ([)" onClick={() => setPanelOpen(true)}>
 							<Icon.menu />
 						</button>
-						<span className="mini__algo">{algoLabel(algo)}</span>
-						{goButton(true)}
+						<span className="mini__algo" data-testid="mini-algo">{algoLabel(activeAlgo)}</span>
+						{tab === 'learn' ? (
+							<button className="go" data-testid="mini-learn-start" disabled={ctx.running} onClick={() => startTrace(learnAlgo, false)}>
+								Start
+							</button>
+						) : (
+							goButton(true)
+						)}
 						{TOOLS.map((t) => (
 							<button key={t.id} className="icon-btn" aria-pressed={tool === t.id} aria-label={t.label} title={t.label} onClick={() => setTool(t.id)} style={tool === t.id ? { background: 'var(--raised)' } : undefined}>
 								<t.icon />

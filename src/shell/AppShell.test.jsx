@@ -61,3 +61,22 @@ test('Learn: the inspector header and the step bar count the same steps', async 
 	expect(screen.getByTestId('step-count').textContent).toBe(`2 / ${total}`);
 	expect(screen.getByTestId('inspector-step').textContent).toMatch(new RegExp(`step 2 / ${total}$`));
 });
+
+test('the collapsed bar names the algorithm of the visible tab', () => {
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getByRole('option', { name: /^Dijkstra · weighted/ }));
+	fireEvent.click(screen.getByTestId('tab-learn'));
+	fireEvent.click(screen.getByRole('button', { name: 'A*' }));
+	fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }));
+	expect(screen.getByTestId('mini-algo').textContent).toBe('A*');
+	expect(screen.getByTestId('mini-learn-start')).toBeInTheDocument();
+	fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
+	fireEvent.click(screen.getByRole('tab', { name: 'Sandbox' }));
+	fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }));
+	expect(screen.getByTestId('mini-algo').textContent).toBe('Dijkstra · weighted');
+});
