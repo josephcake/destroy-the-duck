@@ -7,6 +7,16 @@ import { K, LegacyMirror } from './mirror';
 import { Palette, mix, weightColor, weightEdge } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 
+const FRONTIER_PULSE_MAX = 2000;
+const PULSE_MS = 900;
+/** alpha 0.775 ± 0.225 (0.55..1) over 900 ms, eased in-out (cubic-bezier(.45,0,.55,1) ~ smoothstep). */
+export function frontierAlpha(now: number) {
+	const t = (now % PULSE_MS) / PULSE_MS;
+	const tri = t < 0.5 ? t * 2 : 2 - t * 2; // 0 -> 1 -> 0
+	const e = tri * tri * (3 - 2 * tri);
+	return 0.55 + 0.45 * e;
+}
+
 export type Scene = {
 	view: View;
 	width: number;
@@ -195,18 +205,26 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		for (const [id, order] of tr.visited) {
 			const { r, c } = parseId(id);
 			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
-			visitedCell(r, c, scene.traceTimes.get(id) ?? 0, 1 - 0.4 * (1 - order / total));
+			visitedCell(r, c, scene.traceTimes.get(id) ?? 0, 1 - 0.2 * (1 - order / total));
 		}
-		// Frontier rings
+		// Frontier rings: thinner, with a slow breathing pulse (static under
+		// reduced motion). Pulsing only while a few thousand are on screen.
 		ctx.strokeStyle = p.front;
-		ctx.lineWidth = Math.max(1, 0.08 * s);
+		ctx.lineWidth = Math.max(1, 0.06 * s);
+		let onScreen = 0;
+		ctx.beginPath();
 		for (const id of tr.frontier.keys()) {
 			const { r, c } = parseId(id);
 			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
+			onScreen++;
 			const { x, y } = cellToScreen(view, r, c);
-			roundRect(ctx, x + 0.12 * s, y + 0.12 * s, s - 0.24 * s, s - 0.24 * s, 0.2 * s);
-			ctx.stroke();
+			roundRectPath(ctx, x + 0.12 * s, y + 0.12 * s, s - 0.24 * s, s - 0.24 * s, [0.2 * s, 0.2 * s, 0.2 * s, 0.2 * s]);
 		}
+		const pulse = onScreen > 0 && onScreen <= FRONTIER_PULSE_MAX && !scene.reducedMotion && !tr.done;
+		ctx.globalAlpha = pulse ? frontierAlpha(scene.now) : 1;
+		ctx.stroke();
+		ctx.globalAlpha = 1;
+		if (pulse) animating = true;
 	}
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;

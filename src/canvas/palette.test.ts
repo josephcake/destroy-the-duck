@@ -30,3 +30,8 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.front, p.home)).toBeGreaterThanOrEqual(3);
 	});
 });
+
+test('Prism P4: the visited wave stays visible against the board (>= 1.5:1 at full, pond presets)', () => {
+	expect(contrast(PALETTES['pond-light'].visited, PALETTES['pond-light'].home)).toBeGreaterThanOrEqual(1.5);
+	expect(contrast(PALETTES['pond-dark'].visited, PALETTES['pond-dark'].home)).toBeGreaterThanOrEqual(2);
+});
