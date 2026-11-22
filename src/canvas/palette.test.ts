@@ -85,7 +85,7 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(dash).toBeLessThan(contrast(p.wall, p.home));
 		expect(dash).toBeLessThan(contrast(p.path, p.home));
 	});
-	test('minimal: the frontier square (frontEdge) is non-text readable, >= 3:1', () => {
+	test('minimal: the frontier tick (frontEdge) is non-text readable, >= 3:1', () => {
 		expect(contrast(p.frontEdge, p.home)).toBeGreaterThanOrEqual(3);
 	});
 });

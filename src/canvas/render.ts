@@ -117,7 +117,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 	dots.flush();
 
-	// frontier: small flat squares, still (distinct from the dashes, quiet)
+	// frontier: a still vertical amber tick per cell (distinct from the visited dashes, quiet)
 	if (tr) {
 		const cells: { r: number; c: number }[] = [];
 		for (const id of tr.frontier.keys()) {
@@ -373,16 +373,22 @@ class DashDrawer {
 export const VISITED_ALPHA = 0.8;
 
 // ------------------------------------------------------------------ frontier
+/** Frontier: one short vertical tick per cell in the deep amber (visited is a horizontal teal dash). */
 function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: number }[], view: View, s: number, p: Palette) {
 	if (!cells.length) return;
-	const size = 0.36 * s;
-	ctx.fillStyle = p.frontEdge; // the deep amber: reads on the board without an outline
+	const h = 0.2 * s;
+	ctx.save();
+	ctx.strokeStyle = p.frontEdge;
+	ctx.lineWidth = Math.max(1.5, 0.1 * s);
+	ctx.lineCap = 'round';
 	ctx.beginPath();
 	for (const { r, c } of cells) {
 		const { x, y } = cellToScreen(view, r, c);
-		roundRectPath(ctx, x + s / 2 - size / 2, y + s / 2 - size / 2, size, size, [0.2 * size, 0.2 * size, 0.2 * size, 0.2 * size]);
+		ctx.moveTo(x + s / 2, y + s / 2 - h);
+		ctx.lineTo(x + s / 2, y + s / 2 + h);
 	}
-	ctx.fill();
+	ctx.stroke();
+	ctx.restore();
 }
 
 // ------------------------------------------------------------------ one-way, teleporters, jump
@@ -773,10 +779,13 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			ctx.globalAlpha = 1;
 			return;
 		case 'frontier':
-			ctx.fillStyle = p.frontEdge;
+			ctx.strokeStyle = p.frontEdge;
+			ctx.lineWidth = 2;
+			ctx.lineCap = 'round';
 			ctx.beginPath();
-			roundRectPath(ctx, Z / 2 - 4, Z / 2 - 4, 8, 8, [1.6, 1.6, 1.6, 1.6]);
-			ctx.fill();
+			ctx.moveTo(Z / 2, Z / 2 - 4);
+			ctx.lineTo(Z / 2, Z / 2 + 4);
+			ctx.stroke();
 			return;
 		case 'oneway':
 			drawOneWay(ctx, 0, 0, Z, 1, p, dpr);
