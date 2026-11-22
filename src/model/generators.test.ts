@@ -59,6 +59,12 @@ describe.each(IDS)('%s', (id: GenId) => {
 	});
 
 	if (id !== 'weightNoise')
+		test('Home edge is a wall ring except where the Arrow or a duck sits', () => {
+			const g = generate(id, { ...BASE, seed: 9 });
+			for (let c = 0; c < C; c++) expect(g.wall[c] + g.wall[(R - 1) * C + c]).toBe(2);
+			for (let r = 0; r < R; r++) expect(g.wall[r * C] + g.wall[r * C + C - 1]).toBe(2);
+		});
+	if (id !== 'weightNoise')
 		test('the open area is one connected region and a real maze (>= 25% walls)', () => {
 			for (const seed of [5, 6, 7]) {
 				const g = generate(id, { ...BASE, seed });

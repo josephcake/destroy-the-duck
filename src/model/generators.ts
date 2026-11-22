@@ -65,6 +65,12 @@ export function generate(id: GenId, input: GenInput): GenOutput {
 		wall[at(i + k + 1, j + l + 1)] = 0; // (2i+1 + 2k+1) / 2
 	};
 	const latticeStart = () => wall.fill(1);
+	// Home's edge is a wall ring, so searches that may leave Home (the new
+	// ones search the whole pond) still have to solve the maze.
+	const ring = () => {
+		for (let c = 0; c < C; c++) wall[at(0, c)] = wall[at(R - 1, c)] = 1;
+		for (let r = 0; r < R; r++) wall[at(r, 0)] = wall[at(r, C - 1)] = 1;
+	};
 
 	switch (id) {
 		case 'backtracker': {
@@ -166,7 +172,7 @@ export function generate(id: GenId, input: GenInput): GenOutput {
 			break;
 		}
 		case 'division': {
-			// border open (Home's edge is the wall); rooms split by walls with one gap,
+			// inside a wall ring; rooms split by walls with one gap,
 			// walls on even lines and gaps on odd ones so passages never close.
 			const split = (r0: number, c0: number, r1: number, c1: number) => {
 				const h = r1 - r0 + 1,
@@ -197,7 +203,8 @@ export function generate(id: GenId, input: GenInput): GenOutput {
 					split(r0, c + 1, r1, c1);
 				}
 			};
-			split(0, 0, R - 1, C - 1);
+			split(1, 1, R - 2, C - 2);
+			ring();
 			break;
 		}
 		case 'caves': {
@@ -220,6 +227,7 @@ export function generate(id: GenId, input: GenInput): GenOutput {
 					wall[at(r, c)] = n >= 5 ? 1 : n <= 3 ? 0 : prev[at(r, c)];
 				}
 			}
+			ring();
 			break;
 		}
 		case 'weightNoise': {

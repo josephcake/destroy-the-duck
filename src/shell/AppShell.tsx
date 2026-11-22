@@ -23,6 +23,8 @@ import { CLASSIC, MAZES, SPEEDS, SpeedName, speedEvent, useLegacy } from './lega
 import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
+import { applyGenerator } from './generate';
+import { GENERATORS, GenId } from '../model/generators';
 import './shell.css';
 
 const PHONE = '(max-width: 599px)'; // keep in step with shell.css
@@ -78,6 +80,7 @@ export default function AppShell() {
 	const [dir, setDir] = useState<Dir>(1);
 	const [findMode, setFindMode] = useState<FindMode>('all');
 	const [maze, setMaze] = useState('basic');
+	const [seed, setSeed] = useState(() => 1 + Math.floor(Math.random() * 99999));
 	const [landing, setLanding] = useState(true);
 	const [legendPinned, setLegendPinned] = useState(false);
 	const [legendH, setLegendH] = useState(0);
@@ -289,11 +292,17 @@ export default function AppShell() {
 			board.clear((t) => t.kind === 'wall');
 		} else reset();
 	};
-	const buildMaze = () => {
+	const buildMaze = (useSeed?: number) => {
 		setLanding(false);
 		clearTrace();
 		setBestPath(null);
-		ctx.buildMaze(maze);
+		if (!maze.startsWith('gen:')) return ctx.buildMaze(maze);
+		// New generators: Generate rolls a new seed; Enter in the seed field replays one.
+		const s = useSeed ?? 1 + Math.floor(Math.random() * 99999);
+		setSeed(s);
+		if (ctx.isPreviewing) ctx.hideBestPath();
+		ctx.clearBoard('visited');
+		applyGenerator(maze.slice(4) as GenId, s, board, mirror.start, mirror.end);
 	};
 
 	// ---------- keyboard ----------
@@ -563,16 +572,41 @@ export default function AppShell() {
 						<h2 className="section__title">Board</h2>
 						<div className="row">
 							<select className="select grow" aria-label="Maze" value={maze} disabled={busy} onChange={(e) => setMaze(e.target.value)}>
-								{MAZES.map((m) => (
-									<option key={m.value} value={m.value}>
-										Maze: {m.text}
-									</option>
-								))}
+								<optgroup label="Classic mazes">
+									{MAZES.map((m) => (
+										<option key={m.value} value={m.value}>
+											Maze: {m.text}
+										</option>
+									))}
+								</optgroup>
+								<optgroup label="New generators">
+									{GENERATORS.map((g) => (
+										<option key={g.id} value={`gen:${g.id}`} title={g.blurb}>
+											{g.label}
+										</option>
+									))}
+								</optgroup>
 							</select>
-							<button className="btn" disabled={busy} onClick={buildMaze} data-testid="generate">
+							<button className="btn" disabled={busy} onClick={() => buildMaze()} data-testid="generate">
 								Generate
 							</button>
 						</div>
+						{maze.startsWith('gen:') && (
+							<div className="row" style={{ marginTop: 8 }}>
+								<label className="label" htmlFor="gen-seed">Seed</label>
+								<input
+									id="gen-seed"
+									className="select grow"
+									data-testid="gen-seed"
+									inputMode="numeric"
+									value={seed}
+									disabled={busy}
+									title="Generate rolls a new seed. Type one and press Enter to rebuild that board."
+									onChange={(e) => setSeed(Number(e.target.value.replace(/\D/g, '')) || 0)}
+									onKeyDown={(e) => e.key === 'Enter' && buildMaze(seed)}
+								/>
+							</div>
+						)}
 						<div className="row" style={{ marginTop: 8 }}>
 							<span className="label">Clear</span>
 							<button className="btn" disabled={busy} onClick={() => clear('board')}>Board</button>
