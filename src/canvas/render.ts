@@ -1,7 +1,7 @@
 // Canvas 2D renderer. Cost is proportional to content, not to viewport area:
 // it walks Home (2,800 cells), board chunks in view and the trace overlay.
 import { Board } from '../model/board';
-import { HOME, HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
+import { HOME, HOME_COLS, HOME_ROWS, idOf, inHome, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { Palette, mix, weightColor, weightEdge } from './palette';
@@ -84,6 +84,50 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 
 
+	// Weight edge + texture. Drawn again over visited cells so the cost stays
+	// readable after the search passes (fix 7): dots = cost (2, 5), waves = water.
+	const weightMarks = (r: number, c: number, cost: number, covered: boolean) => {
+		if (view.zoom < 0.35) return;
+		const { x, y } = cellToScreen(view, r, c);
+		const edge = weightEdge(p, cost);
+		const inset = view.zoom >= 0.5 ? 0.06 * s : 0;
+		ctx.strokeStyle = edge;
+		ctx.lineWidth = Math.max(1, Math.min(2, 0.08 * s));
+		roundRect(ctx, x + inset + 0.75, y + inset + 0.75, s - 2 * inset - 1.5, s - 2 * inset - 1.5, view.zoom >= 0.5 ? 0.2 * s : 0);
+		ctx.stroke();
+		if (view.zoom >= 2) {
+			ctx.fillStyle = covered ? edge : cost === 10 ? 'rgba(255,255,255,0.85)' : 'rgba(28,34,48,0.72)';
+			ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(String(cost), x + s / 2, y + s / 2 + 0.02 * s);
+			ctx.textAlign = 'left';
+			return;
+		}
+		if (view.zoom < 0.75) return;
+		ctx.fillStyle = edge;
+		const d = Math.max(1, 0.07 * s);
+		if (cost === 10) {
+			ctx.beginPath();
+			for (const k of [0.38, 0.62]) {
+				const yy = y + k * s;
+				ctx.moveTo(x + 0.25 * s, yy);
+				ctx.quadraticCurveTo(x + 0.375 * s, yy - 0.08 * s, x + 0.5 * s, yy);
+				ctx.quadraticCurveTo(x + 0.625 * s, yy + 0.08 * s, x + 0.75 * s, yy);
+			}
+			ctx.lineWidth = Math.max(1, 0.06 * s);
+			ctx.stroke();
+		} else {
+			const pts = cost === 2 ? [[0.35, 0.35], [0.65, 0.65]] : [[0.32, 0.32], [0.68, 0.32], [0.5, 0.5], [0.32, 0.68], [0.68, 0.68]];
+			ctx.beginPath();
+			for (const [u, v] of pts) {
+				ctx.moveTo(x + u * s + d, y + v * s);
+				ctx.arc(x + u * s, y + v * s, d, 0, Math.PI * 2);
+			}
+			ctx.fill();
+		}
+	};
+
 	// Weights (board store; classic Home walls win over a weight underneath)
 	for (const [r, c, t] of scene.board.entries(vb)) {
 		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
@@ -92,21 +136,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const inset = view.zoom >= 0.5 ? 0.06 * s : 0;
 		roundRect(ctx, x + inset, y + inset, s - 2 * inset, s - 2 * inset, view.zoom >= 0.5 ? 0.22 * s : 0);
 		ctx.fill();
-		if (view.zoom >= 0.35) {
-			// the edge carries the 3:1 contrast; the fill stays a soft tint
-			ctx.strokeStyle = weightEdge(p, t.cost);
-			ctx.lineWidth = Math.max(1, Math.min(2, 0.08 * s));
-			roundRect(ctx, x + inset + 0.75, y + inset + 0.75, s - 2 * inset - 1.5, s - 2 * inset - 1.5, view.zoom >= 0.5 ? 0.2 * s : 0);
-			ctx.stroke();
-		}
-		if (view.zoom >= 2) {
-			ctx.fillStyle = t.cost === 10 ? 'rgba(255,255,255,0.85)' : 'rgba(28,34,48,0.72)';
-			ctx.font = `500 ${0.34 * s}px "DM Mono", monospace`;
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText(String(t.cost), x + s / 2, y + s / 2 + 0.02 * s);
-			ctx.textAlign = 'left';
-		}
+		weightMarks(r, c, t.cost, false);
 	}
 
 	// Walls: merged look, outer corners rounded where both neighbours are open
@@ -177,6 +207,11 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 			roundRect(ctx, x + 0.12 * s, y + 0.12 * s, s - 0.24 * s, s - 0.24 * s, 0.2 * s);
 			ctx.stroke();
 		}
+	}
+	for (const [r, c, t] of scene.board.entries(vb)) {
+		if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
+		const covered = (inHome(r, c) && m.at(r, c) === K.Visited) || !!tr?.visited.has(idOf(r, c));
+		if (covered) weightMarks(r, c, t.cost, true);
 	}
 
 	// Home outline + label, on top of the cells so visited never hides them.
