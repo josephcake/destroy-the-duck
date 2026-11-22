@@ -210,6 +210,7 @@ export default function AppShell() {
 	const reset = () => {
 		clearTrace();
 		setBestPath(null);
+		if (ctx.isPreviewing) ctx.hideBestPath(); // Show Best Path cells would otherwise keep 'preview'
 		ctx.clearBoard('visited');
 	};
 	const clear = (what: 'board' | 'wall' | 'path') => {

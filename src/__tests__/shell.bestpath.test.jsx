@@ -43,6 +43,19 @@ test('classic BFS: same ticks as before, then Path / Cost filled from the best p
 	expect(document.querySelectorAll('.legacy-mirror td.preview')).toHaveLength(0); // overlay only
 });
 
+test('Reset clears the overlay and a Show Best Path preview', () => {
+	const { ref } = runBfs();
+	act(() => fireEvent.click(screen.getByRole('button', { name: 'Show Best Path' })));
+	drain(ref);
+	expect(document.querySelectorAll('.legacy-mirror td.preview').length).toBeGreaterThan(0);
+	act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset' })));
+	drain(ref);
+	expect(document.querySelectorAll('.legacy-mirror td.preview')).toHaveLength(0);
+	expect(document.querySelectorAll('.legacy-mirror td[class*="_visited"]')).toHaveLength(0);
+	expect(stat('Path')).toBe('–');
+	expect(stat('Cost')).toBe('–');
+});
+
 test('no best path (and no stats) when the duck cannot be reached', () => {
 	const { ref } = mountLegacy(Shell);
 	drain(ref);
