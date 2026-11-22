@@ -79,9 +79,11 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.grid, p.home)).toBeLessThan(1.35);
 		expect(contrast(p.grid, p.home)).toBeGreaterThan(1.05);
 	});
-	test('minimal: the visited dash (blended at VISITED_ALPHA) reads (>= 2:1) but stays quieter than walls and the path', () => {
+	test('minimal: the visited dash (blended at VISITED_ALPHA) reads (>= 3:1, WCAG 1.4.11) but stays quieter than walls and the path', () => {
 		const dash = contrast(blend(p.visited, p.home, VISITED_ALPHA), p.home);
-		expect(dash).toBeGreaterThanOrEqual(2);
+		// Paper presets: >= 3:1 (Prism 2026-11-22). Classic keeps its pinned colours
+		// (Classic Light visited is 4.08 at full alpha, 2.98 blended), so it gets a 2.5 floor.
+		expect(dash).toBeGreaterThanOrEqual(p.classic ? 2.5 : 3);
 		expect(dash).toBeLessThan(contrast(p.wall, p.home));
 		expect(dash).toBeLessThan(contrast(p.path, p.home));
 	});

@@ -61,7 +61,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#2f3b5e', cut: '#8c9bc4', cutTL: '#b3c0e2',
 		shadow: 'rgba(84,58,22,0.30)', contact: 'rgba(84,58,22,0.38)',
 		w: ['#f2d9a6', '#e9b673', '#e3a066', '#dc9258'], wUnder: ['#d9b97f', '#c8964f', '#b67836', '#b8743c'], wEdge: '#9a6a33', stamp: '#5a2410',
-		vis: ['#4fa092', '#3f9384', '#62ad9f'], visited: '#3f9384',
+		vis: ['#4fa092', '#3f9384', '#62ad9f'], visited: '#2a7366',
 		front: '#f6cd78', frontEdge: '#b07a1c', path: '#b02e22',
 		start: '#e0522a', arrowBack: '#f39a76', startOutline: null,
 		duck: '#f5c02c', duckWing: '#e2a412', duckEdge: '#8a6410', beak: '#e8701c', beak2: '#c4541a', eye: '#1f1b16',

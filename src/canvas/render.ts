@@ -352,7 +352,7 @@ class DashDrawer {
 	add(r: number, c: number, view: View, k: number) {
 		if (k <= 0.01) return;
 		const { x, y } = cellToScreen(view, r, c);
-		const h = 0.2 * this.s * k; // half length: the dash is 0.4 cell
+		const h = 0.2 * this.s * (0.5 + 0.5 * k); // half length: 0.2 -> 0.4 cell as it enters (never a dot)
 		this.path.moveTo(x + this.s / 2 - h, y + this.s / 2);
 		this.path.lineTo(x + this.s / 2 + h, y + this.s / 2);
 		this.any = true;
@@ -363,7 +363,7 @@ class DashDrawer {
 		ctx.save();
 		ctx.strokeStyle = this.p.visited;
 		ctx.globalAlpha = VISITED_ALPHA;
-		ctx.lineWidth = Math.max(1, 0.08 * this.s);
+		ctx.lineWidth = Math.max(1.5, 0.1 * this.s);
 		ctx.lineCap = 'round';
 		ctx.stroke(this.path);
 		ctx.restore();
