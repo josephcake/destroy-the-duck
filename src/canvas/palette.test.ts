@@ -68,9 +68,9 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(new Set([2, 5, 10].map((w) => weightColor(p, w))).size).toBe(3);
 		for (const w of [2, 5, 10]) expect(lum(weightUnder(p, w))).toBeLessThan(lum(weightColor(p, w)));
 	});
-	test('HOME label (4.5:1) and Classic dashed outline (3:1) read against the table', () => {
-		expect(contrast(p.label, p.paper)).toBeGreaterThanOrEqual(4.5);
-		expect(contrast(p.homeLine, p.paper)).toBeGreaterThanOrEqual(3);
+	test("the opt-in classic window outline (3:1) and labels (4.5:1) read on the sheet", () => {
+		expect(contrast(p.label, p.home)).toBeGreaterThanOrEqual(4.5);
+		expect(contrast(p.homeLine, p.home)).toBeGreaterThanOrEqual(3);
 	});
 	test('Classic presets are flat (no fibre, pencil or under-ply); Paper presets have all three', () => {
 		if (p.classic) expect([p.fibre, p.pencil, p.wallUnder]).toEqual([null, null, null]);

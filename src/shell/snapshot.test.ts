@@ -14,7 +14,7 @@ function mirrorWith(walls: number[]) {
 	return { kind, start, end };
 }
 
-test('Home walls come from the classic grid, weights and outside walls from the Board', () => {
+test('window walls come from the classic grid, weights and outside walls from the Board', () => {
 	const board = new Board();
 	board.set(17, 16, { kind: 'weight', cost: 5 });
 	board.set(17, 17, { kind: 'weight', cost: 5 }); // under a classic wall: dropped
@@ -25,7 +25,8 @@ test('Home walls come from the classic grid, weights and outside walls from the 
 	expect(snap.weights).toEqual([[keyOf(17, 16), 5]]);
 	expect(snap.start).toEqual({ r: 17, c: 15 });
 	expect(snap.goals).toEqual([{ r: 17, c: 64 }]);
-	expect(snap.bounds).toEqual({ r0: -19, c0: -16, r1: 50, c1: 116 });
+	// the search box is the content (rows -3..17, cols 15..100) plus 16, not the old 35x80 Home
+	expect(snap.bounds).toEqual({ r0: -19, c0: -1, r1: 33, c1: 116 });
 });
 
 test('weighted runs on the default board: detour vs wading (hand-computed)', () => {
@@ -103,4 +104,30 @@ test('an unpaired pad is harmless: not sent to the engine, every search unchange
 	expect(b.pads).toBeUndefined();
 	expect(unsupported('jps4', b)).toBeNull();
 	for (const algo of TRACED) expect(runSearch(algo, b).result.pathCost).toBe(runSearch(algo, a).result.pathCost);
+});
+
+// Infinite board: placement and search are not tied to the old 35x80 Home.
+test('a duck far outside the old Home is reached, past the old 250k visit budget', () => {
+	const board = new Board();
+	board.set(450, -520, { kind: 'duck', n: 2 });
+	board.set(449, -520, { kind: 'wall' }); // a wall far away is part of the board too
+	const snap = buildSnapshot(board, mirrorWith([]), { findMode: 'all' });
+	expect(snap.budget).toBe(Number.POSITIVE_INFINITY);
+	expect(snap.bounds).toEqual({ r0: 17 - 16, c0: -520 - 16, r1: 450 + 16, c1: 64 + 16 });
+	const t = runSearch('dijkstraW', snap);
+	expect(t.result.found).toBe(true);
+	const d2 = t.result.paths.find((p) => p.duck === 2)!;
+	expect(d2.cost).toBe(450 - 17 + 15 + 520); // Manhattan: down 433, left 535 (the wall above it is skirted from the side)
+	expect(t.result.expanded).toBeGreaterThan(250_000);
+	expect(t.events.at(-1)!.reason).not.toBe('BUDGET_EXHAUSTED');
+});
+
+test('the classic window can sit anywhere: its table cells map to world cells via the origin', () => {
+	const m = { ...mirrorWith([0, 80 * 34 + 79]), origin: { r: 1000, c: -2000 } };
+	const snap = buildSnapshot(new Board(), m);
+	expect(snap.walls).toEqual([keyOf(1000, -2000), keyOf(1034, -1921)]);
+	expect(snap.start).toEqual({ r: 1017, c: -1985 });
+	expect(snap.goals).toEqual([{ r: 1017, c: -1936 }]);
+	expect(snap.bounds).toEqual({ r0: 1000 - 16, c0: -2000 - 16, r1: 1034 + 16, c1: -1921 + 16 });
+	expect(runSearch('astar', snap).result.pathCost).toBe(49);
 });

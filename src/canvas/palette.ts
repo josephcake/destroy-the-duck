@@ -103,7 +103,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		name: 'Classic Light', classic: true,
 		paper: '#f6f4ee', home: '#D3D3D3', grid: '#bdbdbd', outerGrid: '#ebe7dc',
 		pencil: null, pencilPressed: null, fibre: null,
-		sheetShadow: 'rgba(0,0,0,0.18)', homeLine: '#8e887a', label: '#3a4152', ink: '#1c2230',
+		sheetShadow: 'rgba(0,0,0,0.18)', homeLine: '#5e5a50', label: '#3a4152', ink: '#1c2230',
 		wall: '#04042C', wallUnder: null, cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.28)', contact: 'rgba(0,0,0,0.30)',
 		w: ['#e8dcc0', '#d4b483', '#c08a4a'], wUnder: ['#cfc2a4', '#b8955f', '#9c6c34'], wEdge: '#8e6a2e', stamp: '#3a1a08',

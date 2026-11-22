@@ -3,7 +3,7 @@
 // board chunks in view and the trace overlay. Expensive bitmaps (walls, weight
 // piles, pencil grid tiles, dot and frontier sprites) are baked once and blitted.
 import { Board, Weight } from '../model/board';
-import { HOME_COLS, HOME_ROWS, inHome, parseId } from '../model/cell';
+import { Bounds, parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls, paintWalls } from './walls';
@@ -38,6 +38,10 @@ export type Scene = {
 	learnCurrent: boolean; // ring the current trace node (Learn mode)
 	hover: { r: number; c: number } | null;
 	bestPath: { r: number; c: number }[] | null;
+	/** the classic window to outline, or null (the default: nothing marks it) */
+	classicWindow?: Bounds | null;
+	/** an Arrow or Duck being dragged outside the classic window: drawn faint under the pointer */
+	ghost?: { kind: 'start' | 'end'; r: number; c: number } | null;
 	now: number;
 	/** ms of the last change (edit, view, search step); the duck bob runs 3 cycles after it */
 	activeAt: number;
@@ -71,7 +75,7 @@ function mkLayer(w: number, h: number): [Layer, Ctx2D] | null {
 const contactOf = (p: Palette, s: number): Shadow => ({ color: p.contact, ...elevation(s).contact });
 
 export function isWallAt(scene: Scene, r: number, c: number) {
-	if (inHome(r, c)) return scene.mirror.at(r, c) === K.Wall;
+	if (scene.mirror.inWindow(r, c)) return scene.mirror.at(r, c) === K.Wall;
 	return scene.board.get(r, c)?.kind === 'wall';
 }
 
@@ -85,33 +89,19 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	let animating = false;
 	const pan = { x: view.panX, y: view.panY };
 
-	// §3 the table, then the Home sheet lying on it (z0)
+	// §3 one endless sheet: the same paper and grid everywhere (no Home sheet, no lit box)
 	if (p.fibre) {
-		paperSheet(ctx, 0, 0, width, height, { fill: p.paper, fibre: { seed: 5, ink: p.fibre.ink, alpha: p.fibre.strength * 0.9, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha * 0.8, vignette: p.fibre.vignette * 0.8, vignetteRGB: p.fibre.vignetteRGB, patternOffset: pan, dpr });
+		paperSheet(ctx, 0, 0, width, height, { fill: p.home, fibre: { seed: 7, ink: p.fibre.ink, alpha: p.fibre.strength, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha, vignette: p.fibre.vignette * 0.8, vignetteRGB: p.fibre.vignetteRGB, patternOffset: pan, dpr });
 	} else {
-		ctx.fillStyle = p.paper;
-		ctx.fillRect(0, 0, width, height);
-	}
-	const home = cellToScreen(view, 0, 0);
-	const hw = HOME_COLS * s;
-	const hh = HOME_ROWS * s;
-	if (p.fibre) {
-		paperSheet(ctx, home.x, home.y, hw, hh, { fill: p.home, fibre: { seed: 7, ink: p.fibre.ink, alpha: p.fibre.strength, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha, vignette: p.fibre.vignette, vignetteRGB: p.fibre.vignetteRGB, shadow: { color: p.sheetShadow, dx: 0, dy: 3, blur: 14 }, patternOffset: pan, dpr });
-	} else {
-		ctx.save();
-		ctx.shadowColor = p.sheetShadow;
-		ctx.shadowOffsetY = 2 * dpr;
-		ctx.shadowBlur = 8 * dpr;
 		ctx.fillStyle = p.home;
-		ctx.fillRect(home.x, home.y, hw, hh);
-		ctx.restore();
+		ctx.fillRect(0, 0, width, height);
 	}
 
 	// Grid: fades in between 25% and 50% (ga = clamp((zoom − .25)/.25))
 	const ga = Math.max(0, Math.min(1, (view.zoom - 0.25) / 0.25));
 	if (ga > 0) {
-		if (p.pencil) drawPencilGrid(ctx, view, vb, s, p, dpr, ga, home, hw, hh);
-		else drawCrispGrid(ctx, view, vb, s, p, dpr, ga, home, hw, hh);
+		if (p.pencil) drawPencilGrid(ctx, view, vb, s, p, dpr, ga);
+		else drawCrispGrid(ctx, view, vb, s, p, dpr, ga);
 	}
 
 	// §4.2 weights: piles of sheets (Paper), merged flat sheets (Classic)
@@ -123,10 +113,14 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const m = scene.mirror;
 	const wallSrc = {
 		isWall: (r: number, c: number) => isWallAt(scene, r, c),
-		changedAt: (r: number, c: number) => (inHome(r, c) ? m.changedAt[r * HOME_COLS + c] : 0),
+		live: m.window,
+		changedAt: (r: number, c: number) => {
+			const i = m.index(r, c);
+			return i < 0 ? 0 : m.changedAt[i];
+		},
 		erasedAt: (r: number, c: number) => {
-			if (!inHome(r, c)) return 0;
-			const i = r * HOME_COLS + c;
+			const i = m.index(r, c);
+			if (i < 0) return 0;
 			return m.prevKind?.[i] === K.Wall && m.kind[i] !== K.Wall ? m.changedAt[i] : 0;
 		},
 	};
@@ -143,7 +137,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	if (m.visitedCount > 0)
 		for (let i = 0; i < m.kind.length; i++)
 			if (m.kind[i] === K.Visited) {
-				const { r, c } = LegacyMirror.cellAt(i);
+				const { r, c } = m.cellAt(i);
 				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) dots.add(r, c, view, enter(m.changedAt[i]), 1);
 			}
 	const tr = scene.trace;
@@ -187,18 +181,17 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		}
 	}
 
-	// Classic only: the dashed Home outline and label (Paper: the sheet edge is the outline)
-	if (p.classic) {
+	// Opt-in: the classic window's outline, only while a classic algorithm is
+	// picked and something lies outside the 35x80 cells it can see.
+	if (scene.classicWindow) {
+		const w = scene.classicWindow;
+		const a = cellToScreen(view, w.r0, w.c0);
 		ctx.save();
 		ctx.strokeStyle = p.homeLine;
 		ctx.lineWidth = 1.5;
 		ctx.setLineDash([6, 4]);
-		ctx.strokeRect(home.x - 1, home.y - 1, hw + 2, hh + 2);
+		ctx.strokeRect(a.x - 1, a.y - 1, (w.c1 - w.c0 + 1) * s + 2, (w.r1 - w.r0 + 1) * s + 2);
 		ctx.restore();
-		ctx.fillStyle = p.label;
-		ctx.font = '700 12px Figtree, system-ui, sans-serif';
-		ctx.textBaseline = 'bottom';
-		ctx.fillText('HOME · 35 × 80', home.x, home.y - 6);
 	}
 
 	// §4.10 paths: stitched thread (traced path, and the classic Show Best Path preview)
@@ -257,8 +250,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	if (tr) for (const g of tr.paths) drawPath(g.nodes.map(parseId), true);
 	if (scene.bestPath && scene.bestPath.length && !m.previewOrder.length) drawPath(scene.bestPath, true);
 	if (m.previewOrder.length) {
-		const cells = m.previewOrder.map((i) => LegacyMirror.cellAt(i));
-		if (m.start >= 0) cells.unshift(LegacyMirror.cellAt(m.start));
+		const cells = m.previewOrder.map((i) => m.cellAt(i));
+		if (m.start >= 0) cells.unshift(m.cellAt(m.start));
 		drawPath(cells, false); // the classic player already animates it
 	}
 
@@ -276,9 +269,9 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 
 	// §4.5 / §4.6 characters (z3): start tab and duck stickers
-	const duckCell = m.end >= 0 ? LegacyMirror.cellAt(m.end) : null;
+	const duckCell = m.end >= 0 ? m.cellAt(m.end) : null;
 	if (m.start >= 0) {
-		const a = LegacyMirror.cellAt(m.start);
+		const a = m.cellAt(m.start);
 		const q = cellToScreen(view, a.r, a.c);
 		const ang = duckCell ? Math.atan2(duckCell.r - a.r, duckCell.c - a.c) : 0;
 		drawStart(ctx, q.x + s / 2, q.y + s / 2, s, ang, p, dpr);
@@ -301,6 +294,17 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 	if (motion && age < 3 * BOB_MS && ducks.length) animating = true; // bob still running (off under reduced motion)
 
+	// an Arrow or Duck dragged past the classic window: a faint sticker under the pointer until the drop
+	if (scene.ghost) {
+		const g = scene.ghost;
+		const q = cellToScreen(view, g.r, g.c);
+		ctx.save();
+		ctx.globalAlpha = 0.55;
+		if (g.kind === 'start') drawStart(ctx, q.x + s / 2, q.y + s / 2, s, 0, p, dpr);
+		else drawDuck(ctx, q.x + s / 2, q.y + s / 2, s, p, dpr);
+		ctx.restore();
+	}
+
 	// §4.9 hover: a rounded pencil guide
 	if (scene.hover) {
 		const { x, y } = cellToScreen(view, scene.hover.r, scene.hover.c);
@@ -318,79 +322,55 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 
 // ------------------------------------------------------------------ grid
 type Pt = { x: number; y: number };
-function drawPencilGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number, home: Pt, hw: number, hh: number) {
+function drawPencilGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
 	// §3 hand-ruled grid, baked per 16x16 tile (seeded by tile, so panning never re-rolls it);
-	// above the bitmap cap, live ruled lines in the pencil colour.
+	// above the bitmap cap, live ruled lines in the pencil colour. One grid everywhere.
 	const tile = CHUNK * s;
-	const pass = (inside: boolean) => {
-		ctx.save();
-		ctx.beginPath();
-		if (inside) ctx.rect(home.x, home.y, hw, hh);
-		else {
-			ctx.rect(0, 0, view.panX + 1e5, view.panY + 1e5);
-			ctx.rect(home.x, home.y, hw, hh);
-		}
-		ctx.clip(inside ? 'nonzero' : 'evenodd');
-		ctx.globalAlpha = ga * (inside ? 1 : 0.35); // the table outside Home: a faint guide only
-		if (tile * dpr <= BAKE_CAP) {
-			for (let cr = Math.floor(vb.r0 / CHUNK); cr <= Math.floor(vb.r1 / CHUNK); cr++)
-				for (let cc = Math.floor(vb.c0 / CHUNK); cc <= Math.floor(vb.c1 / CHUNK); cc++) {
-					const o = cellToScreen(view, cr * CHUNK, cc * CHUNK);
-					pencilGrid(ctx, Math.round(o.x * dpr) / dpr - s, Math.round(o.y * dpr) / dpr - s, tile + s + 1, tile + s + 1, s, { color: p.pencil!, alpha: 1, pressed: p.pencilPressed, seed: 3 + ((cr * 7919 + cc * 104729) & 0xffff), dpr });
-				}
-		} else {
-			ctx.lineWidth = 1;
-			for (const [col, dy] of [[p.pencilPressed, 1], [p.pencil, 0]] as const) {
-				if (!col) continue;
-				ctx.strokeStyle = col;
-				ctx.beginPath();
-				for (let c = vb.c0; c <= vb.c1 + 1; c++) {
-					const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 + dy;
-					ctx.moveTo(x, view.panY + vb.r0 * s);
-					ctx.lineTo(x, view.panY + (vb.r1 + 1) * s);
-				}
-				for (let r = vb.r0; r <= vb.r1 + 1; r++) {
-					const y = Math.round((view.panY + r * s) * dpr) / dpr + 0.5 + dy;
-					ctx.moveTo(view.panX + vb.c0 * s, y);
-					ctx.lineTo(view.panX + (vb.c1 + 1) * s, y);
-				}
-				ctx.stroke();
+	ctx.save();
+	ctx.globalAlpha = ga;
+	if (tile * dpr <= BAKE_CAP) {
+		for (let cr = Math.floor(vb.r0 / CHUNK); cr <= Math.floor(vb.r1 / CHUNK); cr++)
+			for (let cc = Math.floor(vb.c0 / CHUNK); cc <= Math.floor(vb.c1 / CHUNK); cc++) {
+				const o = cellToScreen(view, cr * CHUNK, cc * CHUNK);
+				pencilGrid(ctx, Math.round(o.x * dpr) / dpr - s, Math.round(o.y * dpr) / dpr - s, tile + s + 1, tile + s + 1, s, { color: p.pencil!, alpha: 1, pressed: p.pencilPressed, seed: 3 + ((cr * 7919 + cc * 104729) & 0xffff), dpr });
 			}
+	} else {
+		ctx.lineWidth = 1;
+		for (const [col, dy] of [[p.pencilPressed, 1], [p.pencil, 0]] as const) {
+			if (!col) continue;
+			ctx.strokeStyle = col;
+			ctx.beginPath();
+			for (let c = vb.c0; c <= vb.c1 + 1; c++) {
+				const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 + dy;
+				ctx.moveTo(x, view.panY + vb.r0 * s);
+				ctx.lineTo(x, view.panY + (vb.r1 + 1) * s);
+			}
+			for (let r = vb.r0; r <= vb.r1 + 1; r++) {
+				const y = Math.round((view.panY + r * s) * dpr) / dpr + 0.5 + dy;
+				ctx.moveTo(view.panX + vb.c0 * s, y);
+				ctx.lineTo(view.panX + (vb.c1 + 1) * s, y);
+			}
+			ctx.stroke();
 		}
-		ctx.restore();
-	};
-	pass(true);
-	pass(false);
+	}
+	ctx.restore();
 }
-function drawCrispGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number, home: Pt, hw: number, hh: number) {
+function drawCrispGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
 	ctx.lineWidth = 1 / dpr;
 	ctx.globalAlpha = ga;
-	for (const [color, inside] of [[p.outerGrid, false], [p.grid, true]] as const) {
-		ctx.strokeStyle = color;
-		ctx.beginPath();
-		const r0 = inside ? Math.max(vb.r0, 0) : vb.r0;
-		const r1 = inside ? Math.min(vb.r1, HOME_ROWS) : vb.r1;
-		const c0 = inside ? Math.max(vb.c0, 0) : vb.c0;
-		const c1 = inside ? Math.min(vb.c1, HOME_COLS) : vb.c1;
-		if (inside) {
-			ctx.save();
-			ctx.rect(home.x, home.y, hw, hh);
-			ctx.clip();
-			ctx.beginPath();
-		}
-		for (let c = c0; c <= c1; c++) {
-			const x = Math.round((view.panX + c * s) * dpr) / dpr;
-			ctx.moveTo(x, view.panY + r0 * s);
-			ctx.lineTo(x, view.panY + r1 * s);
-		}
-		for (let r = r0; r <= r1; r++) {
-			const y = Math.round((view.panY + r * s) * dpr) / dpr;
-			ctx.moveTo(view.panX + c0 * s, y);
-			ctx.lineTo(view.panX + c1 * s, y);
-		}
-		ctx.stroke();
-		if (inside) ctx.restore();
+	ctx.strokeStyle = p.grid;
+	ctx.beginPath();
+	for (let c = vb.c0; c <= vb.c1; c++) {
+		const x = Math.round((view.panX + c * s) * dpr) / dpr;
+		ctx.moveTo(x, view.panY + vb.r0 * s);
+		ctx.lineTo(x, view.panY + vb.r1 * s);
 	}
+	for (let r = vb.r0; r <= vb.r1; r++) {
+		const y = Math.round((view.panY + r * s) * dpr) / dpr;
+		ctx.moveTo(view.panX + vb.c0 * s, y);
+		ctx.lineTo(view.panX + vb.c1 * s, y);
+	}
+	ctx.stroke();
 	ctx.globalAlpha = 1;
 }
 

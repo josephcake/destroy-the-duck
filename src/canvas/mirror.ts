@@ -1,7 +1,11 @@
 // Phase A "legacy mirror": the classic 35x80 <table> stays mounted (hidden)
 // and keeps running the unchanged classic code. This reads its cell classes
-// so the canvas can paint Home from them.
-import { HOME_COLS, HOME_ROWS, idOf } from '../model/cell';
+// so the canvas can paint them.
+//
+// The table is a 35x80 *window* onto the endless board: table cell "r-c" is
+// world cell (origin.r + r, origin.c + c). The window follows the Arrow and
+// Duck (shell/window.ts); nothing draws it.
+import { Bounds, Cell, HOME_COLS, HOME_ROWS, idOf } from '../model/cell';
 
 export enum K {
 	Unvisited = 0,
@@ -32,8 +36,11 @@ export class LegacyMirror {
 	changedAt = new Float64Array(N); // ms timestamp of the last kind change
 	prevKind = new Uint8Array(N); // kind before the last change (erase peel: was it a wall?)
 	previewOrder: number[] = []; // indices in the order preview tags appeared
-	start = -1;
-	end = -1;
+	start = -1; // table index of the Arrow
+	end = -1; // table index of Duck 1
+	origin: Cell = { r: 0, c: 0 };
+	/** Set before a window move: the next batch of class changes carries no change time. */
+	silent = false;
 	visitedCount = 0;
 	version = 0;
 	private observer: MutationObserver | null = null;
@@ -49,7 +56,9 @@ export class LegacyMirror {
 		this.version++;
 		if (typeof MutationObserver !== 'undefined') {
 			this.observer = new MutationObserver((records) => {
-				const now = performance.now();
+				// a window move rewrites the table: no flutter or peel for that batch
+				const now = this.silent ? 0 : performance.now();
+				this.silent = false;
 				for (const rec of records) {
 					const td = rec.target as HTMLElement;
 					const i = this.indexOf(td.id);
@@ -89,16 +98,38 @@ export class LegacyMirror {
 		this.preview[i] = preview ? 1 : 0;
 	}
 
+	/** Table index of world cell (r, c), or -1 outside the window. */
+	index(r: number, c: number) {
+		return windowIndex(this.origin, r, c);
+	}
+	inWindow(r: number, c: number) {
+		return this.index(r, c) >= 0;
+	}
+	/** What the table holds at world cell (r, c); Unvisited outside the window. */
 	at(r: number, c: number): K {
-		return this.kind[r * HOME_COLS + c] as K;
+		const i = this.index(r, c);
+		return i < 0 ? K.Unvisited : (this.kind[i] as K);
 	}
-	static idAt(i: number) {
-		return idOf(Math.floor(i / HOME_COLS), i % HOME_COLS);
+	/** World cell of table index i. */
+	cellAt(i: number): Cell {
+		return windowCell(this.origin, i);
 	}
-	static cellAt(i: number) {
-		return { r: Math.floor(i / HOME_COLS), c: i % HOME_COLS };
+	/** Table id ("r-c") of world cell (r, c); only meaningful inside the window. */
+	idAt(r: number, c: number) {
+		return idOf(r - this.origin.r, c - this.origin.c);
+	}
+	get window(): Bounds {
+		return windowBounds(this.origin);
 	}
 }
+
+export const windowCell = (o: Cell, i: number): Cell => ({ r: o.r + Math.floor(i / HOME_COLS), c: o.c + (i % HOME_COLS) });
+export function windowIndex(o: Cell, r: number, c: number) {
+	const lr = r - o.r;
+	const lc = c - o.c;
+	return lr >= 0 && lr < HOME_ROWS && lc >= 0 && lc < HOME_COLS ? lr * HOME_COLS + lc : -1;
+}
+export const windowBounds = (o: Cell): Bounds => ({ r0: o.r, c0: o.c, r1: o.r + HOME_ROWS - 1, c1: o.c + HOME_COLS - 1 });
 
 // Input bridge: canvas gestures inside Home become the same DOM events the
 // legacy table listened to, so TableContext's handlers run unchanged.

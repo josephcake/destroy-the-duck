@@ -9,7 +9,7 @@
 // - The cast shadow is not motion, so it stays under reduced motion.
 // - Paint: flutter (220 ms). Erase: peel-away (160 ms). Both on the live layer,
 //   at most 64 cells a frame; the rest land instantly. Reduced motion: instant.
-import { Bounds, inHome } from '../model/cell';
+import { Bounds } from '../model/cell';
 import { Palette } from './palette';
 import { View, cellToScreen } from './view';
 import { CellRef, DURATION, Shadow, edgeBand, elevation, fibreTile, flutter, peelAway, unionPath } from '../vendor/paper-kit/paper-kit';
@@ -22,7 +22,9 @@ export const N = 1, E = 2, S = 4, W = 8;
 
 export type WallSource = {
 	isWall(r: number, c: number): boolean;
-	/** ms timestamp of the last change for Home cells (0 when unknown) */
+	/** Where change times are known (the classic window); flutter and peel only run there. */
+	live?: Bounds;
+	/** ms timestamp of the last change (0 when unknown) */
 	changedAt(r: number, c: number): number;
 	/** ms timestamp when a wall here was erased (0 when it wasn't) */
 	erasedAt?(r: number, c: number): number;
@@ -190,9 +192,9 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 	const fluttering = new Set<number>();
 	const peels: { r: number; c: number; t: number }[] = [];
 	if (!reduced) {
-		for (let r = Math.max(0, vb.r0); r <= vb.r1 && live < LIVE_MAX; r++)
-			for (let c = Math.max(0, vb.c0); c <= vb.c1 && live < LIVE_MAX; c++) {
-				if (!inHome(r, c)) continue;
+		const L = src.live ?? vb; // only the classic window logs change times
+		for (let r = Math.max(L.r0, vb.r0); r <= Math.min(L.r1, vb.r1) && live < LIVE_MAX; r++)
+			for (let c = Math.max(L.c0, vb.c0); c <= Math.min(L.c1, vb.c1) && live < LIVE_MAX; c++) {
 				if (src.isWall(r, c)) {
 					const t = src.changedAt(r, c);
 					if (t > 0 && now - t < FLUTTER_MS) { fluttering.add(r * 1e5 + c); live++; }
