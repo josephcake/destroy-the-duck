@@ -695,12 +695,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 	);
 });
 
-const CHEV: Record<Chip['edge'], string> = { left: 'M9 4 5 8l4 4', right: 'M7 4l4 4-4 4', top: 'M4 9l4-4 4 4', bottom: 'M4 7l4 4 4-4' };
+// the duck (icons.tsx) at .8, a chevron on the side she is off to, a ✓ once found
+const CHEV: Record<Chip['edge'], string> = { left: 'M-1 8.5-4.5 12l3.5 3.5', right: 'M25 8.5l3.5 3.5-3.5 3.5', top: 'M8.5-1 12-4.5l3.5 3.5', bottom: 'M8.5 25l3.5 3.5 3.5-3.5' };
 function ChipGlyph({ edge, found }: { edge: Chip['edge']; found: boolean }) {
 	return (
-		<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-			<path d="M5 14c0 3 3 5 7 5s7-2 7-6c-2 1-4 1-5 0 1-1 2-2 2-4a4 4 0 0 0-8 0c0 1 .5 2 1 2.5C7 12 5 12 5 14z" />
-			{found ? <path d="M15 4.5l2 2 3.5-4" /> : <path d={CHEV[edge]} transform={edge === 'left' ? 'translate(-5 4)' : edge === 'right' ? 'translate(9 4)' : edge === 'top' ? 'translate(4 -5)' : 'translate(4 9)'} />}
+		<svg viewBox="-7 -7 38 38" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<path transform="translate(2.4 2.4) scale(.8)" d="M5 14c0 3 3 5 7 5s7-2 7-6c-2 1-4 1-5 0 1-1 2-2 2-4a4 4 0 0 0-8 0c0 1 .5 2 1 2.5C7 12 5 12 5 14z" />
+			<path d={CHEV[edge]} />
+			{found && <path d="M15.5 1.5l2.2 2.2 4.3-4.7" />}
 		</svg>
 	);
 }
