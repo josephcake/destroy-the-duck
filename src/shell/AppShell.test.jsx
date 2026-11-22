@@ -160,3 +160,24 @@ test('Prism P5: the collapsed panel is inert, so Tab cannot land inside it', () 
 	fireEvent.click(screen.getByLabelText('Open panel'));
 	expect(panel.hasAttribute('inert')).toBe(false);
 });
+
+test('Mochi fix 3: Show Best Path and the chips keep their slot whatever the algorithm', () => {
+	localStorage.clear();
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const slot = () => screen.getByTestId('best-path');
+	expect(slot().style.visibility).toBe('hidden'); // no algorithm yet: hidden, space kept
+	expect(slot()).toBeDisabled();
+	expect(screen.getByTestId('find-chips')).toHaveClass('chips--reserve');
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getAllByRole('option', { name: /^Breadth First Search/ })[0]);
+	expect(slot().style.visibility).toBe('');
+	expect(screen.getByRole('button', { name: 'Show Best Path' })).toBe(slot());
+	fireEvent.click(screen.getByTestId('algo-picker'));
+	fireEvent.click(screen.getByRole('option', { name: /^A\*/ }));
+	expect(slot().style.visibility).toBe('hidden');
+	expect(screen.queryByRole('button', { name: 'Show Best Path' })).toBeNull();
+});

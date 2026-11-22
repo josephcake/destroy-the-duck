@@ -76,6 +76,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .btn--wide { width: 100%; margin-top: var(--s-2); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-2); }
 .chip { font: 500 11.5px/16px var(--f-ui); color: var(--ink-2); border: 1px solid var(--line); background: var(--raised); border-radius: var(--r-pill); padding: 2px 8px; }
+/* three chip rows (22px + 6px gaps) stay reserved under the run row */
+.chips--reserve { min-height: 78px; align-content: flex-start; }
 .chip--mono { font-family: var(--f-mono); }
 .chip--warn { color: var(--ink); border-color: var(--line-ui); border-radius: var(--r-sm); white-space: normal; }
 

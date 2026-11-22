@@ -453,12 +453,19 @@ export default function AppShell() {
 									<Icon.reset />
 								</button>
 							</div>
-							{showBestPathBtn && (
-								<button className="btn btn--wide" disabled={ctx.running} onClick={ctx.isPreviewing ? ctx.hideBestPath : ctx.showBestPath}>
-									{ctx.isPreviewing ? 'Hide Best Path' : 'Show Best Path'}
-								</button>
-							)}
-							<div className="chips">
+							{/* Mochi fix 3: the button and the chips keep their space whatever the
+							    algorithm, so Speed / Draw / Theme don't jump when one is picked. */}
+							<button
+								className="btn btn--wide"
+								data-testid="best-path"
+								style={showBestPathBtn ? undefined : { visibility: 'hidden' }}
+								aria-hidden={!showBestPathBtn || undefined}
+								tabIndex={showBestPathBtn ? undefined : -1}
+								disabled={ctx.running || !showBestPathBtn}
+								onClick={ctx.isPreviewing ? ctx.hideBestPath : ctx.showBestPath}>
+								{ctx.isPreviewing ? 'Hide Best Path' : 'Show Best Path'}
+							</button>
+							<div className="chips chips--reserve" data-testid="find-chips">
 								{algo && <span className="chip chip--mono" data-testid="order-chip">order {classic ? `classic: ${classic.order}` : 'N · E · S · W'}</span>}
 								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
 								{classic && outside && <span className="chip">Classic algorithms search Home only</span>}
