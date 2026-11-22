@@ -31,7 +31,6 @@ export function RotatePrompt({ portraitPhone }: { portraitPhone: boolean }) {
 	return (
 		<div className="rotate" role="dialog" aria-modal="true" aria-labelledby="rotate-title" data-testid="rotate-prompt">
 			<div className="rotate__card pk-lifted">
-				<span className="pk-tape rotate__tape" aria-hidden="true" />
 				<svg className="rotate__icon" width="96" height="96" viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 					<rect x="30" y="14" width="36" height="62" rx="7" />
 					<path d="M44 68h8" />

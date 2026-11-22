@@ -1,34 +1,20 @@
-// Walls: Paper v2.1 2-ply card (style.md §4.1), cached per 16x16 chunk.
+// Walls: flat card squares (minimal, 2026-11-22: no under-ply, fibre, deckle,
+// flutter or peel), cached per 16x16 chunk.
 // - 4-neighbour mask (N=1, E=2, S=4, W=8) and one union path per chunk, built
 //   with paper-kit's addCutCell: shared sides overlap, outer corners round only
-//   where both orthogonal sides are open, open sides get the seeded inward
-//   deckle (hash of r, c: stable across chunk re-bakes).
-// - Two cached bitmaps per chunk: "shadow" (cast + ambient + under-ply) and
-//   "body" (top ply + top fibre + cut edges). All shadows are blitted before any
-//   body, so a neighbour chunk's blur or under-ply never lands on a wall top.
-// - The cast shadow is not motion, so it stays under reduced motion.
-// - Paint: flutter (220 ms). Erase: peel-away (160 ms). Both on the live layer,
-//   at most 64 cells a frame; the rest land instantly. Reduced motion: instant.
+//   where both orthogonal sides are open.
+// - Two cached bitmaps per chunk: "shadow" (a small cast) and "body" (fill +
+//   cut edges). All shadows are blitted before any body, so a neighbour
+//   chunk's shadow never lands on a wall top. Walls land and leave instantly.
 import { Bounds } from '../model/cell';
 import { Palette } from './palette';
 import { View, cellToScreen } from './view';
-import { CellRef, DURATION, Shadow, edgeBand, elevation, fibreTile, flutter, peelAway, unionPath } from '../vendor/paper-kit/paper-kit';
+import { CellRef, Shadow, edgeBand, elevation, unionPath } from '../vendor/paper-kit/paper-kit';
 
 export const WALL_CHUNK = 16;
-export const FLUTTER_MS = DURATION.flutter; // 220
-export const PEEL_MS = DURATION.peel; // 160
-export const LIVE_MAX = 64;
 export const N = 1, E = 2, S = 4, W = 8;
 
-export type WallSource = {
-	isWall(r: number, c: number): boolean;
-	/** Where change times are known (the classic window); flutter and peel only run there. */
-	live?: Bounds;
-	/** ms timestamp of the last change (0 when unknown) */
-	changedAt(r: number, c: number): number;
-	/** ms timestamp when a wall here was erased (0 when it wasn't) */
-	erasedAt?(r: number, c: number): number;
-};
+export type WallSource = { isWall(r: number, c: number): boolean };
 
 export function wallMask(isWall: (r: number, c: number) => boolean, r: number, c: number) {
 	return (isWall(r - 1, c) ? N : 0) | (isWall(r, c + 1) ? E : 0) | (isWall(r + 1, c) ? S : 0) | (isWall(r, c - 1) ? W : 0);
@@ -43,20 +29,17 @@ export function cornerRadii(mask: number, R: number): [number, number, number, n
 /** The §4.1 numbers for a cell size s (CSS px) in palette p. */
 export function wallLook(s: number, p: Palette) {
 	const e = elevation(s);
-	const paper = !p.classic;
-	const under = paper && s >= 14 && p.wallUnder ? { fill: p.wallUnder, dx: e.under.dx, dy: e.under.dy } : null;
 	const cast: Shadow | null =
 		s < 6 ? null // 25%: flat
 		: s < 14 ? { color: p.contact, dx: 0, dy: 1, blur: 0 } // 50%: contact only
-		: { color: p.shadow, dx: e.cast.dx + (under?.dx ?? 0), dy: e.cast.dy + (under?.dy ?? 0), blur: e.cast.blur };
+		: { color: p.shadow, dx: e.cast.dx, dy: e.cast.dy, blur: e.cast.blur };
 	return {
-		radius: s < 6 ? 0 : p.classic ? 0.1 * s : e.radius,
-		jitter: paper ? e.jitter : 0,
-		under,
+		radius: s < 6 ? 0 : 0.1 * s,
+		jitter: 0,
+		under: null as { fill: string; dx: number; dy: number } | null,
 		cast,
-		ambient: paper && s >= 10 ? { color: p.contact, ...e.ambient } : null,
+		ambient: null as Shadow | null,
 		edges: s >= 10,
-		topFibre: paper && s >= 14 && p.fibre ? p.fibre.wallTop : 0,
 	};
 }
 
@@ -95,8 +78,8 @@ export class WallCache {
 		if (this.entries.size > 160) this.entries.delete(this.entries.keys().next().value!);
 		this.baked++;
 	}
-	prepare(view: View, dpr: number, p: Palette, reduced: boolean) {
-		this.reset(`${view.zoom}|${dpr}|${p.name}|${reduced}`);
+	prepare(view: View, dpr: number, p: Palette) {
+		this.reset(`${view.zoom}|${dpr}|${p.name}`);
 	}
 }
 
@@ -156,23 +139,6 @@ export function paintWalls(
 	}
 	ctx.fillStyle = p.wall;
 	ctx.fill(top);
-	if (L.topFibre > 0 && p.fibre) {
-		// pale ink on navy (Paper), dark ink on manila (Night Paper)
-		const ink = p.name === 'Paper' ? 'rgba(255,246,220,1)' : 'rgba(60,40,15,1)';
-		const tile = fibreTile({ seed: 9, ink, alpha: 0.5, grain: 120 });
-		const pat = ctx.createPattern?.(tile as CanvasImageSource, 'repeat');
-		if (pat) {
-			// anchor the fibre to the board, not to the chunk bitmap
-			const o = opts.origin;
-			if (o && typeof DOMMatrix !== 'undefined') pat.setTransform?.(new DOMMatrix().translate(-(((o.x % 256) + 256) % 256), -(((o.y % 256) + 256) % 256)));
-			ctx.save();
-			ctx.clip(top);
-			ctx.globalAlpha *= L.topFibre;
-			ctx.fillStyle = pat;
-			ctx.fill(top);
-			ctx.restore();
-		}
-	}
 	if (L.edges) {
 		band(top, 0, 0, p.cut, 0.55, 'all', 1);
 		band(top, 0, 0, p.cutTL, 0.9, 'tl', 1.5);
@@ -184,28 +150,10 @@ type Cell = { r: number; c: number; mask: number };
 /**
  * Draw every wall in `vb`. Returns true while a flutter or peel is running.
  */
-export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: View, vb: Bounds, p: Palette, dpr: number, now: number, reduced: boolean, cache: WallCache): boolean {
+export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: View, vb: Bounds, p: Palette, dpr: number, cache: WallCache) {
 	const s = 20 * view.zoom;
-	cache.prepare(view, dpr, p, reduced);
-	// live cells: freshly painted (flutter) and freshly erased (peel), capped
-	let live = 0;
-	const fluttering = new Set<number>();
-	const peels: { r: number; c: number; t: number }[] = [];
-	if (!reduced) {
-		const L = src.live ?? vb; // only the classic window logs change times
-		for (let r = Math.max(L.r0, vb.r0); r <= Math.min(L.r1, vb.r1) && live < LIVE_MAX; r++)
-			for (let c = Math.max(L.c0, vb.c0); c <= Math.min(L.c1, vb.c1) && live < LIVE_MAX; c++) {
-				if (src.isWall(r, c)) {
-					const t = src.changedAt(r, c);
-					if (t > 0 && now - t < FLUTTER_MS) { fluttering.add(r * 1e5 + c); live++; }
-				} else if (src.erasedAt) {
-					const t = src.erasedAt(r, c);
-					if (t > 0 && now - t < PEEL_MS) { peels.push({ r, c, t: (now - t) / PEEL_MS }); live++; }
-				}
-			}
-	}
-	const popping = (r: number, c: number) => fluttering.has(r * 1e5 + c);
-	const settled = (r: number, c: number) => src.isWall(r, c) && !popping(r, c);
+	cache.prepare(view, dpr, p);
+	const settled = src.isWall;
 	const K = WALL_CHUNK;
 	const cr0 = Math.floor(vb.r0 / K), cr1 = Math.floor(vb.r1 / K);
 	const cc0 = Math.floor(vb.c0 / K), cc1 = Math.floor(vb.c1 / K);
@@ -213,7 +161,6 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 	const pad = Math.ceil(0.45 * s) + 16;
 	type Job = { r0: number; c0: number; cells: Cell[]; halo: Cell[]; sig: number; key: string };
 	const jobs: Job[] = [];
-	const pops: Cell[] = [];
 	for (let cr = cr0; cr <= cr1; cr++)
 		for (let cc = cc0; cc <= cc1; cc++) {
 			const r0 = cr * K, c0 = cc * K;
@@ -222,10 +169,6 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 			for (let r = r0; r < r0 + K; r++)
 				for (let c = c0; c < c0 + K; c++) {
 					if (!src.isWall(r, c)) continue;
-					if (popping(r, c)) {
-						pops.push({ r, c, mask: 0 });
-						continue;
-					}
 					const mask = wallMask(settled, r, c);
 					cells.push({ r, c, mask });
 					sig = Math.imul(sig ^ ((r - r0) * K + (c - c0)), 16777619) ^ mask;
@@ -285,33 +228,4 @@ export function drawWalls(ctx: CanvasRenderingContext2D, src: WallSource, view: 
 		if (e) blit(j, e.body);
 		else { const o = origin(j); paintWalls(ctx, refs(j, o.x, o.y), s, p, 'body', dpr, optsFor(j, o.x, o.y, true)); }
 	}
-	// live layer: a dropped scrap settling (flutter), or a scrap peeling away
-	const one = (r: number, c: number): CellRef[] => [{ x: -s / 2, y: -s / 2, r, c, mask: 0 }];
-	for (const cl of pops) {
-		const f = flutter((now - src.changedAt(cl.r, cl.c)) / FLUTTER_MS, cl.r, cl.c);
-		const { x, y } = cellToScreen(view, cl.r, cl.c);
-		ctx.save();
-		ctx.globalAlpha = f.alpha;
-		ctx.translate(x + s / 2, y + s / 2 + f.dy * s);
-		ctx.rotate(f.rotate);
-		ctx.scale(f.scale, f.scale);
-		paintWalls(ctx, one(cl.r, cl.c), s, p, 'shadow', dpr, { shadowK: f.shadow });
-		paintWalls(ctx, one(cl.r, cl.c), s, p, 'body', dpr);
-		ctx.restore();
-	}
-	for (const pl of peels) {
-		const k = peelAway(pl.t, pl.r, pl.c);
-		const { x, y } = cellToScreen(view, pl.r, pl.c);
-		const px = k.pivot!.x * s, py = k.pivot!.y * s; // the opposite corner stays down
-		ctx.save();
-		ctx.globalAlpha = k.alpha;
-		ctx.translate(x + s / 2 + px, y + s / 2 + py);
-		ctx.rotate(k.rotate);
-		ctx.scale(k.scale, k.scale);
-		ctx.translate(-px, -py);
-		paintWalls(ctx, one(pl.r, pl.c), s, p, 'shadow', dpr, { shadowK: k.shadow });
-		paintWalls(ctx, one(pl.r, pl.c), s, p, 'body', dpr);
-		ctx.restore();
-	}
-	return pops.length + peels.length > 0;
 }

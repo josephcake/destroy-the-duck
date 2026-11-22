@@ -228,7 +228,7 @@ test('Paper v2.1 §9 #3: a stored Pond preference opens as Paper', () => {
 	expect(screen.getByTestId('cells-paper')).toBeInTheDocument();
 });
 
-test('Paper v2.1 §6 shell: kit themes, one tape, torn panel, sprite legend, footer', () => {
+test('minimal shell: kit themes, always flat (no fibre), no tape, no torn edges, sprite legend, footer', () => {
 	localStorage.clear();
 	render(
 		<TableContextProvider>
@@ -237,17 +237,15 @@ test('Paper v2.1 §6 shell: kit themes, one tape, torn panel, sprite legend, foo
 	);
 	const app = document.querySelector('.app');
 	expect(app.getAttribute('data-pk-theme')).toBe('paper');
-	expect(app.hasAttribute('data-pk-flat')).toBe(false);
+	expect(app.hasAttribute('data-pk-flat')).toBe(true); // flat in every cell set: no fibre texture
 	fireEvent.click(screen.getByRole('group', { name: 'Chrome' }).querySelectorAll('button')[1]);
 	expect(app.getAttribute('data-pk-theme')).toBe('night-paper');
 	fireEvent.click(screen.getByTestId('cells-classic'));
 	expect(app.hasAttribute('data-pk-flat')).toBe(true);
-	// exactly one tape strip, on the zoom toolbar
-	expect(document.querySelectorAll('.pk-tape')).toHaveLength(1);
-	expect(document.querySelector('.pk-tape').closest('[aria-label="Zoom"]')).not.toBeNull();
-	// torn edges: panel right (desktop) and header bottom
-	expect(document.querySelector('.pk-lifted > nav.panel.pk-panel.pk-torn-right')).not.toBeNull();
-	expect(document.querySelector('.panel__head.pk-strip.pk-torn-bottom')).not.toBeNull();
+	// no tape, no torn edges
+	expect(document.querySelectorAll('.pk-tape')).toHaveLength(0);
+	expect(document.querySelectorAll('.pk-torn-right, .pk-torn-bottom, .pk-torn-top')).toHaveLength(0);
+	expect(document.querySelector('.pk-lifted > nav.panel.pk-panel')).not.toBeNull();
 	// legend swatches are canvas sprites (img), and the board is the only <canvas>
 	expect(document.querySelectorAll('.legend img.swatch[data-swatch]').length).toBeGreaterThanOrEqual(6);
 	expect(document.querySelectorAll('.legend i')).toHaveLength(0);

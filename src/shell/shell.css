@@ -10,7 +10,7 @@
 	--f-mono: var(--pk-font-mono);
 	--s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
 	--r-sm: var(--pk-radius-sm); --r-md: var(--pk-radius-md); --r-lg: var(--pk-radius-lg); --r-pill: 999px;
-	--panel-w: 328px; /* 320 + the 8 px torn edge */
+	--panel-w: 328px; /* 320 + 8 px (was the torn edge; kept so the layout does not move) */
 	--d-1: 120ms; --d-2: 180ms; --d-3: var(--pk-dur-panel); --ease-out: var(--pk-ease-out);
 }
 /* §2.2 aliases: the shell keeps its own names, the kit owns the values */
@@ -37,7 +37,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pk-btn:focus-visible { outline: 2px solid var(--focus-outer); }
 
 /* ---------- panel ---------- */
-/* §6: .pk-panel.pk-torn-right inside .pk-lifted (the drop shadow lives on the wrapper: the mask clips box-shadow) */
+/* .pk-panel inside .pk-lifted (a soft drop shadow on the wrapper) */
 .panel-lift { position: relative; flex: none; display: flex; height: 100%; z-index: 20; }
 .panel { width: var(--panel-w); flex: none; height: 100%; padding-right: 8px; transition: margin-left var(--d-3) var(--ease-out); }
 /* collapsed: out of the Tab order too (inert) and hidden once the slide ends */
@@ -62,7 +62,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .icon-btn { width: 36px; height: 36px; padding: 0; display: inline-grid; place-items: center; }
 .panel__head .icon-btn { background-color: var(--pk-card-ui); }
 .icon-btn svg { width: 18px; height: 18px; }
-.section { border-top: 1px dashed var(--line-ui); padding: var(--s-3) 0; }
+.section { border-top: 1px solid var(--line-ui); padding: var(--s-3) 0; }
 .section:first-of-type { border-top: 0; }
 .section__title { font: var(--pk-type-overline); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-2); display: flex; justify-content: space-between; align-items: center; }
 .tabs { margin: var(--s-3) 0 var(--s-2); padding-bottom: var(--pk-press); }
@@ -121,7 +121,7 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .legend .swatch { width: 22px; height: 22px; flex: none; margin-right: 8px; }
 .legend__goal { grid-column: 1 / -1; font: var(--pk-type-display-s); font-variation-settings: var(--pk-type-display-s-axes); }
 
-.panel__foot { border-top: 1px dashed var(--line-ui); padding: var(--s-3); display: flex; gap: var(--s-2); font-size: 12px; color: var(--ink-3); }
+.panel__foot { border-top: 1px solid var(--line-ui); padding: var(--s-3); display: flex; gap: var(--s-2); font-size: 12px; color: var(--ink-3); }
 .panel__foot a { text-decoration: underline; text-decoration-color: var(--line-ui); text-underline-offset: 2px; }
 .panel__foot a { color: inherit; }
 .panel__foot a:hover { color: var(--ink); text-decoration: underline; }
@@ -132,8 +132,6 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 /* floats are .pk-card */
 .float { position: absolute; background-color: var(--pk-card-ui); background-image: var(--pk-fibre); background-size: 256px; border: 0; border-radius: var(--pk-radius-md); box-shadow: 0 1px 0 var(--pk-edge-d), 0 6px 14px -8px var(--pk-sh); z-index: 10; }
 .zoom { right: 16px; bottom: 16px; display: flex; align-items: center; padding: 6px 6px 9px; gap: 4px; }
-/* §6: exactly one tape strip, on the desktop zoom toolbar */
-.zoom__tape { top: -11px; right: 22px; pointer-events: none; }
 .zoom__pct { width: 58px; height: 44px; text-align: center; font: var(--pk-type-data); }
 /* 44 px taps on the zoom bar and the Learn transport, at every size */
 .zoom .icon-btn, .stepbar .icon-btn { width: 44px; height: 44px; }
@@ -186,16 +184,11 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 		height: min(78vh, 640px); margin-left: 0 !important;
 		padding-right: 0; padding-top: 14px;
 		transition: transform var(--d-3) var(--ease-out), visibility 0s linear 0s; z-index: 30;
-		/* §6: the phone sheet's top is torn (.pk-torn-top), not the right edge */
-		--pk-tear: 8px;
-		-webkit-mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - var(--pk-tear)) no-repeat, var(--pk-tear-top-svg) top / 200px var(--pk-tear) repeat-x;
-		        mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - var(--pk-tear)) no-repeat, var(--pk-tear-top-svg) top / 200px var(--pk-tear) repeat-x;
 	}
 	.panel-lift { display: contents; filter: none; }
 	/* 40x5 grabber */
 	.panel::before { content: ''; display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line-ui); margin: 4px auto 0; flex: none; }
 	.panel__head { padding-top: 8px; }
-	.zoom__tape { display: none; }
 	.panel[data-open='false'] { transform: translateY(100%); visibility: hidden; transition: transform var(--d-3) var(--ease-out), visibility 0s linear var(--d-3); }
 	.sheet-scrim { display: block; position: fixed; inset: 0; z-index: 25; border: 0; padding: 0; background: rgb(0 0 0/.28); cursor: default; }
 	.app[data-panel='open'] .stage .float { display: none; }
@@ -239,7 +232,6 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.mini { left: calc(8px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); }
 	.mini__algo { max-width: 120px; }
 	.zoom { right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom)); padding: 4px; }
-	.zoom__tape { display: none; }
 	.pill { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
 	.landing { top: calc(64px + env(safe-area-inset-top)); width: min(440px, calc(100% - 32px)); padding: 12px 16px; }
 	.landing__duck { display: none; }
@@ -261,7 +253,6 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 /* "Turn your phone sideways": a paper card over a soft scrim (portrait touch phones only) */
 .rotate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: rgb(43 38 32/.32); }
 .rotate__card { position: relative; width: min(320px, 100%); padding: 28px 24px 22px; text-align: center; background-color: var(--pk-card-ui); background-image: var(--pk-fibre); background-size: 256px; border-radius: var(--pk-radius-md); box-shadow: 0 1px 0 var(--pk-edge-d), 0 14px 30px -12px var(--pk-sh); color: var(--ink); }
-.rotate__tape { position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg); width: 84px; height: 22px; }
 .rotate__icon { color: var(--ink); margin: 4px auto 8px; display: block; }
 .rotate__ghost { color: var(--ink-3); opacity: .7; transform-origin: 48px 48px; }
 @media (prefers-reduced-motion: no-preference) { .rotate__ghost { animation: rotate-hint 2.4s var(--ease-out, ease-out) 2; } }
@@ -270,5 +261,3 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .rotate p { margin: 0 0 18px; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
 .rotate .go { width: 100%; min-height: 48px; font-size: 16px; }
 
-/* the torn-top SVG from paper-kit.css (.pk-torn-top), reused for the phone sheet */
-.app { --pk-tear-top-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='8' preserveAspectRatio='none'%3E%3Cpath d='M0 8H200V3.2L200 3.2L199.3 3.2L195.7 3.9L190.8 2.9L184.9 3.3L180.1 1.4L176.7 2.6L173.9 4.3L168.5 2.4L165.3 1.1L161.7 2.9L156.8 4.7L151.0 2.3L147.5 1.8L142.1 2.9L138.7 2.2L132.3 2.3L129.7 2.2L126.8 3.4L122.6 6.5L117.7 2.0L111.6 4.9L105.3 2.8L102.1 3.9L95.8 3.1L90.3 6.9L87.1 2.1L83.6 2.4L77.8 2.3L71.7 6.9L68.6 4.9L65.3 6.1L59.4 3.2L54.6 2.5L50.1 3.0L43.8 0.6L39.5 2.3L35.5 4.6L30.6 4.6L27.1 3.3L22.3 3.9L19.4 5.9L16.6 4.8L12.9 4.1L9.1 4.2L3.5 6.9L0 4.4Z'/%3E%3C/svg%3E"); }

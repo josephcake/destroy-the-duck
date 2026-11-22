@@ -1,6 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
+import { VISITED_ALPHA } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -9,6 +10,9 @@ const lum = (h: string) => {
 	});
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
+/** fg over bg at alpha a, as a #rrggbb */
+const blend = (fg: string, bg: string, a: number) =>
+	'#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(bg.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
 export const contrast = (a: string, b: string) => {
 	const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
 	return (x + 0.05) / (y + 0.05);
@@ -18,7 +22,6 @@ const P = PALETTES['paper-light'], NP = PALETTES['paper-dark'], CL = PALETTES['c
 // [what, fg, bg, the spec's figure]
 const SPEC: [string, string, string, number][] = [
 	['Paper wall', P.wall, P.home, 9.93], ['Night wall', NP.wall, NP.home, 9.16], ['Classic Light wall', CL.wall, CL.home, 13.25], ['Classic Dark wall', CD.wall, CD.home, 9.65],
-	['Paper under-ply', P.wallUnder!, P.home, 5.83],
 	['Paper wEdge', P.wEdge, P.home, 4.23], ['Night wEdge', NP.wEdge, NP.home, 5.85], ['Classic Light wEdge', CL.wEdge, CL.home, 3.3], ['Classic Dark wEdge', CD.wEdge, CD.home, 11.89],
 	['Paper stamp on w10', P.stamp, P.w[2], 5.6], ['Paper stamp on w2', P.stamp, P.w[0], 9.0], ['Paper stamp on w>=20', P.stamp, P.w[3], 4.9],
 	['Night stamp on w10', NP.stamp, NP.w[2], 5.1], ['Night stamp on w2', NP.stamp, NP.w[0], 7.9], ['Night stamp on w>=20', NP.stamp, NP.w[3], 5.81],
@@ -72,18 +75,21 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.label, p.home)).toBeGreaterThanOrEqual(4.5);
 		expect(contrast(p.homeLine, p.home)).toBeGreaterThanOrEqual(3);
 	});
-	test('Classic presets are flat (no fibre, pencil or under-ply); Paper presets have all three', () => {
-		if (p.classic) expect([p.fibre, p.pencil, p.wallUnder]).toEqual([null, null, null]);
-		else {
-			expect(p.fibre && p.pencil && p.wallUnder).toBeTruthy();
-			expect(p.fibre!.strength).toBeLessThanOrEqual(0.16); // §7: grain and pencil <= .16 alpha
-		}
+	test('minimal (2026-11-22): the grid is a quiet hairline, under 1.35:1 on the board', () => {
+		expect(contrast(p.grid, p.home)).toBeLessThan(1.35);
+		expect(contrast(p.grid, p.home)).toBeGreaterThan(1.05);
+	});
+	test('minimal: the visited dash (blended at VISITED_ALPHA) reads (>= 2:1) but stays quieter than walls and the path', () => {
+		const dash = contrast(blend(p.visited, p.home, VISITED_ALPHA), p.home);
+		expect(dash).toBeGreaterThanOrEqual(2);
+		expect(dash).toBeLessThan(contrast(p.wall, p.home));
+		expect(dash).toBeLessThan(contrast(p.path, p.home));
+	});
+	test('minimal: the frontier square (frontEdge) is non-text readable, >= 3:1', () => {
+		expect(contrast(p.frontEdge, p.home)).toBeGreaterThanOrEqual(3);
 	});
 });
 
-test('§7: Paper board grain and pencil lines are <= .16 alpha', () => {
-	for (const p of [P, NP]) expect(Number(p.pencil!.match(/[\d.]+\)$/)![0].slice(0, -1))).toBeLessThanOrEqual(0.16);
-});
 test('§9 #3: stored Pond prefs migrate to Paper', () => {
 	expect(migrateCellSet('pond')).toBe('paper');
 	expect(migrateCellSet('paper')).toBe('paper');

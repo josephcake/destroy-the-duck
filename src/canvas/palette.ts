@@ -1,18 +1,9 @@
-// Cell palettes: Prism "Paper Cutout" v2.1 (style.md §2.1). Paper and Night
-// Paper are the paper presets; Classic Light/Dark keep the classic colours,
-// drawn flat (classic = true: no fibre, deckle or under-ply, radius 0.10 s).
+// Cell palettes: Prism "Paper Cutout" v2.1 colours (style.md §2.1), drawn
+// minimal since 2026-11-22 (Joseph: "turn the dots to dashes … more minimal"):
+// flat board, hairline grid, flat walls, one thin dash per visited cell.
+// Classic Light/Dark keep the classic colours.
 export type Chrome = 'light' | 'dark';
 export type CellSet = 'paper' | 'classic';
-
-export type Fibre = {
-	ink: string; // fibre tile ink (dark specks on Paper, pale on Night Paper)
-	alpha: number; // tile alpha
-	strength: number; // v2.1 fibre strength (tile alpha per speck)
-	grain: number; // v2.1 grain blotches per tile
-	vignette: number; // v2.1 vignette alpha
-	vignetteRGB: string;
-	wallTop: number; // v2.1 fibre alpha on the wall top ply
-};
 
 export type Palette = {
 	name: string;
@@ -21,15 +12,13 @@ export type Palette = {
 	home: string; // the Home sheet (board)
 	grid: string; // crisp grid (Classic) / table grid
 	outerGrid: string; // grid lines outside Home
-	pencil: string | null; // v2.1 hand-ruled grid (Paper presets)
-	pencilPressed: string | null;
-	fibre: Fibre | null;
+	/** grid dash pattern in cells ([on, off]), or null for solid hairlines */
+	gridDash: number[] | null;
 	sheetShadow: string;
 	homeLine: string; // dashed Home outline (Classic only)
 	label: string; // HOME label
 	ink: string;
 	wall: string; // top ply
-	wallUnder: string | null; // under-ply (Paper presets)
 	cut: string;
 	cutTL: string;
 	shadow: string; // cast
@@ -63,16 +52,13 @@ export type Palette = {
 	stickerEdge: string;
 };
 
-const PAPER_FIBRE: Fibre = { ink: 'rgba(90,62,24,1)', alpha: 1, strength: 0.16, grain: 220, vignette: 0.1, vignetteRGB: '70,45,15', wallTop: 0.22 };
-const NIGHT_FIBRE: Fibre = { ink: 'rgba(255,246,220,1)', alpha: 0.9, strength: 0.14, grain: 200, vignette: 0.16, vignetteRGB: '0,4,18', wallTop: 0.18 };
-
 export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'paper-light': {
 		name: 'Paper', classic: false,
-		paper: '#e6dbc4', home: '#f8f3e6', grid: '#eee6d5', outerGrid: '#ddd0b4',
-		pencil: 'rgba(78,64,44,0.10)', pencilPressed: 'rgba(255,252,242,0.45)', fibre: PAPER_FIBRE,
+		paper: '#e6dbc4', home: '#f8f3e6', grid: '#e4d9c3', outerGrid: '#ddd0b4',
+		gridDash: null,
 		sheetShadow: 'rgba(92,66,28,0.22)', homeLine: '#7d6f57', label: '#4f4536', ink: '#2b2620',
-		wall: '#2f3b5e', wallUnder: '#4f5d88', cut: '#8c9bc4', cutTL: '#b3c0e2',
+		wall: '#2f3b5e', cut: '#8c9bc4', cutTL: '#b3c0e2',
 		shadow: 'rgba(84,58,22,0.30)', contact: 'rgba(84,58,22,0.38)',
 		w: ['#f2d9a6', '#e9b673', '#e3a066', '#dc9258'], wUnder: ['#d9b97f', '#c8964f', '#b67836', '#b8743c'], wEdge: '#9a6a33', stamp: '#5a2410',
 		vis: ['#4fa092', '#3f9384', '#62ad9f'], visited: '#3f9384',
@@ -85,10 +71,10 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	},
 	'paper-dark': {
 		name: 'Night Paper', classic: false,
-		paper: '#10172d', home: '#1c2648', grid: '#24305a', outerGrid: '#1a2240',
-		pencil: 'rgba(170,190,240,0.075)', pencilPressed: 'rgba(0,0,0,0.22)', fibre: NIGHT_FIBRE,
+		paper: '#10172d', home: '#1c2648', grid: '#2b3866', outerGrid: '#1a2240',
+		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.45)', homeLine: '#8b94b8', label: '#c9cfe6', ink: '#f3ecdc',
-		wall: '#dccaa2', wallUnder: '#a8956d', cut: '#fff4d8', cutTL: '#fffaf0',
+		wall: '#dccaa2', cut: '#fff4d8', cutTL: '#fffaf0',
 		shadow: 'rgba(2,5,16,0.55)', contact: 'rgba(2,5,16,0.60)',
 		w: ['#4a4766', '#7a5a52', '#93583a', '#8a4f33'], wUnder: ['#36344f', '#5c433d', '#6f412a', '#6a3a24'], wEdge: '#c99a6a', stamp: '#fff1dc',
 		vis: ['#4aa89c', '#3f9a8f', '#56b5a8'], visited: '#3f9a8f',
@@ -102,9 +88,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'classic-light': {
 		name: 'Classic Light', classic: true,
 		paper: '#f6f4ee', home: '#D3D3D3', grid: '#bdbdbd', outerGrid: '#ebe7dc',
-		pencil: null, pencilPressed: null, fibre: null,
+		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.18)', homeLine: '#5e5a50', label: '#3a4152', ink: '#1c2230',
-		wall: '#04042C', wallUnder: null, cut: '#ffffff', cutTL: '#ffffff',
+		wall: '#04042C', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.28)', contact: 'rgba(0,0,0,0.30)',
 		w: ['#e8dcc0', '#d4b483', '#c08a4a'], wUnder: ['#cfc2a4', '#b8955f', '#9c6c34'], wEdge: '#8e6a2e', stamp: '#3a1a08',
 		vis: ['#7C4DA2', '#7C4DA2', '#7C4DA2'], visited: '#7C4DA2',
@@ -118,9 +104,9 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'classic-dark': {
 		name: 'Classic Dark', classic: true,
 		paper: '#141418', home: '#24242a', grid: '#34343c', outerGrid: '#1c1c22',
-		pencil: null, pencilPressed: null, fibre: null,
+		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.5)', homeLine: '#9a9cb4', label: '#c9cbe3', ink: '#eef1f6',
-		wall: '#c9cbe3', wallUnder: null, cut: '#ffffff', cutTL: '#ffffff',
+		wall: '#c9cbe3', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.55)', contact: 'rgba(0,0,0,0.60)',
 		w: ['#5d5848', '#7a6a4c', '#2f5f80'], wUnder: ['#4a463a', '#5f523b', '#244a64'], wEdge: '#e6e3c8', stamp: '#f4f1e2',
 		vis: ['#3f9a7a', '#3f9a7a', '#3f9a7a'], visited: '#3f9a7a',

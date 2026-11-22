@@ -1,29 +1,19 @@
 // Canvas 2D renderer, Paper Cutout v2.1 (style.md §3, §4). Cost is
 // proportional to content, not to viewport area: it walks Home (2,800 cells),
-// board chunks in view and the trace overlay. Expensive bitmaps (walls, weight
-// piles, pencil grid tiles, dot and frontier sprites) are baked once and blitted.
+// board chunks in view and the trace overlay. Expensive bitmaps (wall
+// chunks, weight piles) are baked once and blitted.
 import { Board, Weight } from '../model/board';
-import { Bounds, parseId } from '../model/cell';
+import { parseId } from '../model/cell';
 import { TraceState } from '../learn/player';
 import { K, LegacyMirror } from './mirror';
 import { WallCache, drawWalls, paintWalls } from './walls';
 import { padLabel } from '../model/nodes';
-import { Palette, weightColor, weightTier, weightUnder } from './palette';
+import { Palette, weightColor, weightUnder } from './palette';
 import { CELL, View, cellToScreen, visibleBounds } from './view';
 import {
-	CellRef, DURATION, EASE, Shadow, cached, elevation, hash, liftedCard, maskAt, paperSheet, paperStack, pencilGrid, punchDot, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
+	CellRef, DURATION, EASE, Shadow, cached, elevation,  maskAt, paperStack, punchHole, sheetPile, shapeWithBox, sticker, threadPath,
 } from '../vendor/paper-kit/paper-kit';
 
-const FRONTIER_PULSE_MAX = 2000;
-const PULSE_MS = DURATION.pulse; // 900
-/** Frontier lift l in [0, 1]: 0.5 - 0.5 cos(2πt / 900 ms) (§4.8). */
-export function frontierLift(now: number) {
-	return 0.5 - 0.5 * Math.cos((2 * Math.PI * (now % PULSE_MS)) / PULSE_MS);
-}
-/** Kept for callers/tests of the Pond pulse: 0.55..1 over 900 ms. */
-export function frontierAlpha(now: number) {
-	return 0.55 + 0.45 * frontierLift(now);
-}
 
 export type Scene = {
 	view: View;
@@ -85,22 +75,14 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	const vb = visibleBounds(view, width, height);
 	const s = CELL * view.zoom;
 	let animating = false;
-	const pan = { x: view.panX, y: view.panY };
 
-	// §3 one endless sheet: the same paper and grid everywhere (no Home sheet, no lit box)
-	if (p.fibre) {
-		paperSheet(ctx, 0, 0, width, height, { fill: p.home, fibre: { seed: 7, ink: p.fibre.ink, alpha: p.fibre.strength, grain: p.fibre.grain }, fibreAlpha: p.fibre.alpha, vignette: p.fibre.vignette * 0.8, vignetteRGB: p.fibre.vignetteRGB, patternOffset: pan, dpr });
-	} else {
-		ctx.fillStyle = p.home;
-		ctx.fillRect(0, 0, width, height);
-	}
+	// one endless flat sheet: no grain, no vignette (minimal, Joseph 2026-11-22)
+	ctx.fillStyle = p.home;
+	ctx.fillRect(0, 0, width, height);
 
 	// Grid: fades in between 25% and 50% (ga = clamp((zoom − .25)/.25))
 	const ga = Math.max(0, Math.min(1, (view.zoom - 0.25) / 0.25));
-	if (ga > 0) {
-		if (p.pencil) drawPencilGrid(ctx, view, vb, s, p, dpr, ga);
-		else drawCrispGrid(ctx, view, vb, s, p, dpr, ga);
-	}
+	if (ga > 0) drawGrid(ctx, view, vb, s, p, dpr, ga);
 
 	// §4.2 weights: piles of sheets (Paper), merged flat sheets (Classic)
 	drawWeights(ctx, scene, vb, s, dpr);
@@ -109,23 +91,10 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	let cache = wallCaches.get(ctx);
 	if (!cache) wallCaches.set(ctx, (cache = new WallCache()));
 	const m = scene.mirror;
-	const wallSrc = {
-		isWall: (r: number, c: number) => isWallAt(scene, r, c),
-		live: m.window,
-		changedAt: (r: number, c: number) => {
-			const i = m.index(r, c);
-			return i < 0 ? 0 : m.changedAt[i];
-		},
-		erasedAt: (r: number, c: number) => {
-			const i = m.index(r, c);
-			if (i < 0) return 0;
-			return m.prevKind?.[i] === K.Wall && m.kind[i] !== K.Wall ? m.changedAt[i] : 0;
-		},
-	};
-	if (drawWalls(ctx, wallSrc, view, vb, p, dpr, scene.now, scene.reducedMotion, cache)) animating = true;
+	drawWalls(ctx, { isWall: (r: number, c: number) => isWallAt(scene, r, c) }, view, vb, p, dpr, cache);
 
-	// §4.7 visited: hole-punch confetti, on top of weight piles
-	const dots = new DotDrawer(ctx, s, p, dpr);
+	// visited: one short thin dash per cell, on top of weights
+	const dots = new DashDrawer(ctx, s, p);
 	const enter = (born: number) => {
 		if (!motion || born === 0) return 1;
 		const t = Math.min(1, (scene.now - born) / ENTER_MS);
@@ -136,30 +105,26 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		for (let i = 0; i < m.kind.length; i++)
 			if (m.kind[i] === K.Visited) {
 				const { r, c } = m.cellAt(i);
-				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) dots.add(r, c, view, enter(m.changedAt[i]), 1);
+				if (r >= vb.r0 && r <= vb.r1 && c >= vb.c0 && c <= vb.c1) dots.add(r, c, view, enter(m.changedAt[i]));
 			}
 	const tr = scene.trace;
 	if (tr) {
-		const total = Math.max(1, tr.visited.size);
-		for (const [id, order] of tr.visited) {
+		for (const id of tr.visited.keys()) {
 			const { r, c } = parseId(id);
 			if (r < vb.r0 || r > vb.r1 || c < vb.c0 || c > vb.c1) continue;
-			dots.add(r, c, view, enter(scene.traceTimes.get(id) ?? 0), 1 - 0.2 * (1 - order / total)); // floor 0.8
+			dots.add(r, c, view, enter(scene.traceTimes.get(id) ?? 0));
 		}
 	}
 	dots.flush();
 
-	// §4.8 frontier: lifted card squares, pulsing (static l = .5 under reduced motion)
+	// frontier: small flat squares, still (distinct from the dashes, quiet)
 	if (tr) {
 		const cells: { r: number; c: number }[] = [];
 		for (const id of tr.frontier.keys()) {
 			const q = parseId(id);
 			if (q.r >= vb.r0 && q.r <= vb.r1 && q.c >= vb.c0 && q.c <= vb.c1) cells.push(q);
 		}
-		const pulse = motion && cells.length > 0 && cells.length <= FRONTIER_PULSE_MAX && !tr.done;
-		const l = pulse ? frontierLift(scene.now) : 0.5;
-		if (pulse) animating = true;
-		drawFrontier(ctx, cells, view, s, p, dpr, l);
+		drawFrontier(ctx, cells, view, s, p);
 	}
 
 	// §4.3 one-way and §4.4 teleporters (z2), over visited dots
@@ -308,60 +273,29 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 
 // ------------------------------------------------------------------ grid
 type Pt = { x: number; y: number };
-function drawPencilGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
-	// §3 hand-ruled grid, baked per 16x16 tile (seeded by tile, so panning never re-rolls it);
-	// above the bitmap cap, live ruled lines in the pencil colour. One grid everywhere.
-	const tile = CHUNK * s;
+/** One quiet grid everywhere: hairlines (1 device px) in the grid colour, dashed when the palette says so. */
+function drawGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
 	ctx.save();
-	ctx.globalAlpha = ga;
-	if (tile * dpr <= BAKE_CAP) {
-		for (let cr = Math.floor(vb.r0 / CHUNK); cr <= Math.floor(vb.r1 / CHUNK); cr++)
-			for (let cc = Math.floor(vb.c0 / CHUNK); cc <= Math.floor(vb.c1 / CHUNK); cc++) {
-				const o = cellToScreen(view, cr * CHUNK, cc * CHUNK);
-				pencilGrid(ctx, Math.round(o.x * dpr) / dpr - s, Math.round(o.y * dpr) / dpr - s, tile + s + 1, tile + s + 1, s, { color: p.pencil!, alpha: 1, pressed: p.pencilPressed, seed: 3 + ((cr * 7919 + cc * 104729) & 0xffff), dpr });
-			}
-	} else {
-		ctx.lineWidth = 1;
-		for (const [col, dy] of [[p.pencilPressed, 1], [p.pencil, 0]] as const) {
-			if (!col) continue;
-			ctx.strokeStyle = col;
-			ctx.beginPath();
-			for (let c = vb.c0; c <= vb.c1 + 1; c++) {
-				const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 + dy;
-				ctx.moveTo(x, view.panY + vb.r0 * s);
-				ctx.lineTo(x, view.panY + (vb.r1 + 1) * s);
-			}
-			for (let r = vb.r0; r <= vb.r1 + 1; r++) {
-				const y = Math.round((view.panY + r * s) * dpr) / dpr + 0.5 + dy;
-				ctx.moveTo(view.panX + vb.c0 * s, y);
-				ctx.lineTo(view.panX + (vb.c1 + 1) * s, y);
-			}
-			ctx.stroke();
-		}
-	}
-	ctx.restore();
-}
-function drawCrispGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
 	ctx.lineWidth = 1 / dpr;
 	ctx.globalAlpha = ga;
 	ctx.strokeStyle = p.grid;
+	if (p.gridDash) ctx.setLineDash(p.gridDash.map((d) => d * s));
 	ctx.beginPath();
-	for (let c = vb.c0; c <= vb.c1; c++) {
-		const x = Math.round((view.panX + c * s) * dpr) / dpr;
+	for (let c = vb.c0; c <= vb.c1 + 1; c++) {
+		const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 / dpr;
 		ctx.moveTo(x, view.panY + vb.r0 * s);
-		ctx.lineTo(x, view.panY + vb.r1 * s);
+		ctx.lineTo(x, view.panY + (vb.r1 + 1) * s);
 	}
-	for (let r = vb.r0; r <= vb.r1; r++) {
-		const y = Math.round((view.panY + r * s) * dpr) / dpr;
+	for (let r = vb.r0; r <= vb.r1 + 1; r++) {
+		const y = Math.round((view.panY + r * s) * dpr) / dpr + 0.5 / dpr;
 		ctx.moveTo(view.panX + vb.c0 * s, y);
-		ctx.lineTo(view.panX + vb.c1 * s, y);
+		ctx.lineTo(view.panX + (vb.c1 + 1) * s, y);
 	}
 	ctx.stroke();
-	ctx.globalAlpha = 1;
+	ctx.restore();
 }
 
 // ------------------------------------------------------------------ weights
-const W_LAYERS = [1, 2, 3, 4];
 function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType<typeof visibleBounds>, s: number, dpr: number) {
 	const { view, palette: p } = scene;
 	const byChunk = new Map<string, { cr: number; cc: number; cells: [number, number, Weight][] }>();
@@ -378,18 +312,7 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 	// paint one chunk's weights with (ox, oy) = screen position of cell (cr*16, cc*16)
 	const paint = (c2: Ctx2D, cr: number, cc: number, cells: [number, number, Weight][], ox: number, oy: number) => {
 		const at = (r: number, c: number) => ({ x: ox + (c - cc * CHUNK) * s, y: oy + (r - cr * CHUNK) * s });
-		if (!p.classic) {
-			// v2.1: separate piles (no merging in Paper); reading order so lower-right piles overlap
-			for (const [r, c, cost] of cells) {
-				const tier = weightTier(cost);
-				sheetPile(c2, { ...at(r, c), r, c, mask: 0 }, s, {
-					layers: W_LAYERS[tier], fills: [weightColor(p, cost), weightUnder(p, cost)], edge: p.wEdge, contact: contactOf(p, s), dpr, rotate: 0.06, tintVar: 0.06,
-					label: { text: String(cost), color: p.stamp, font: `800 ${Math.round(0.4 * s)}px Fraunces, Georgia, serif` },
-				});
-			}
-			return;
-		}
-		// Classic: flat merged sheets (66c97df's same-cost union), cost on each cell from 200%
+		// flat merged sheets (66c97df's same-cost union), cost on each cell
 		for (const cost of [2, 5, 10] as Weight[]) {
 			const refs: CellRef[] = cells.filter(([, , w]) => w === cost).map(([r, c]) => ({ ...at(r, c), r, c, mask: maskAt(same(cost), r, c) }));
 			if (!refs.length) continue;
@@ -405,8 +328,8 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 		}
 		let sig = 2166136261;
 		for (const [r, c, w] of cells) sig = Math.imul(sig ^ (r * 4099 + c * 7 + w), 16777619);
-		// Classic merges across chunk edges, so its signature includes the neighbour masks
-		if (p.classic) for (const [r, c, w] of cells) sig = Math.imul(sig ^ maskAt(same(w), r, c), 16777619);
+		// sheets merge across chunk edges, so the signature includes the neighbour masks
+		for (const [r, c, w] of cells) sig = Math.imul(sig ^ maskAt(same(w), r, c), 16777619);
 		const img = cached(`w|${p.name}|${s}|${dpr}|${cr},${cc}|${sig}|${cells.length}`, () => {
 			const L = mkLayer((tile + 2 * pad) * dpr, (tile + 2 * pad) * dpr);
 			if (!L) return null;
@@ -420,105 +343,46 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 }
 
 // ------------------------------------------------------------------ visited
-/** Confetti dots from 3 cached sprites (§8: drawImage, never shadowBlur per dot). Below 8 px: batched squares. */
-class DotDrawer {
-	private squares: [Path2D | null, Path2D | null, Path2D | null] = [null, null, null];
-	private sprites: (Layer | null)[];
-	private pad: number;
-	private R: number;
-	constructor(private ctx: CanvasRenderingContext2D, private s: number, private p: Palette, private dpr: number) {
-		this.R = Math.round(0.3 * s * 2) / 2; // quantised so zoom animations reuse sprites
-		this.pad = Math.ceil(this.R * 1.2 + 6);
-		this.sprites = s < 8 ? [] : p.vis.map((fill) => cached(`vdot|${fill}|${this.R}|${s >= 14}|${s >= 20}|${dpr}`, () => {
-			const L = mkLayer(2 * this.pad * dpr, 2 * this.pad * dpr);
-			if (!L) return null;
-			L[1].setTransform(dpr, 0, 0, dpr, 0, 0);
-			punchDot(L[1], this.pad, this.pad, this.R, { fill, rim: s >= 20 ? 'rgba(255,255,255,0.32)' : null, contact: s >= 14 ? { color: p.contact, dx: 0.3, dy: Math.max(0.7, 0.025 * s), blur: Math.min(0.045 * s, 3) } : null, dpr });
-			return L[0];
-		}));
-	}
-	add(r: number, c: number, view: View, k: number, fade: number) {
-		const { x, y } = cellToScreen(view, r, c);
-		const s = this.s, tint = Math.floor(hash(r, c, 3) * 3);
-		if (s < 8) {
-			const sq = (this.squares[tint] ??= new Path2D());
-			sq.rect(x, y, s, s);
-			return;
-		}
+/** One short, thin, low-contrast dash per visited cell, all in one path (one stroke a frame). */
+class DashDrawer {
+	private path = new Path2D();
+	private any = false;
+	constructor(private ctx: CanvasRenderingContext2D, private s: number, private p: Palette) {}
+	/** k: 0 -> 1 as the cell enters (the dash grows from its centre). */
+	add(r: number, c: number, view: View, k: number) {
 		if (k <= 0.01) return;
-		const img = this.sprites[tint];
-		const jx = (hash(r, c, 1) - 0.5) * 0.1 * s, jy = (hash(r, c, 2) - 0.5) * 0.1 * s; // ±0.05 s
-		const size = (1 + (hash(r, c, 4) - 0.5) * 0.24) * k; // ±12%, enter 0 -> 1
-		const squash = 1 - 0.12 * hash(r, c, 5);
-		const ctx = this.ctx;
-		ctx.save();
-		ctx.globalAlpha = fade;
-		ctx.translate(x + s / 2 + jx, y + s / 2 + jy);
-		ctx.rotate(hash(r, c, 6) * Math.PI);
-		ctx.scale(size, size * squash);
-		if (img) ctx.drawImage(img as CanvasImageSource, -this.pad, -this.pad, 2 * this.pad, 2 * this.pad);
-		else {
-			ctx.fillStyle = this.p.vis[tint];
-			ctx.beginPath();
-			ctx.arc(0, 0, this.R, 0, Math.PI * 2);
-			ctx.fill();
-		}
-		ctx.restore();
+		const { x, y } = cellToScreen(view, r, c);
+		const h = 0.2 * this.s * k; // half length: the dash is 0.4 cell
+		this.path.moveTo(x + this.s / 2 - h, y + this.s / 2);
+		this.path.lineTo(x + this.s / 2 + h, y + this.s / 2);
+		this.any = true;
 	}
 	flush() {
-		this.squares.forEach((sq, i) => {
-			if (!sq) return;
-			this.ctx.fillStyle = this.p.vis[i];
-			this.ctx.fill(sq);
-		});
-	}
-}
-
-// ------------------------------------------------------------------ frontier
-function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: number }[], view: View, s: number, p: Palette, dpr: number, l: number) {
-	if (!cells.length) return;
-	const size = 0.74 * s;
-	if (p.classic || s < 8) {
-		// Classic: flat squares, no lift
-		ctx.fillStyle = p.front;
-		ctx.beginPath();
-		for (const { r, c } of cells) {
-			const { x, y } = cellToScreen(view, r, c);
-			roundRectPath(ctx, x + s / 2 - size / 2, y + s / 2 - size / 2, size, size, [0.12 * size, 0.12 * size, 0.12 * size, 0.12 * size]);
-		}
-		ctx.fill();
-		if (p.frontEdge !== p.front && s >= 8) {
-			ctx.strokeStyle = p.frontEdge;
-			ctx.lineWidth = 1;
-			ctx.stroke();
-		}
-		return;
-	}
-	// baked sprites at 9 lift levels; the nearest is blitted (§8: no per-card shadowBlur).
-	// (A 2-sprite crossfade left the card ~25% see-through mid-pulse, which read brown on navy.)
-	const S = Math.round(s * 2) / 2, pad = Math.ceil(size / 2 + 12);
-	const sprite = (lift: number) => cached(`front|${p.name}|${S}|${lift}|${dpr}`, () => {
-		const L = mkLayer(2 * pad * dpr, 2 * pad * dpr);
-		if (!L) return null;
-		L[1].setTransform(dpr, 0, 0, dpr, 0, 0);
-		liftedCard(L[1], pad, pad, 0.74 * S, { fill: p.front, edge: p.frontEdge, lift, shadow: p.shadow, dpr });
-		return L[0];
-	});
-	const LEVELS = 8;
-	const img = sprite(Math.round(l * LEVELS) / LEVELS);
-	for (const { r, c } of cells) {
-		const { x, y } = cellToScreen(view, r, c);
-		const rot = (hash(r, c, 21) - 0.5) * 0.14; // ±0.07 rad
-		if (!img) {
-			liftedCard(ctx, x + s / 2, y + s / 2, size, { fill: p.front, edge: p.frontEdge, lift: l, rotate: rot, shadow: p.shadow, dpr });
-			continue;
-		}
+		if (!this.any) return;
+		const ctx = this.ctx;
 		ctx.save();
-		ctx.translate(x + s / 2, y + s / 2);
-		ctx.rotate(rot);
-		ctx.drawImage(img as CanvasImageSource, -pad, -pad, 2 * pad, 2 * pad);
+		ctx.strokeStyle = this.p.visited;
+		ctx.globalAlpha = VISITED_ALPHA;
+		ctx.lineWidth = Math.max(1, 0.08 * this.s);
+		ctx.lineCap = 'round';
+		ctx.stroke(this.path);
 		ctx.restore();
 	}
+}
+/** The dash is drawn at this alpha over the board (palette.test checks its blended contrast). */
+export const VISITED_ALPHA = 0.8;
+
+// ------------------------------------------------------------------ frontier
+function drawFrontier(ctx: CanvasRenderingContext2D, cells: { r: number; c: number }[], view: View, s: number, p: Palette) {
+	if (!cells.length) return;
+	const size = 0.36 * s;
+	ctx.fillStyle = p.frontEdge; // the deep amber: reads on the board without an outline
+	ctx.beginPath();
+	for (const { r, c } of cells) {
+		const { x, y } = cellToScreen(view, r, c);
+		roundRectPath(ctx, x + s / 2 - size / 2, y + s / 2 - size / 2, size, size, [0.2 * size, 0.2 * size, 0.2 * size, 0.2 * size]);
+	}
+	ctx.fill();
 }
 
 // ------------------------------------------------------------------ one-way, teleporters, jump
@@ -726,7 +590,7 @@ function drawStart(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: num
 		q.closePath();
 	};
 	const tab = shapeWithBox((q) => build(q), { x: -0.42 * u, y: -0.24 * u, w: 0.86 * u, h: 0.48 * u });
-	sticker(ctx, cx, cy, tab, { fill: p.start, border: p.sticker, borderWidth: Math.max(1.5, 0.06 * u), edge: p.stickerEdge, peel: p.classic ? 0 : 0.5, rotate: ang, contact: { color: p.contact, dx: 0.5, dy: Math.max(1, 0.05 * u), blur: Math.min(0.09 * u, 5) }, dpr }, (c) => {
+	sticker(ctx, cx, cy, tab, { fill: p.start, border: p.sticker, borderWidth: Math.max(1.5, 0.06 * u), edge: p.stickerEdge, peel: 0, rotate: ang, contact: { color: p.contact, dx: 0.5, dy: Math.max(1, 0.05 * u), blur: Math.min(0.09 * u, 5) }, dpr }, (c) => {
 		c.beginPath();
 		c.moveTo(-0.42 * u, -0.04 * u);
 		c.lineTo(-0.22 * u, -0.24 * u);
@@ -772,7 +636,7 @@ function duckSilhouette(u: number) {
 /** The cut-paper duck sticker (§4.5): body, wing, two-ply beak, eye. Overflows its cell. */
 export function drawDuck(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, p: Palette, dpr: number) {
 	const u = Math.max(1.3 * s, 16);
-	sticker(ctx, cx, cy, duckSilhouette(u), { fill: p.duck, border: p.sticker, borderWidth: Math.max(1.5, 0.07 * u), edge: p.stickerEdge, peel: p.classic ? 0 : 0.7, curl: false, contact: { color: p.contact, dx: 0.5, dy: Math.max(1.2, 0.05 * u), blur: Math.min(0.1 * u, 6) }, dpr }, (c) => {
+	sticker(ctx, cx, cy, duckSilhouette(u), { fill: p.duck, border: p.sticker, borderWidth: Math.max(1.5, 0.07 * u), edge: p.stickerEdge, peel: 0, curl: false, contact: { color: p.contact, dx: 0.5, dy: Math.max(1.2, 0.05 * u), blur: Math.min(0.1 * u, 6) }, dpr }, (c) => {
 		const layer = (build: (q: Path2D) => void, fill: string) => {
 			const q = new Path2D();
 			build(q);
@@ -894,21 +758,25 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 		case 'weight5':
 		case 'weight10': {
 			const cost = kind === 'weight2' ? 2 : kind === 'weight5' ? 5 : 10;
-			const tier = weightTier(cost);
-			sheetPile(ctx, { x: 1, y: 2, r: 0, c: cost, mask: 0 }, 19, { layers: p.classic ? 1 : W_LAYERS[tier], fills: [weightColor(p, cost), weightUnder(p, cost)], edge: p.wEdge, contact: contactOf(p, 19), dpr, rotate: 0.06, tintVar: 0.06 });
+			sheetPile(ctx, { x: 1, y: 2, r: 0, c: cost, mask: 0 }, 19, { layers: 1, fills: [weightColor(p, cost), weightUnder(p, cost)], edge: p.wEdge, contact: contactOf(p, 19), dpr, rotate: 0, tintVar: 0 });
 			return;
 		}
 		case 'visited':
-			if (p.classic) {
-				ctx.fillStyle = p.visited;
-				ctx.fillRect(x, y, s, s);
-			} else punchDot(ctx, Z / 2, Z / 2, 6.5, { fill: p.vis[1], contact: { color: p.contact, dx: 0.3, dy: 0.8, blur: 1 }, dpr });
+			ctx.strokeStyle = p.visited;
+			ctx.globalAlpha = VISITED_ALPHA;
+			ctx.lineWidth = 1.6;
+			ctx.lineCap = 'round';
+			ctx.beginPath();
+			ctx.moveTo(Z / 2 - 4, Z / 2);
+			ctx.lineTo(Z / 2 + 4, Z / 2);
+			ctx.stroke();
+			ctx.globalAlpha = 1;
 			return;
 		case 'frontier':
-			if (p.classic) {
-				ctx.fillStyle = p.front;
-				ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
-			} else liftedCard(ctx, Z / 2, Z / 2, 14, { fill: p.front, edge: p.frontEdge, lift: 0.5, rotate: -0.06, shadow: p.shadow, dpr });
+			ctx.fillStyle = p.frontEdge;
+			ctx.beginPath();
+			roundRectPath(ctx, Z / 2 - 4, Z / 2 - 4, 8, 8, [1.6, 1.6, 1.6, 1.6]);
+			ctx.fill();
 			return;
 		case 'oneway':
 			drawOneWay(ctx, 0, 0, Z, 1, p, dpr);

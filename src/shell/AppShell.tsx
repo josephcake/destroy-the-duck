@@ -511,7 +511,7 @@ export default function AppShell() {
 	);
 
 	return (
-		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-pk-theme={prefs.chrome === 'dark' ? 'night-paper' : 'paper'} data-pk-flat={prefs.cells === 'classic' ? '' : undefined} data-panel={panelOpen ? 'open' : 'closed'}>
+		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-pk-theme={prefs.chrome === 'dark' ? 'night-paper' : 'paper'} data-pk-flat="" data-panel={panelOpen ? 'open' : 'closed'}>
 			<RotatePrompt portraitPhone={portraitPhone} />
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
@@ -520,8 +520,8 @@ export default function AppShell() {
 
 			{panelOpen && <button className="sheet-scrim" aria-label="Close panel" tabIndex={-1} onClick={() => setPanelOpen(false)} />}
 			<div className="panel-lift pk-lifted" data-open={panelOpen}>
-			<nav className="panel pk-panel pk-torn-right" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
-				<div className="panel__head pk-strip pk-torn-bottom">
+			<nav className="panel pk-panel" data-open={panelOpen} aria-label="Controls" aria-hidden={!panelOpen} inert={!panelOpen}>
+				<div className="panel__head pk-strip">
 					<div className="brand pk-display-m">
 						<Swatch kind="duck" palette={palette} size={34} className="brand__duck" /> Quack Hunt
 					</div>
@@ -853,7 +853,6 @@ export default function AppShell() {
 				)}
 
 				<div className="float zoom" role="toolbar" aria-label="Zoom">
-					<span className="pk-tape zoom__tape" aria-hidden="true" />
 					<button className="icon-btn" aria-label="Zoom out" onClick={() => stage.current?.zoomStep(-1)}><Icon.minus /></button>
 					<button className="zoom__pct" aria-label="Zoom to 100%" onClick={() => stage.current?.zoomTo(1)}>{Math.round(zoom * 100)}%</button>
 					<button className="icon-btn" aria-label="Zoom in" onClick={() => stage.current?.zoomStep(1)}><Icon.plus /></button>
