@@ -221,24 +221,12 @@ export class TableContextProvider extends Component {
 	};
 	setSpeed = (e) => {
 		let name = e.currentTarget.attributes.name.value;
-		let newState = { ...this.state };
-		if (name === LIGHT) {
-			newState.speed = 0;
-			newState.speedText = LIGHT;
-		} else if (name === 'fast') {
-			newState.speed = 10;
-			newState.speedText = 'fast';
-		} else if (name === 'norm') {
-			newState.speed = 100;
-			newState.speedText = 'norm';
-		} else if (name === 'slow') {
-			newState.speed = 333;
-			newState.speedText = 'slow';
-		} else if (name === 'sloth') {
-			newState.speed = 1500;
-			newState.speedText = 'sloth';
-		}
-		this.setState(newState);
+		// Partial update only: a full {...this.state} copy taken while another
+		// update is pending (the theme set in componentDidMount) rolled the theme
+		// back, so clearBoard looked for light_visited while cells were dark_visited.
+		const SPEEDS = { [LIGHT]: 0, fast: 10, norm: 100, slow: 333, sloth: 1500 };
+		if (!(name in SPEEDS)) return;
+		this.setState({ speed: SPEEDS[name], speedText: name });
 		return;
 	};
 
