@@ -29,8 +29,11 @@ const SPEC: [string, string, string, number][] = [
 	['Classic Dark stamp on w10', CD.stamp, CD.w[2], 6.0], ['Classic Dark stamp on w2', CD.stamp, CD.w[0], 6.3],
 	['Paper visited (single-tint option)', P.vis[1], P.home, 3.31],
 	['Classic Light visited', CL.visited, CL.home, 4.08], ['Classic Dark visited', CD.visited, CD.home, 4.49],
-	['Paper frontEdge', P.frontEdge, P.home, 3.36], ['Night frontEdge', NP.frontEdge, NP.home, 11.6], ['Classic Light front', CL.front, CL.home, 3.85], ['Classic Dark frontEdge', CD.frontEdge, CD.home, 13.6],
-	['Paper thread', P.path, P.home, 5.81], ['Night thread', NP.path, NP.home, 6.39], ['Classic Light thread', CL.path, CL.home, 3.58], ['Classic Dark thread', CD.path, CD.home, 5.24],
+	// gold path, blue frontier (Prism 2026-11-22 gold-path spec)
+	['Paper frontEdge', P.frontEdge, P.home, 6.18], ['Night frontEdge', NP.frontEdge, NP.home, 6.68], ['Classic Light front', CL.front, CL.home, 5.31], ['Classic Dark frontEdge', CD.frontEdge, CD.home, 5.73],
+	['Paper path rim', P.pathEdge!, P.home, 7.03], ['Night path', NP.path, NP.home, 5.45], ['Classic Light path rim', CL.pathEdge!, CL.home, 6.48], ['Classic Dark path', CD.path, CD.home, 5.09],
+	['Paper path fill in its rim', P.path, P.pathEdge!, 3.38], ['Classic Light path fill in its rim', CL.path, CL.pathEdge!, 4.2],
+	['Paper fail on the pill', P.fail, '#fbf7ee', 6.03], ['Night fail on the pill', NP.fail, '#212c52', 5.87], ['Classic Light fail on the pill', CL.fail, '#fbf7ee', 5.01], ['Classic Dark fail on the pill', CD.fail, '#212c52', 4.61],
 	['Paper start', P.start, P.home, 3.5], ['Night start', NP.start, NP.home, 5.23], ['Classic Light start (fill)', CL.start, CL.home, 2.55], ['Classic Dark start', CD.start, CD.home, 5.42],
 	['Paper duck edge', P.duckEdge, P.home, 4.85], ['Night duck (body)', NP.duck, NP.home, 8.77], ['Night duck edge (v2.2)', NP.duckEdge, NP.home, 3.77], ['Classic Light duck edge', CL.duckEdge, CL.home, 3.59], ['Classic Dark duck', CD.duck, CD.home, 10.49],
 	['Paper onewayEdge', P.onewayFg, P.home, 3.36], ['Night onewayEdge', NP.onewayFg, NP.home, 7.02], ['Classic Light onewayEdge', CL.onewayFg, CL.home, 5.95], ['Classic Dark onewayEdge', CD.onewayFg, CD.home, 9.65],
@@ -53,7 +56,7 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.wEdge, p.home)).toBeGreaterThanOrEqual(3);
 		expect(contrast(p.frontEdge, p.home)).toBeGreaterThanOrEqual(3);
 		expect(contrast(p.onewayFg, p.home)).toBeGreaterThanOrEqual(3);
-		expect(contrast(p.path, p.home)).toBeGreaterThanOrEqual(3);
+		expect(contrast(p.pathEdge ?? p.path, p.home)).toBeGreaterThanOrEqual(3); // the path's boundary: the rim in light themes
 		expect(Math.max(contrast(p.duck, p.home), contrast(p.duckEdge, p.home))).toBeGreaterThanOrEqual(3);
 		// start tab: the fill, or (Classic Light) its 1dp outline
 		expect(Math.max(contrast(p.start, p.home), p.startOutline ? contrast(p.startOutline, p.home) : 0)).toBeGreaterThanOrEqual(3);
@@ -85,7 +88,7 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		// draws the dash at .85 (3.23; was 2.98 at .8), still quieter than its path (3.58)
 		expect(dash).toBeGreaterThanOrEqual(3);
 		expect(dash).toBeLessThan(contrast(p.wall, p.home));
-		expect(dash).toBeLessThan(contrast(p.path, p.home));
+		expect(dash).toBeLessThan(contrast(p.pathEdge ?? p.path, p.home));
 	});
 	test('minimal: the frontier tick (frontEdge) is non-text readable, >= 3:1', () => {
 		expect(contrast(p.frontEdge, p.home)).toBeGreaterThanOrEqual(3);
@@ -149,15 +152,16 @@ test('Classic palettes: no band tint (= visited), flow = the existing onewayFg',
 	}
 });
 
-// Path dots (Joseph 2026-11-22): a path-colour dot in a home-colour halo, over the visited dashes.
-// The dot reads against its halo (= the board) and the halo edge reads against the dash it sits on;
-// path vs dash directly is a hue difference (listed, not gated), carried by the halo and the size.
-describe.each([['Paper', P, 5.81, 3.45], ['Night', NP, 6.39, 3.33], ['Classic Light', CL, 3.58, 3.23], ['Classic Dark', CD, 5.24, 3.37]] as const)('path dots: %s', (_n, p, dotOnBoard, haloOnDash) => {
-	const dash = blend(p.visited, p.home, visitedAlphaOf(p));
-	test('dot vs board (its halo) and halo vs the visited dash are both >= 3:1', () => {
-		expect(contrast(p.path, p.home)).toBeCloseTo(dotOnBoard, 1);
-		expect(contrast(p.home, dash)).toBeCloseTo(haloOnDash, 1);
-		expect(Math.min(contrast(p.path, p.home), contrast(p.home, dash))).toBeGreaterThanOrEqual(3);
+// Path dots, gold (Prism gold-path spec 2026-11-22): the dot's boundary reads on the board,
+// the rim (light themes) or the gold itself (dark themes, in a board-coloured halo).
+describe.each([['Paper', P, 7.03], ['Night', NP, 5.45], ['Classic Light', CL, 6.48], ['Classic Dark', CD, 5.09]] as const)('path dots: %s', (_n, p, boundary) => {
+	test('the dot boundary (rim or gold) vs the board is >= 3:1, at the spec figure', () => {
+		expect(contrast(p.pathEdge ?? p.path, p.home)).toBeCloseTo(boundary, 1);
+		expect(contrast(p.pathEdge ?? p.path, p.home)).toBeGreaterThanOrEqual(3);
+		if (p.pathEdge) expect(contrast(p.path, p.pathEdge)).toBeGreaterThanOrEqual(3); // the gold reads inside its rim
+	});
+	test('red is for failure only: never the path colour', () => {
+		expect(p.fail).not.toBe(p.path);
 	});
 });
 test('path dots stay clearly bigger than the visited dash width, at desktop 56 % and phone 75 %', () => {
@@ -168,11 +172,12 @@ test('path dots stay clearly bigger than the visited dash width, at desktop 56 %
 	}
 });
 
-test('Prism PD1: the dark themes light the pulse core near-white, a clear step over the settled dot; light themes keep the derived core', () => {
+test('pulse cores: white in every theme, a clear step over the settled gold dot; glow only in the dark themes', () => {
 	// white cores: Prism's targets 2.31 (Night) / 2.95 (Classic Dark)
 	expect(contrast(NP.pulse!.hi, NP.path)).toBeGreaterThanOrEqual(2.3);
 	expect(contrast(CD.pulse!.hi, CD.path)).toBeGreaterThanOrEqual(2.9);
-	for (const q of [NP, CD]) expect(q.pulse).toMatchObject({ core: 0.8, grow: 0.5, glowA: 0.35, glowR: 0.27 });
-	expect(P.pulse).toBeUndefined();
-	expect(CL.pulse).toBeUndefined();
+	for (const q of [NP, CD]) expect(q.pulse).toMatchObject({ hi: '#ffffff', core: 0.8, grow: 0.5, glowA: 0.35, glowR: 0.27 });
+	// gold path: the light themes get a white core too, no glow (they keep the rim)
+	for (const q of [P, CL]) expect(q.pulse).toEqual({ hi: '#ffffff', core: 0.8, grow: 0.5, glowA: 0, glowR: 0.27 });
+	for (const q of [P, NP, CL, CD]) expect(contrast(q.pulse!.hi, q.path)).toBeGreaterThanOrEqual(2.3); // Prism: 2.31 / 2.71 / 2.31 / 3.03
 });

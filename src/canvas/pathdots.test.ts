@@ -143,7 +143,7 @@ test('the trace lays the dots in order (traceMs, eased) as rings, they fill soli
 	render(done.ctx, { ...base, now: t0 + total + 400 });
 	const solidR = done.fills.find((f) => f.fill === p.path)!.radii[0];
 	expect(coreFills(done.fills, p.home).every((f) => Math.min(...f.radii) > solidR)).toBe(true); // halos only, no holes
-	const hi = done.fills.filter((f) => f.fill.startsWith('rgb(') && f.radii.length > 0);
+	const hi = done.fills.filter((f) => f.fill === p.pulse!.hi && f.radii.length > 0);
 	expect(hi.length).toBeGreaterThan(0);
 	expect(hi[0].radii.length).toBeLessThan(counts.at(-1)!); // only the dots under the pulse
 });
@@ -155,7 +155,7 @@ test('overlay: with scene.march the main canvas keeps the solid dots and a small
 	const main = recorder();
 	expect(render(main.ctx, { ...base, now: 5e7 + 10_000, march })).toBe(true);
 	expect(dotFill(main.fills)).toBeTruthy();
-	expect(main.fills.some((f) => f.fill.startsWith('rgb('))).toBe(false); // no pulse on the main canvas
+	expect(main.fills.some((f) => f.fill === p.pulse!.hi)).toBe(false); // no pulse on the main canvas
 	expect(march.length).toBe(1);
 	const box = marchBox(march, 1280, 800)!;
 	expect(box.w).toBeLessThan(1280);
@@ -202,7 +202,8 @@ test('Prism PD1: the dark-theme pulse draws a glow first (4 fills: glow, ring, d
 	for (const k of ['paper-light', 'classic-light'] as const) {
 		const { m, fills } = fillsFor(k);
 		expect(fills).toHaveLength(3);
-		expect(m.glowA).toBe(0);
-		expect(m.grow).toBe(PATH_DOT.pulseGrow);
+		expect(m.glowA).toBe(0); // gold path: light themes keep the rim, no glow
+		expect(m.grow).toBe(PALETTES[k].pulse!.grow);
+		expect(fills[0].fill).toBe(PALETTES[k].pathEdge); // the lit dots keep their dark-gold rim
 	}
 });

@@ -423,16 +423,16 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const rOf = (u: number) => (ramp ? r * rmDotScale(u, L) : r);
 		// laid in as rings with the trace; the holes close (fill solid) over the tug once it lands
 		const fill = !leg ? 1 : tug;
-		drawDots(ctx, dots, rOf, p.path, p.home, hw, width, height, fill < 1 ? { rOf: () => r * PATH_DOT.hole * (1 - fill), color: p.home } : undefined);
+		drawDots(ctx, dots, rOf, p.path, p.pathEdge ?? p.home, hw, width, height, fill < 1 ? { rOf: () => r * PATH_DOT.hole * (1 - fill), color: p.home } : undefined);
 		if (flowing) {
 			const skip: { x: number; y: number }[] = [pts[0]!, pts[pts.length - 1]!];
 			jumps.forEach(([a, b]) => skip.push(a, b));
-			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.home, hi: p.pulse?.hi ?? mix(p.path, '#ffffff', PATH_DOT.pulseHi), core: p.pulse?.core ?? PATH_DOT.pulseCore, grow: p.pulse?.grow ?? PATH_DOT.pulseGrow, glowA: p.pulse?.glowA ?? 0, glowR: p.pulse ? Math.max(2.5, p.pulse.glowR * s) : 0, skip, skipR: 0.5 * s };
+			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.pathEdge ?? p.home, hi: p.pulse?.hi ?? mix(p.path, '#ffffff', PATH_DOT.pulseHi), core: p.pulse?.core ?? PATH_DOT.pulseCore, grow: p.pulse?.grow ?? PATH_DOT.pulseGrow, glowA: p.pulse?.glowA ?? 0, glowR: p.pulse ? Math.max(2.5, p.pulse.glowR * s) : 0, skip, skipR: 0.5 * s };
 			// the overlay draws the pulse (and keeps it moving without a full render); else draw it here
 			if (scene.march) scene.march.push(item);
 			else drawPulse(ctx, item, scene.now, width, height, false);
 		}
-		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.path);
+		if (needle > 0) drawNeedle(ctx, pts, k, needle, 1.4 * lw, p.pathEdge ?? p.path);
 		jumps.forEach(([a, b, col], j) => {
 			// §4.4: fold trail in the pair colour; the paper plane flies once (420 ms) when the head reaches the pad
 			const ft = jumpsT ? jumpsT[j] : 1;
@@ -766,7 +766,7 @@ export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, sce
 	return true;
 }
 
-/** Phase B: the still frontier ticks, one path, one stroke (lane cells: amber chevrons instead). */
+/** Phase B: the still frontier ticks, one path, one stroke (lane cells: frontier chevrons instead). */
 function drawFrontierHold(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, vb: Bounds, s: number) {
 	if (!anim.frontierCount) return;
 	const { view, palette: p, board } = scene;
@@ -943,8 +943,8 @@ function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: n
 	const small = s < 10;
 	const tile = new Path2D(), tint: Path2D[] = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
 	const ch: Path2D[][] = [0, 1, 2, 3].map(() => [new Path2D(), new Path2D()]); // [dir][0 full, 1 faded]
-	const amber = new Path2D(); // frontier lane cells
-	let hasTint = 0, hasAmber = false;
+	const frontLane = new Path2D(); // frontier lane cells
+	let hasTint = 0, hasFrontLane = false;
 	const inset = 0.08 * s, rad = 0.14 * s;
 	const h = 0.16 * s;
 	for (let d = 0; d < 4; d++) {
@@ -965,12 +965,12 @@ function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: n
 				} else tile.roundRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset, rad);
 			}
 			const cx = x + s / 2, cy = y + s / 2;
-			const target = st === 1 ? amber : null;
+			const target = st === 1 ? frontLane : null;
 			if (small || !o.motion) {
 				// one static chevron, centred (1.2x below 10 px, 1.3x under reduced motion)
 				const z = small ? 1.2 : 1.3;
 				chev(target ?? ch[d][0], cx + dx * 0.5 * h * z, cy + dy * 0.5 * h * z, dx, dy, h * z, h * z);
-				if (target) hasAmber = true;
+				if (target) hasFrontLane = true;
 				continue;
 			}
 			// lane ends: the next cell along isn't this lane's direction (end), or the previous one isn't (start)
@@ -982,7 +982,7 @@ function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: n
 				const faded = (endF && pos > 0.88) || (startF && pos < 0.12);
 				const off = (pos - 0.5) * s;
 				chev(target ?? ch[d][faded ? 1 : 0], cx + dx * off, cy + dy * off, dx, dy, h, h * 0.8);
-				if (target) hasAmber = true;
+				if (target) hasFrontLane = true;
 			}
 		}
 	}
@@ -1014,10 +1014,10 @@ function drawLanes(ctx: CanvasRenderingContext2D, scene: Scene, vb: Bounds, s: n
 			ctx.globalAlpha = (q ? 0.45 : 1) * waveA;
 			ctx.stroke(ch[d][q]);
 		}
-	if (hasAmber) {
+	if (hasFrontLane) {
 		ctx.globalAlpha = 1;
 		ctx.strokeStyle = p.frontEdge;
-		ctx.stroke(amber);
+		ctx.stroke(frontLane);
 	}
 	ctx.restore();
 	return o.motion && f.v > 0;
@@ -1438,7 +1438,7 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			drawPad(ctx, Z / 2, Z / 2, 20, p.pads[0], false, p, dpr);
 			return;
 		case 'path':
-			drawDots(ctx, pathDots([{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], 4.4, 0), () => 1.6, p.path, p.path, 0, Z, Z);
+			drawDots(ctx, pathDots([{ x: 3, y: 16 }, { x: 11, y: 16 }, { x: 11, y: 6 }, { x: 19, y: 6 }], 4.4, 0), () => (p.pathEdge ? 1.3 : 1.6), p.path, p.pathEdge ?? p.path, p.pathEdge ? 0.8 : 0, Z, Z);
 			return;
 		case 'start':
 			drawStart(ctx, Z / 2, Z / 2, 13.3, 0, p, dpr);
