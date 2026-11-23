@@ -592,6 +592,10 @@ function drawGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<type
 }
 
 // ------------------------------------------------------------------ weights (checkpoints)
+/** Checkpoint badge radius at cell size s: 9 px digits at the floor (Prism gate on f59d622, must-fix 3). */
+export const badgeRadius = (s: number) => Math.max(7.5, Math.min(14, 0.36 * s));
+/** The board-coloured ring that separates a badge from the gold path (must-fix 4: >= 5.09:1 vs the path in every theme). */
+export const badgeRing = (r: number) => Math.max(1.5, 0.15 * r);
 /** The cost tier whose sheet colours every checkpoint uses. */
 const CHECKPOINT_LOOK = 5;
 
@@ -621,7 +625,9 @@ function drawCheckpointBadges(ctx: CanvasRenderingContext2D, scene: Scene, vb: R
 		ctx.restore();
 		return;
 	}
-	const r = Math.max(6.5, Math.min(14, 0.36 * s));
+	const r = badgeRadius(s);
+	// checkpoints from `reached` on were never reached (the first is walled off): hollow badges, ink on the board colour, no red (must-fix 2)
+	const reached = scene.trace?.trace.result.checkpoints?.reached ?? order.length;
 	ctx.save();
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
@@ -634,12 +640,13 @@ function drawCheckpointBadges(ctx: CanvasRenderingContext2D, scene: Scene, vb: R
 		const w = label.length > 1 ? r * 1.35 : r;
 		ctx.beginPath();
 		ctx.roundRect(x + s / 2 - w, y + s / 2 - r, 2 * w, 2 * r, r);
-		ctx.fillStyle = p.ink;
+		const hollow = i >= reached;
+		ctx.fillStyle = hollow ? p.home : p.ink;
 		ctx.fill();
-		ctx.lineWidth = 1.25;
-		ctx.strokeStyle = p.home;
+		ctx.lineWidth = badgeRing(r);
+		ctx.strokeStyle = hollow ? p.ink : p.home;
 		ctx.stroke();
-		ctx.fillStyle = p.home;
+		ctx.fillStyle = hollow ? p.ink : p.home;
 		ctx.font = `800 ${Math.round(r * 1.2)}px Figtree, system-ui, sans-serif`;
 		ctx.fillText(label, x + s / 2, y + s / 2 + 0.5);
 	});
