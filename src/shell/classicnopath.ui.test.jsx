@@ -54,4 +54,15 @@ test('classic Dijkstra with Quack walled in: red no-path story in the pill', asy
 	const story = screen.getByTestId('story-line');
 	expect(linesFor('dijkstra', 'escaped')).toContain(story.textContent);
 	expect(story.closest('.pill').getAttribute('data-outcome')).toBe('escaped');
+	// open the ring and run again while that toast is still up: a found run stays found
+	for (const td of document.querySelectorAll('.legacy-mirror td')) td.className = td.className.replace(/_(wall|visited)\b/, '_unvisited');
+	await wait(20);
+	expect(screen.getByText('Cannot find Quack!')).toBeTruthy(); // the 6 s toast from the first run
+	fireEvent.click(screen.getByTestId('go'));
+	for (let i = 0; i < 600 && !document.querySelector('.legacy-mirror td[class*="_visited"]'); i++) await wait(10);
+	for (let i = 0; i < 1500 && /Pause|Resume/.test(screen.getByTestId('go').textContent); i++) await wait(20);
+	await wait(100);
+	const again = screen.getByTestId('story-line');
+	expect(linesFor('dijkstra', 'found')).toContain(again.textContent);
+	expect(again.closest('.pill').getAttribute('data-outcome')).toBe('found');
 }, 60000);

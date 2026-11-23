@@ -189,21 +189,19 @@ export default function AppShell() {
 	// ms stat for classic runs: wall-clock time of the animated run (Go to the
 	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
 	const classicStart = useRef(0);
+	const toastAtGo = useRef(false);
 	const [classicMs, setClassicMs] = useState<number | null>(null);
 	useEffect(() => {
 		if (ctx.running || !classicRun.current) return;
 		classicRun.current = false;
 		setClassicMs(performance.now() - classicStart.current);
-		if (ctx.isToastVisible) {
-			// no path: the table fell back to a spread and says "Cannot find Quack!"; the pill tells it in red
-			setBestPath(null);
-			if (classicAlgo.current) setClassicStory({ line: storyLine(classicAlgo.current, 'escaped'), outcome: 'escaped' });
-			return;
-		}
+		// No path when this run raised "Cannot find Quack!" (a toast left from an earlier run
+		// doesn't count: it was up at Go) or when Quack can't be reached at all.
 		const found = classicBestPath(ctx.starting, ctx.ending);
-		setBestPath(found);
+		const failed = (ctx.isToastVisible && !toastAtGo.current) || !(found && found.length > 1);
+		setBestPath(failed ? null : found);
 		if (classicAlgo.current) {
-			const outcome = found && found.length > 1 ? 'found' : 'escaped';
+			const outcome = failed ? 'escaped' : 'found';
 			setClassicStory({ line: storyLine(classicAlgo.current, outcome), outcome });
 		}
 	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
@@ -384,6 +382,7 @@ export default function AppShell() {
 		classicAlgo.current = algo;
 		setClassicStory(null);
 		classicStart.current = performance.now();
+		toastAtGo.current = ctx.isToastVisible;
 		setClassicMs(null);
 		ctx.go();
 	};
