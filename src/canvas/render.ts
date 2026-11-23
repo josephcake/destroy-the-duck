@@ -598,8 +598,29 @@ const CHECKPOINT_LOOK = 5;
 /** Visit numbers on the checkpoints, from the run's planned order: a round ink badge, centred, above the path. */
 function drawCheckpointBadges(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType<typeof visibleBounds>, s: number) {
 	const order = scene.trace?.trace.result.checkpoints?.order;
-	if (!order?.length) return;
 	const { view, palette: p } = scene;
+	if (!order?.length) {
+		// not numbered yet: a small flag on each sheet says "checkpoint" (from 10 px cells)
+		if (s < 10) return;
+		ctx.save();
+		ctx.strokeStyle = ctx.fillStyle = p.stamp;
+		ctx.lineWidth = Math.max(1, 0.07 * s);
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		for (const [r, c, t] of scene.board.entries(vb)) {
+			if (t.kind !== 'weight' || isWallAt(scene, r, c)) continue;
+			const { x, y } = cellToScreen(view, r, c);
+			ctx.beginPath();
+			ctx.moveTo(x + 0.36 * s, y + 0.78 * s);
+			ctx.lineTo(x + 0.36 * s, y + 0.24 * s);
+			ctx.lineTo(x + 0.72 * s, y + 0.36 * s);
+			ctx.lineTo(x + 0.36 * s, y + 0.5 * s);
+			ctx.stroke();
+			ctx.fill();
+		}
+		ctx.restore();
+		return;
+	}
 	const r = Math.max(6.5, Math.min(14, 0.36 * s));
 	ctx.save();
 	ctx.textAlign = 'center';
