@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TableContextProvider } from '../Context/TableContext';
 import AppShell from './AppShell';
 import { badgeGeometry } from '../canvas/render';
+import { FEATURES } from '../features';
 
 const at = (r, c) => ({ clientX: c * 20 + 10, clientY: r * 20 + 10, button: 0, pointerId: 1, pointerType: 'mouse' });
 const mount = () =>
@@ -43,7 +44,8 @@ test('duck tool adds duck 2 and shows Nearest / All / Tour', async () => {
 	expect(screen.getByTestId('find-tour')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('a dragged one-way lane makes JPS unavailable, and the UI says why', async () => {
+// parked with the One-way tool (features.ts); the engine side is covered in engine/nodes.test.ts
+test.skipIf(!FEATURES.oneWay)('a dragged one-way lane makes JPS unavailable, and the UI says why', async () => {
 	mount();
 	const canvas = document.querySelector('canvas');
 	fireEvent.click(screen.getByTitle(/^One-way \(O\)/));

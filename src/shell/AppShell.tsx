@@ -33,6 +33,7 @@ import { applyGenerator } from './generate';
 import { PORTRAIT_PHONE, RotatePrompt } from './RotatePrompt';
 import { GENERATORS, GenId } from '../model/generators';
 import { INTRO, INTRO_SHORT, storyLine } from '../story';
+import { FEATURES, dropParkedTiles } from '../features';
 import '../vendor/paper-kit/tokens.css';
 import '../vendor/paper-kit/paper-kit.css';
 import './shell.css';
@@ -90,15 +91,17 @@ const loadPrefs = (): Prefs => {
 	}
 };
 
-const TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string; title?: string }[] = [
+const ALL_TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string; title?: string }[] = [
 	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Quack to move them.' },
 	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
 	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; tap a lane to turn it a quarter. Arrow keys set the direction for taps. Enter and leave only along the arrows.', title: 'One-way (O): drag to lay a lane in the direction you drag. Tap a lane to turn it.' },
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Quack', key: 'd', icon: Icon.duck, hint: 'click to add another Quack (Quack 2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
-	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: 'drag to clear walls, weights, lanes, pads and extra Quacks.' },
+	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: FEATURES.oneWay ? 'drag to clear walls, weights, lanes, pads and extra Quacks.' : 'drag to clear walls, weights, pads and extra Quacks.' },
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the board. H shows all of it.' },
 ];
+/** The tools on offer: parked features (features.ts) are left out, so no button, shortcut or hint. */
+const TOOLS = ALL_TOOLS.filter((t) => t.id !== 'oneway' || FEATURES.oneWay);
 const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
 export function useMedia(query: string) {
@@ -160,7 +163,7 @@ export default function AppShell() {
 	const [traceState, setTraceState] = useState<TraceState | null>(null);
 
 	const stage = useRef<StageApi>(null);
-	const board = useMemo(() => new Board(), []);
+	const board = useMemo(() => { const b = new Board(); dropParkedTiles(b); return b; }, []);
 	const mirror = useMemo(() => new LegacyMirror(), []);
 	const palette = PALETTES[`${prefs.cells}-${prefs.chrome}`];
 	const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -423,7 +426,7 @@ export default function AppShell() {
 			else if (k === 'f') stage.current?.fit();
 			else if (k === '+' || k === '=') stage.current?.zoomStep(1);
 			else if (k === '-') stage.current?.zoomStep(-1);
-			else if (tool === 'oneway' && ARROW_DIR[e.key] !== undefined) {
+			else if (FEATURES.oneWay && tool === 'oneway' && ARROW_DIR[e.key] !== undefined) {
 				e.preventDefault();
 				setDir(ARROW_DIR[e.key]); // one-way spec §1.4: arrows set the tap direction
 			} else if (tab === 'learn' && traceState && k === '.') seek(traceState.endOf(traceState.position + (e.shiftKey ? 10 : 1)));
@@ -440,7 +443,7 @@ export default function AppShell() {
 	// ---------- derived ----------
 	const weights = [...board.entries()].filter(([, , t]) => t.kind === 'weight');
 	const tiles = [...board.entries()];
-	const oneways = tiles.filter(([, , t]) => t.kind === 'oneway').length;
+	const oneways = FEATURES.oneWay ? tiles.filter(([, , t]) => t.kind === 'oneway').length : 0;
 	const pads = tiles.filter(([, , t]) => t.kind === 'pad').length;
 	const extraDucks = tiles.filter(([, , t]) => t.kind === 'duck').length;
 	const lone = lonePads(board);
@@ -627,7 +630,7 @@ export default function AppShell() {
 									</span>
 								)}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
-								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">Classic algorithms ignore one-way lanes, teleporters and extra ducks</span>}
+								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">{FEATURES.oneWay ? 'Classic algorithms ignore one-way lanes, teleporters and extra ducks' : 'Classic algorithms ignore teleporters and extra ducks'}</span>}
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
 									<span className="chip" data-testid="tour-order">Tour: Arrow → {Array.from({ length: extraDucks + 1 }, (_, i) => i + 1).join(' → ')}</span>
 								)}
@@ -687,7 +690,7 @@ export default function AppShell() {
 								))}
 							</div>
 						)}
-						{tool === 'oneway' && (
+						{FEATURES.oneWay && tool === 'oneway' && (
 							<div className="seg" role="group" aria-label="Tap direction" style={{ marginTop: 8 }}>
 								{(['↑ N', '→ E', '↓ S', '← W'] as const).map((l, i) => (
 									<button key={l} aria-pressed={dir === i} onClick={() => setDir(i as Dir)}>
