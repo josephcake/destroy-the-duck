@@ -3,6 +3,7 @@ import { runSearch } from './search';
 import { Snapshot } from './graph';
 import { Trace, TracedAlgo } from './trace';
 import { WideJob, WideResult, runWide } from '../classic/wide';
+import { TourJob, runClassicTour } from './classicTour';
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -40,5 +41,16 @@ export function wideAsync(job: WideJob): Promise<WideResult> {
 	return new Promise((resolve) => {
 		pending.set(id, resolve);
 		w.postMessage({ id, wide: job });
+	});
+}
+
+/** A classic algorithm through checkpoints (classicTour.ts), off the main thread when it can be. */
+export function tourAsync(job: TourJob): Promise<WideResult> {
+	const w = getWorker();
+	if (!w) return Promise.resolve(runClassicTour(job));
+	const id = nextId++;
+	return new Promise((resolve) => {
+		pending.set(id, resolve);
+		w.postMessage({ id, tour: job });
 	});
 }
