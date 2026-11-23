@@ -7,14 +7,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // @ts-expect-error legacy JS module
 import Main from '../Main/Main';
 import { Board, Weight } from '../model/board';
-import { HOME_COLS, HOME_ROWS, parseId } from '../model/cell';
+import { HOME_COLS, HOME_ROWS, idOf, parseId } from '../model/cell';
 import { LegacyMirror } from '../canvas/mirror';
 import { CellAnim } from '../canvas/cellAnim';
 import { CanvasStage, SceneInput, StageApi, Tool } from '../canvas/CanvasStage';
 import { CellSet, Chrome, PALETTES, migrateCellSet } from '../canvas/palette';
-import { SwatchKind } from '../canvas/render';
 import { Swatch } from './Swatch';
-import { searchAsync, wideAsync } from '../engine/runner';
+import { searchAsync, tourAsync, wideAsync } from '../engine/runner';
 import { ClassicAlgo, FindMode, Trace, TraceEvent, TracedAlgo } from '../engine/trace';
 import { TraceState } from '../learn/player';
 import { buildSnapshot, contentBox, lonePads } from './snapshot';
@@ -32,7 +31,7 @@ import { Icon } from './icons';
 import { applyGenerator } from './generate';
 import { PORTRAIT_PHONE, RotatePrompt } from './RotatePrompt';
 import { GENERATORS, GenId } from '../model/generators';
-import { INTRO, INTRO_SHORT, storyLine } from '../story';
+import { INTRO, INTRO_SHORT, storyLine, traceLine } from '../story';
 import { FEATURES, dropParkedTiles } from '../features';
 import '../vendor/paper-kit/tokens.css';
 import '../vendor/paper-kit/paper-kit.css';
@@ -93,16 +92,17 @@ const loadPrefs = (): Prefs => {
 
 const ALL_TOOLS: { id: Tool; label: string; key: string; icon: () => React.ReactElement; hint: string; title?: string }[] = [
 	{ id: 'wall', label: 'Wall', key: 'w', icon: Icon.wall, hint: 'drag to paint, drag the Arrow or Quack to move them.' },
-	{ id: 'weight', label: 'Weight', key: 'g', icon: Icon.weight, hint: 'drag to paint a cost. Classic algorithms ignore weights.' },
+	{ id: 'weight', label: 'Checkpoint', key: 'g', icon: Icon.weight, hint: 'tap or drag to place checkpoints. Every search visits all of them before Quack, in the order with the shortest route, and numbers them.', title: 'Checkpoint (G): the route visits every checkpoint before Quack, in the shortest order.' },
 	{ id: 'oneway', label: 'One-way', key: 'o', icon: Icon.oneway, hint: 'drag to lay a lane that points the way you drag; tap a lane to turn it a quarter. Arrow keys set the direction for taps. Enter and leave only along the arrows.', title: 'One-way (O): drag to lay a lane in the direction you drag. Tap a lane to turn it.' },
 	{ id: 'pad', label: 'Teleport', key: 't', icon: Icon.pad, hint: 'click two cells to make a pair (A and A′, then B and B′…); stepping on one jumps to the other for free. Click a pad to remove it.' },
 	{ id: 'duck', label: 'Quack', key: 'd', icon: Icon.duck, hint: 'click to add another Quack (Quack 2, 3, …); click it again to remove. Pick Nearest, All or Tour above.' },
-	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: FEATURES.oneWay ? 'drag to clear walls, weights, lanes, pads and extra Quacks.' : 'drag to clear walls, weights, pads and extra Quacks.' },
+	{ id: 'erase', label: 'Erase', key: 'e', icon: Icon.erase, hint: FEATURES.oneWay ? 'drag to clear walls, checkpoints, lanes, pads and extra Quacks.' : 'drag to clear walls, checkpoints, pads and extra Quacks.' },
 	{ id: 'pan', label: 'Pan', key: 'p', icon: Icon.hand, hint: 'drag to move around the board. H shows all of it.' },
 ];
+/** Maze generators on offer. 'Mud and water' is parked: weights are checkpoints now, and it lays hundreds. */
+const MAZE_GENERATORS = GENERATORS.filter((g) => g.id !== 'weightNoise');
 /** The tools on offer: parked features (features.ts) are left out, so no button, shortcut or hint. */
 const TOOLS = ALL_TOOLS.filter((t) => t.id !== 'oneway' || FEATURES.oneWay);
-const WEIGHT_NAMES: Record<Weight, string> = { 2: '2', 5: '5 · mud', 10: '10 · water' };
 
 export function useMedia(query: string) {
 	const get = () => typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
@@ -134,7 +134,7 @@ export default function AppShell() {
 	const [learnAlgo, setLearnAlgo] = useState<TracedAlgo>('astar');
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [tool, setTool] = useState<Tool>('wall');
-	const [weight, setWeight] = useState<Weight>(5);
+	const weight: Weight = 5; // weights are checkpoints: the cost is kept on the tile but unused
 	const [dir, setDir] = useState<Dir>(1);
 	const [findMode, setFindMode] = useState<FindMode>('all');
 	const [maze, setMaze] = useState('gen:backtracker'); // fills the view; the classic mazes stay one pick away
@@ -342,7 +342,10 @@ export default function AppShell() {
 		setWideToast(null);
 		ctx.clearBoard('visited');
 		if (ctx.isPreviewing) ctx.hideBestPath();
-		const res = await wideAsync(wideJob(which, board, mirror, bounds));
+		const job = wideJob(which, board, mirror, bounds);
+		// checkpoints: one classic run per leg (engine/classicTour.ts)
+		const cps = [...board.entries(bounds)].filter(([r, c, t]) => t.kind === 'weight' && !job.classes[(r - bounds.r0) * job.cols + (c - bounds.c0)].includes('_wall') && idOf(r - bounds.r0, c - bounds.c0) !== job.starting && idOf(r - bounds.r0, c - bounds.c0) !== job.ending);
+		const res = cps.length ? await tourAsync({ ...job, checkpoints: cps.sort(([a, b], [c, d]) => a - c || b - d).map(([r, c]) => idOf(r - bounds.r0, c - bounds.c0)) }) : await wideAsync(job);
 		if (!res.ok) {
 			clearTrace();
 			setWideToast(res.reason);
@@ -378,6 +381,8 @@ export default function AppShell() {
 		if (isTraced(algo)) return void startTrace(algo, true);
 		const f = classicFrame(board, mirror);
 		if (f.kind === 'wide') return void startWide(algo, f.bounds);
+		// checkpoints: the classic helpers run per leg on the shim over the same 35x80 window (classicTour.ts)
+		if ([...board.entries()].some(([, , t]) => t.kind === 'weight')) return void startWide(algo, { r0: f.origin.r, c0: f.origin.c, r1: f.origin.r + 34, c1: f.origin.c + 79 });
 		moveWindow(mirror, board, f.origin); // everything placed fits 35x80: cover it, then run on the table as always
 		clearTrace();
 		setBestPath(null);
@@ -465,10 +470,10 @@ export default function AppShell() {
 	const frame = classic ? classicFrame(board, mirror) : null;
 	const wide = frame?.kind === 'wide' ? frame : null;
 	const why = algo && isTraced(algo) ? blocked(algo) : classic && wide ? wideBlock(classic.id, wide.rows, wide.cols) : null;
-	const showBestPathBtn = classic && classic.id !== 'dijkstra' && !wide;
+	const showBestPathBtn = classic && classic.id !== 'dijkstra' && !wide && !weights.length; // with checkpoints the run draws its own path
 	const classicMazeOff = !!mirror.free && !maze.startsWith('gen:');
 	const tr = traceState;
-	if (tr && tr.done && storyOf.current.key !== tr.trace) storyOf.current = { key: tr.trace, line: storyLine(tr.trace.algo, tr.trace.result.found ? 'found' : 'escaped') };
+	if (tr && tr.done && storyOf.current.key !== tr.trace) storyOf.current = { key: tr.trace, line: traceLine(tr.trace) };
 	const traceStory = tr && tr.done && storyOf.current.key === tr.trace ? storyOf.current.line : null;
 	// Phone: frame Home in the gap between the quick bar / inspector and the transport / zoom row.
 	const learnFloats = !!tr && tab === 'learn';
@@ -553,9 +558,7 @@ export default function AppShell() {
 			<span><Swatch kind="visited" palette={palette} />Visited</span>
 			<span><Swatch kind="unvisited" palette={palette} />Unvisited</span>
 			{tr && <span><Swatch kind="frontier" palette={palette} />Frontier</span>}
-			{([2, 5, 10] as Weight[]).filter((w) => weights.some(([, , t]) => t.kind === 'weight' && t.cost === w)).map((w) => (
-				<span key={w}><Swatch kind={`weight${w}` as SwatchKind} palette={palette} />Weight {WEIGHT_NAMES[w]}</span>
-			))}
+			{weights.length > 0 && <span><Swatch kind="weight5" palette={palette} />Checkpoint</span>}
 			{oneways > 0 && <span><Swatch kind="oneway" palette={palette} />One-way</span>}
 			{pads > 0 && <span><Swatch kind="pad" palette={palette} />Teleport</span>}
 			<span className="legend__goal">Hunt the Quack!!</span>
@@ -634,7 +637,11 @@ export default function AppShell() {
 							</button>
 							<div className="chips chips--reserve" data-testid="find-chips">
 								{algo && <span className="chip chip--mono" data-testid="order-chip">order {classic ? `classic: ${classic.order}` : 'N · E · S · W'}</span>}
-								{classic && weights.length > 0 && <span className="chip">{classic.label} ignores weights ({weights.length} cells)</span>}
+								{weights.length > 0 && (
+									<span className="chip" data-testid="checkpoint-chip">
+										{weights.length === 1 ? '1 checkpoint' : `${weights.length} checkpoints`} before Quack, {weights.length > 8 ? 'nearest next (more than 8)' : 'shortest order'}
+									</span>
+								)}
 								{classic && wide && !why && (
 									<span className="chip" data-testid="classic-wide">
 										Runs on the {wide.rows} × {wide.cols} cells around everything you placed
@@ -692,15 +699,6 @@ export default function AppShell() {
 								</button>
 							))}
 						</div>
-						{tool === 'weight' && (
-							<div className="seg" role="group" aria-label="Weight" style={{ marginTop: 8 }}>
-								{([2, 5, 10] as Weight[]).map((w) => (
-									<button key={w} aria-pressed={weight === w} onClick={() => setWeight(w)}>
-										{WEIGHT_NAMES[w]}
-									</button>
-								))}
-							</div>
-						)}
 						{FEATURES.oneWay && tool === 'oneway' && (
 							<div className="seg" role="group" aria-label="Tap direction" style={{ marginTop: 8 }}>
 								{(['↑ N', '→ E', '↓ S', '← W'] as const).map((l, i) => (
@@ -722,7 +720,7 @@ export default function AppShell() {
 						<div className="row">
 							<select className="select grow" aria-label="Maze" value={maze} disabled={busy} onChange={(e) => setMaze(e.target.value)}>
 								<optgroup label="Fill the view">
-									{GENERATORS.map((g) => (
+									{MAZE_GENERATORS.map((g) => (
 										<option key={g.id} value={`gen:${g.id}`} title={g.blurb}>
 											{g.label}
 										</option>
@@ -897,6 +895,7 @@ export default function AppShell() {
 						<span>{algoLabel(tr.trace.algo)}</span>
 						<span>visited {tr.visited.size}</span>
 						{tr.done && tr.trace.result.found && <span>cost {tr.trace.result.pathCost}</span>}
+						{tr.done && tr.trace.result.checkpoints && <span data-testid="checkpoint-count">checkpoints {tr.trace.result.checkpoints.reached}/{tr.trace.result.checkpoints.order.length}</span>}
 						{tr.done && traceStory && <span className="pill__story" data-testid="story-line">{traceStory}</span>}
 					</div>
 				)}

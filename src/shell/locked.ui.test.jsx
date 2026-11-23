@@ -17,7 +17,7 @@ const click = (canvas, r, c) => {
 	act(() => void fireEvent.pointerDown(canvas, at(r, c)));
 	act(() => void fireEvent.pointerUp(canvas, at(r, c)));
 };
-const weightChip = () => screen.queryByText(/ignores weights \((\d+) cells\)/)?.textContent ?? null;
+const weightChip = () => screen.queryByTestId('checkpoint-chip')?.textContent ?? null; // weights are checkpoints
 
 beforeEach(() => {
 	T.useFakeTimers();
@@ -31,7 +31,7 @@ test('Weight click while a search runs: refused out loud; after the run: one til
 	act(() => fireEvent.click(screen.getByTestId('algo-picker')));
 	act(() => fireEvent.click(screen.getAllByRole('option', { name: /^Breadth First Search/ })[0]));
 	const canvas = document.querySelector('canvas');
-	act(() => fireEvent.click(screen.getByTitle('Weight (G)')));
+	act(() => fireEvent.click(screen.getByTitle(/^Checkpoint \(G\)/)));
 	act(() => fireEvent.click(screen.getByTestId('go')));
 	expect(ref.ctx.running).toBe(true);
 	expect(canvas.style.cursor).toBe('not-allowed');
@@ -48,9 +48,9 @@ test('Weight click while a search runs: refused out loud; after the run: one til
 	act(() => void fireEvent.pointerMove(canvas, at(8, 6)));
 	act(() => void fireEvent.pointerUp(canvas, at(8, 6)));
 	act(() => T.advanceTimersByTime(32));
-	expect(weightChip()).toBe('Breadth First Search ignores weights (3 cells)');
+	expect(weightChip()).toBe('3 checkpoints before Quack, shortest order');
 	// Reset keeps every weight, clicked or dragged
 	act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset', exact: true })));
 	act(() => T.advanceTimersByTime(32));
-	expect(weightChip()).toBe('Breadth First Search ignores weights (3 cells)');
+	expect(weightChip()).toBe('3 checkpoints before Quack, shortest order');
 });

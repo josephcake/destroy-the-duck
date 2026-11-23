@@ -72,6 +72,11 @@ export function Inspector({ state, hasLanes = false }: { state: TraceState; hasL
 					<p>Press Step to begin. One step = one cell taken off the frontier, with everything it discovers.</p>
 				)}
 			</div>
+			{state.trace.result.checkpoints && (
+				<p className="inspector__hint" data-testid="checkpoint-hint">
+					Checkpoints first. The order is the one with the shortest total route ({state.trace.result.checkpoints.method === 'exact' ? 'every order tried' : 'nearest next, as there are more than 8'}), then one search per leg. The frontier starts fresh each leg.
+				</p>
+			)}
 			{hasLanes && <p className="inspector__hint">One-way lanes can only be entered and left along their arrows. Watch the wave: it flows with the chevrons, never against them.</p>}
 			<div className="chips">
 				<span className="chip chip--mono" title="Neighbour order for new algorithms">order N · E · S · W</span>

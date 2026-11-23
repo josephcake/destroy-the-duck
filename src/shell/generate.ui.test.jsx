@@ -35,18 +35,9 @@ test.each(['backtracker', 'prim', 'kruskal', 'division', 'wilson', 'caves'])('%s
 	expect(document.getElementById('17-64').className).toMatch(/_ending/);
 });
 
-test('mud and water: weights land on the board (the classic chip counts them), no walls', async () => {
+test('mud and water is parked: weights are checkpoints, and it would lay hundreds', () => {
 	mount();
-	fireEvent.click(screen.getByTestId('algo-picker'));
-	fireEvent.click(screen.getAllByRole('option', { name: /^Breadth First Search/ })[0]);
-	fireEvent.change(screen.getByLabelText('Maze'), { target: { value: 'gen:weightNoise' } });
-	const seed = screen.getByTestId('gen-seed');
-	fireEvent.change(seed, { target: { value: '3' } });
-	fireEvent.keyDown(seed, { key: 'Enter' });
-	await frame();
-	const want = generate('weightNoise', { rows: 35, cols: 80, seed: 3, start: { r: 17, c: 15 }, ducks: [{ r: 17, c: 64 }] });
-	const n = want.weight.reduce((s, x) => s + (x ? 1 : 0), 0);
-	expect(n).toBeGreaterThan(100);
-	expect(screen.getByText(`Breadth First Search ignores weights (${n} cells)`)).toBeTruthy();
-	expect(tableWalls()).toHaveLength(0);
+	const options = [...screen.getByLabelText('Maze').querySelectorAll('option')].map((o) => o.value);
+	expect(options).not.toContain('gen:weightNoise');
+	expect(options).toContain('gen:caves');
 });

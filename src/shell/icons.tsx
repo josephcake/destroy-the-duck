@@ -22,7 +22,7 @@ export const Icon = {
 	fit: () => <I><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></I>,
 	home: () => <I><path d="M4 11l8-7 8 7M6 10v10h12V10" /></I>,
 	wall: () => <I><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 12h16M12 4v8M8 12v8M16 12v8" /></I>,
-	weight: () => <I><path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z" /></I>,
+	weight: () => <I><path d="M6 21V4M6 4h11l-2.5 4 2.5 4H6" /></I>, // a checkpoint flag (weights are checkpoints)
 	oneway: () => <I><path d="M4 12h12M12 7l5 5-5 5" /><path d="M4 7l3 5-3 5" /></I>,
 	pad: () => <I><circle cx="7" cy="12" r="3.5" /><circle cx="17" cy="12" r="3.5" /><path d="M10.5 12h3" strokeDasharray="1.5 1.5" /></I>,
 	duck: () => <I><path d="M5 14c0 3 3 5 7 5s7-2 7-6c-2 1-4 1-5 0 1-1 2-2 2-4a4 4 0 0 0-8 0c0 1 .5 2 1 2.5C7 12 5 12 5 14z" /><path d="M14 8h3" /></I>,
