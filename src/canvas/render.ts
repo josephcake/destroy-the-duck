@@ -55,7 +55,7 @@ export type Scene = {
 };
 
 /** A flowing path leg, in screen px of the view it was built for: its fixed dots and the pulse clock. */
-export type MarchItem = { dots: { x: number; y: number; u: number }[]; pts: ({ x: number; y: number } | null)[]; L: number; r: number; hw: number; flowFrom: number; v: number; span: number; color: string; halo: string; hi: string; core: number; grow: number; glowA: number; glowR: number; skip: { x: number; y: number }[]; skipR: number };
+export type MarchItem = { dots: { x: number; y: number; u: number }[]; pts: ({ x: number; y: number } | null)[]; L: number; r: number; hw: number; flowFrom: number; v: number; span: number; color: string; halo: string; hi: string; core: number; grow: number; glowA: number; glowR: number; skip: { x: number; y: number }[]; skipR: number; /** checkpoint badge centres the pulse leaves alone (drawn above it) */ badges?: { x: number; y: number }[]; badgeR?: number };
 
 /** Where the pulse head is (arc px from the Arrow) at `now`; it runs Arrow -> Duck, rests, repeats. */
 export function pulseHead(m: { L: number; v: number; span: number; flowFrom: number }, now: number) {
@@ -73,6 +73,7 @@ function drawPulse(ctx: CanvasRenderingContext2D, m: MarchItem, now: number, w: 
 	for (const d of m.dots) {
 		if (Math.abs(d.u - head) >= m.span) continue;
 		if (skip && m.skip.some((q) => Math.abs(q.x - d.x) < m.skipR && Math.abs(q.y - d.y) < m.skipR)) continue;
+		if (skip && m.badges?.some((q) => Math.hypot(q.x - d.x, q.y - d.y) < m.badgeR!)) continue; // the overlay would paint over a badge's digit
 		lit.push(d);
 	}
 	if (!lit.length) return;
@@ -427,7 +428,12 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		if (flowing) {
 			const skip: { x: number; y: number }[] = [pts[0]!, pts[pts.length - 1]!];
 			jumps.forEach(([a, b]) => skip.push(a, b));
-			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.pathEdge ?? p.home, hi: p.pulse?.hi ?? mix(p.path, '#ffffff', PATH_DOT.pulseHi), core: p.pulse?.core ?? PATH_DOT.pulseCore, grow: p.pulse?.grow ?? PATH_DOT.pulseGrow, glowA: p.pulse?.glowA ?? 0, glowR: p.pulse ? Math.max(2.5, p.pulse.glowR * s) : 0, skip, skipR: 0.5 * s };
+			// checkpoint badges sit on the path; the overlay pulse is drawn after them, so it skips them (Prism gate must-fix 1)
+			const badges = (scene.trace?.trace.result.checkpoints?.order ?? []).map(parseId).filter((q) => scene.board.get(q.r, q.c)?.kind === 'weight').map((q) => {
+				const o = cellToScreen(view, q.r, q.c);
+				return { x: o.x + s / 2, y: o.y + s / 2 };
+			});
+			const item: MarchItem = { dots, pts, L, r, hw, flowFrom, v: PATH_DOT.pulseSpeed * s, span: PATH_DOT.pulseSpan * s, color: p.path, halo: p.pathEdge ?? p.home, hi: p.pulse?.hi ?? mix(p.path, '#ffffff', PATH_DOT.pulseHi), core: p.pulse?.core ?? PATH_DOT.pulseCore, grow: p.pulse?.grow ?? PATH_DOT.pulseGrow, glowA: p.pulse?.glowA ?? 0, glowR: p.pulse ? Math.max(2.5, p.pulse.glowR * s) : 0, skip, skipR: 0.5 * s, badges, badgeR: badgeRadius(s) * 1.35 + r };
 			// the overlay draws the pulse (and keeps it moving without a full render); else draw it here
 			if (scene.march) scene.march.push(item);
 			else drawPulse(ctx, item, scene.now, width, height, false);

@@ -133,3 +133,45 @@ describe.each(Object.keys(PALETTES) as (keyof typeof PALETTES)[])('%s badges (Pr
 		expect(contrast(p.home, p.ink)).toBeGreaterThanOrEqual(4.5);
 	});
 });
+
+// Prism gate must-fix 1: the overlay pulse skips the badges (it is drawn after them, so it hid the '1').
+import { drawMarch, type MarchItem } from './render';
+test('the flowing path carries the badge centres; the pulse lights no dot under a badge', () => {
+	const board = new Board();
+	board.set(10, 20, { kind: 'weight', cost: 5 });
+	board.set(25, 30, { kind: 'weight', cost: 5 });
+	const zoom = 0.56, s = 20 * zoom;
+	const base: Scene = {
+		view: { panX: 0, panY: 0, zoom }, width: 4000, height: 2000, dpr: 1, palette: PALETTES['paper-light'], board, mirror: new LegacyMirror(),
+		trace: null, anim: new CellAnim(), speed: 'fast' as const, learnCurrent: false, hover: null, bestPath: null, now: 1e9, activeAt: 0, reducedMotion: false,
+	};
+	const snap = { ...buildSnapshot(board, { kind: new Uint8Array(0), start: -1, end: -1 } as never), start: { r: 17, c: 15 }, goals: [{ r: 17, c: 64 }] };
+	const st = new TraceState(runSearch('astar', snap));
+	st.seek(st.trace.events.length);
+	texts({ ...base, trace: st }); // starts the trace clock
+	const march: MarchItem[] = [];
+	texts({ ...base, trace: st, now: 1e9 + 60_000, march });
+	expect(march).toHaveLength(1);
+	const m = march[0];
+	expect(m.badges).toEqual([{ x: 20 * s + s / 2, y: 10 * s + s / 2 }, { x: 30 * s + s / 2, y: 25 * s + s / 2 }]);
+	expect(m.badgeR).toBeCloseTo(Math.max(7.5, Math.min(14, 0.36 * s)) * 1.35 + m.r);
+	// sweep the pulse along the whole path: no lit dot is ever drawn inside a badge
+	const arcs: { x: number; y: number }[] = [];
+	const ctx = new Proxy({} as Record<string, unknown>, {
+		get(t, k: string) {
+			if (k in t) return t[k];
+			if (k === 'arc') return (x: number, y: number) => void arcs.push({ x, y });
+			if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop() {} });
+			return () => {};
+		},
+		set(t, k: string, v) { t[k] = v; return true; },
+	}) as unknown as CanvasRenderingContext2D;
+	const run = ((m.L + 2 * m.span) / m.v) * 1000;
+	for (let t = 0; t < run; t += 20) drawMarch(ctx, [m], m.flowFrom + t, { x: 0, y: 0, w: 4000, h: 2000 }, 1);
+	expect(arcs.length).toBeGreaterThan(0);
+	expect(arcs.filter((a) => m.badges!.some((q) => Math.hypot(q.x - a.x, q.y - a.y) < m.badgeR! - 1e-6))).toEqual([]);
+	// without the badge list the same sweep would light them (the bug)
+	arcs.length = 0;
+	for (let t = 0; t < run; t += 20) drawMarch(ctx, [{ ...m, badges: [] }], m.flowFrom + t, { x: 0, y: 0, w: 4000, h: 2000 }, 1);
+	expect(arcs.filter((a) => m.badges!.some((q) => Math.hypot(q.x - a.x, q.y - a.y) < m.badgeR!)).length).toBeGreaterThan(0);
+});
