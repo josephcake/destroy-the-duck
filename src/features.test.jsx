@@ -22,6 +22,8 @@ test('with One-way off the UI has no one-way tool, no O shortcut, and no lane hi
 	expect(screen.queryByTitle(/One-way/i)).toBeNull();
 	expect(screen.queryByLabelText(/One-way/i)).toBeNull();
 	expect(screen.getByTitle('Wall (W)')).toBeInTheDocument();
+	expect(screen.getByRole('group', { name: 'Draw tools' }).className).toMatch(/tools--3/); // 6 tools: two even rows of three
+	expect(screen.getByRole('group', { name: 'Draw tools' }).querySelectorAll('.tool')).toHaveLength(6);
 	act(() => void fireEvent.keyDown(window, { key: 'o' }));
 	expect(document.querySelector('.tool[aria-pressed="true"]')?.getAttribute('title')).not.toMatch(/One-way/i);
 	expect(document.body.textContent).not.toMatch(/one-way|lanes?\b/i);

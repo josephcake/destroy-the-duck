@@ -630,7 +630,7 @@ export default function AppShell() {
 									</span>
 								)}
 								{why && <span className="chip chip--warn" role="status" data-testid="algo-blocked">{why}</span>}
-								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">{FEATURES.oneWay ? 'Classic algorithms ignore one-way lanes, teleporters and extra ducks' : 'Classic algorithms ignore teleporters and extra ducks'}</span>}
+								{classic && (oneways > 0 || pads > 0 || extraDucks > 0) && <span className="chip" data-testid="classic-ignores">{FEATURES.oneWay ? 'Classic algorithms ignore one-way lanes, teleporters and extra Quacks' : 'Classic algorithms ignore teleporters and extra Quacks'}</span>}
 								{extraDucks > 0 && isTraced(algo) && findMode === 'tour' && (
 									<span className="chip" data-testid="tour-order">Tour: Arrow → {Array.from({ length: extraDucks + 1 }, (_, i) => i + 1).join(' → ')}</span>
 								)}
@@ -673,7 +673,7 @@ export default function AppShell() {
 
 					<section className="section">
 						<h2 className="section__title">Draw</h2>
-						<div className="tools" role="group" aria-label="Draw tools">
+						<div className={TOOLS.length % 3 === 0 ? 'tools tools--3' : 'tools'} role="group" aria-label="Draw tools">
 							{TOOLS.map((t) => (
 								<button key={t.id} className="tool" aria-pressed={tool === t.id} title={t.title ?? `${t.label} (${t.key.toUpperCase()})`} onClick={() => setTool(t.id)}>
 									<t.icon />
