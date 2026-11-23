@@ -10,7 +10,7 @@ const dirName: Record<string, string> = { N: 'north', E: 'east', S: 'south', W: 
 const look = (e: TraceEvent) => (e.via === 'jump' ? 'Jump through the teleporter (cost 0)' : `Look ${dirName[String(e.params?.dir)] ?? ''}`);
 const sideName = (e: TraceEvent) => (e.side === 'bwd' ? 'Quack side: ' : e.side === 'fwd' ? 'Arrow side: ' : '');
 
-const who = (e: TraceEvent) => (e.side === 'bwd' ? `Quack ${e.duck ?? 1}` : e.leg ? 'the last Quack' : 'the Arrow');
+const who = (e: TraceEvent) => (e.side === 'bwd' ? `Quack ${e.duck ?? 1}` : e.leg ? 'the last stop' : 'the Arrow');
 
 export function narrate(e: TraceEvent, algo: AlgoId): string {
 	const withH = isTraced(algo) && algo !== 'dijkstraW' && algo !== 'dfsStack' && algo !== 'bellmanFord';
@@ -54,9 +54,11 @@ export function narrate(e: TraceEvent, algo: AlgoId): string {
 		case 'ITER_BOUND':
 			return `New dive from the Arrow with f bound ${e.params?.bound}.`;
 		case 'LEG':
-			return `Leg ${(e.leg ?? 0) + 1}: search from ${at(e.node)} to Quack ${e.duck}.`;
+			if (e.params?.checkpoint) return `Leg ${(e.leg ?? 0) + 1}: search from ${at(e.node)} to checkpoint ${e.params.checkpoint}.`;
+			return e.duck ? `Leg ${(e.leg ?? 0) + 1}: search from ${at(e.node)} to Quack ${e.duck}.` : `Leg ${(e.leg ?? 0) + 1}: every checkpoint done, search from ${at(e.node)} to Quack.`;
 		case 'FOUND_DUCK':
 			if (e.action === 'done') return 'Done. Each path is the chain of parents from a Quack back to its start.';
+			if (e.duck === 0) return `Reached the checkpoint at ${at(e.node)} (cost ${e.g} for this leg).`;
 			return `Reached Quack ${e.duck ?? 1} at ${at(e.node)} with total cost ${e.g}.${e.params?.left ? ` ${e.params.left} more to find.` : ''}`;
 		case 'PATH':
 			return `Path: ${at(e.node)}${e.duck ? ` (to Quack ${e.duck})` : ''}.`;

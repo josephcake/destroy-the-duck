@@ -24,6 +24,8 @@ export type Snapshot = {
 	pads?: [number, number][]; // complete pairs [keyA, keyB]
 	start: Cell;
 	goals: Cell[]; // ducks in number order (goals[0] = duck 1)
+	/** Weights are checkpoints (engine/checkpoints.ts): packed keys, in board order. The route visits all of them before Quack. */
+	checkpoints?: number[];
 	findMode?: FindMode;
 	budget: number; // max expanded nodes
 };

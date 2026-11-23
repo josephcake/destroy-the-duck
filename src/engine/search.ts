@@ -3,10 +3,13 @@
 //  all:     a path to each duck (one search when the core supports it,
 //           otherwise one leg from the Arrow per duck)
 //  tour:    legs Arrow → duck 1 → duck 2 → … in number order
-import { Cell, idOf, keyOf, manhattan } from '../model/cell';
+// Checkpoints (weights) come first in every mode: one leg per checkpoint, in the
+// planned order (checkpoints.ts), then the find mode runs from the last one.
+import { Cell, cellOfKey, idOf, keyOf, manhattan } from '../model/cell';
 import { Core, CoreOut, Emitter, Goal, Reach, idOfKey } from './emit';
 import { Graph, Snapshot } from './graph';
-import { Trace, TracedAlgo, ALGO_INFO, DuckPath } from './trace';
+import { Trace, TracedAlgo, ALGO_INFO, DuckPath, CheckpointResult } from './trace';
+import { planTour } from './checkpoints';
 import { bestFirst } from './cores/bestFirst';
 import { dfsStack } from './cores/dfs';
 import { bellmanFord } from './cores/bellmanFord';
@@ -64,21 +67,63 @@ export function runSearch(algo: TracedAlgo, snap: Snapshot): Trace {
 		return o.reached.length > 0;
 	};
 
-	if (mode === 'nearest' || goals.length === 1) collect(core(E, G, snap.start, goals, 'nearest'));
-	else if (mode === 'all' && NATIVE_ALL.has(algo)) collect(core(E, G, snap.start, goals, 'all'));
-	else if (mode === 'all') goals.forEach((g, i) => !budgetHit && leg(i, snap.start, g));
+	// checkpoints: one leg each, in the planned order; a leg that can't reach its checkpoint ends the run
+	const cps = (snap.checkpoints ?? []).map(cellOfKey);
+	let origin = snap.start;
+	let legs = 0; // legs used so far (the find mode's legs are numbered after them)
+	const prefix: Reach[] = [];
+	let checkpoints: CheckpointResult | undefined;
+	if (cps.length) {
+		const plan = planTour(G, snap.start, cps, mode === 'nearest' ? snap.goals : snap.goals.slice(0, 1));
+		checkpoints = { order: plan.order.map((i) => idOf(cps[i].r, cps[i].c)), method: plan.method, reached: 0 };
+		for (const i of plan.order) {
+			const cell = cps[i];
+			E.leg = legs++;
+			E.next();
+			E.emit({ action: 'leg', node: idOf(origin.r, origin.c), reason: 'LEG', params: { to: idOf(cell.r, cell.c), checkpoint: checkpoints.reached + 1 } });
+			const o = core(E, G, origin, [{ cell, key: keyOf(cell.r, cell.c), duck: 0 }], 'nearest');
+			budgetHit = budgetHit || o.budgetHit;
+			if (!o.reached.length || budgetHit) break;
+			prefix.push(o.reached[0]);
+			checkpoints.reached++;
+			origin = cell;
+		}
+	}
+	const blocked = !!checkpoints && checkpoints.reached < checkpoints.order.length;
+	const finalLeg = () => {
+		// after checkpoints, the search toward Quack is a leg of its own (a fresh frontier)
+		if (!cps.length) return;
+		E.leg = legs;
+		E.next();
+		E.emit({ action: 'leg', node: idOf(origin.r, origin.c), reason: 'LEG', params: { to: idOf(snap.goals[0].r, snap.goals[0].c) } });
+	};
+
+	if (blocked) {
+		// no Quack phase: a checkpoint is out of reach
+	} else if (mode === 'nearest' || goals.length === 1) {
+		finalLeg();
+		collect(core(E, G, origin, goals, 'nearest'));
+	} else if (mode === 'all' && NATIVE_ALL.has(algo)) {
+		finalLeg();
+		collect(core(E, G, origin, goals, 'all'));
+	} else if (mode === 'all') goals.forEach((g, i) => !budgetHit && leg(legs + i, origin, g));
 	else {
-		let from = snap.start;
+		let from = origin;
 		for (let i = 0; i < goals.length && !budgetHit; i++) {
-			if (!leg(i, from, goals[i])) break;
+			if (!leg(legs + i, from, goals[i])) break;
 			from = goals[i].cell;
 		}
 	}
 	E.leg = undefined;
 
 	const paths: DuckPath[] = reaches.map((r) => ({ duck: r.duck, path: r.keys.map(idOfKey), cost: r.cost }));
+	if (prefix.length && paths.length) {
+		// one gold path: Arrow → checkpoints → the first Quack (other Quacks branch from the last checkpoint)
+		const lead = prefix.flatMap((r, i) => (i ? r.keys.slice(1) : r.keys)).map(idOfKey);
+		paths[0] = { ...paths[0], path: [...lead, ...paths[0].path.slice(1)], cost: paths[0].cost + prefix.reduce((s, r) => s + r.cost, 0) };
+	}
 	const wanted = mode === 'nearest' ? 1 : goals.length;
-	const found = paths.length >= Math.min(wanted, goals.length) && paths.length > 0;
+	const found = !blocked && paths.length >= Math.min(wanted, goals.length) && paths.length > 0;
 	if (paths.length) {
 		E.next();
 		paths.forEach((p, pi) => p.path.forEach((node) => E.emit({ action: 'path', node, duck: p.duck, reason: 'PATH', params: { p: pi } })));
@@ -108,6 +153,7 @@ export function runSearch(algo: TracedAlgo, snap: Snapshot): Trace {
 			expanded: E.expanded,
 			maxFrontier: E.maxFrontier,
 			engineMs: Math.round((t1 - t0) * 10) / 10,
+			...(checkpoints ? { checkpoints } : {}),
 		},
 	};
 }

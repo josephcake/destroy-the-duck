@@ -104,6 +104,13 @@ export interface TraceEvent {
 
 export type DuckPath = { duck: number; path: LegacyId[]; cost: number };
 
+/** A run through checkpoints (engine/checkpoints.ts). */
+export type CheckpointResult = {
+	order: LegacyId[]; // checkpoint cells in visit order (checkpoint n = order[n - 1])
+	method: 'exact' | 'nearest'; // every order tried, or nearest next (more than 8)
+	reached: number; // checkpoints reached, in order; < order.length means one couldn't be reached
+};
+
 export interface TraceResult {
 	found: boolean; // every requested duck reached
 	path: LegacyId[]; // flat display path (Tour: legs joined)
@@ -114,6 +121,7 @@ export interface TraceResult {
 	expanded: number;
 	maxFrontier: number;
 	engineMs: number;
+	checkpoints?: CheckpointResult; // only when the board has checkpoints
 }
 
 export interface Trace {
