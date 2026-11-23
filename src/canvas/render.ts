@@ -535,9 +535,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		const { x, y } = cellToScreen(view, scene.hover.r, scene.hover.c);
 		ctx.save();
 		ctx.strokeStyle = p.ink;
-		ctx.globalAlpha = 0.45;
-		ctx.lineWidth = 1.5;
-		ctx.setLineDash([3, 3]);
+		ctx.globalAlpha = 0.3;
+		ctx.lineWidth = 1;
 		roundRect(ctx, x + 0.06 * s, y + 0.06 * s, s - 0.12 * s, s - 0.12 * s, 0.14 * s);
 		ctx.stroke();
 		ctx.restore();
@@ -1039,7 +1038,7 @@ function drawPad(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: numbe
 	const { ri, ro } = padRing(s);
 	const TAU = Math.PI * 2;
 	ctx.save();
-	if (lone) ctx.globalAlpha = 0.6; // with a dashed outline below: "no partner yet"
+	if (lone) ctx.globalAlpha = 0.6; // with a faint outer ring below: "no partner yet"
 	punchHole(ctx, cx, cy, ri, { hole: p.hole, innerShadow: p.holeShadow, dpr });
 	const rin = ri + 0.05 * s;
 	const ring = new Path2D();
@@ -1057,8 +1056,8 @@ function drawPad(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: numbe
 	if (lone) {
 		ctx.save();
 		ctx.strokeStyle = color;
-		ctx.lineWidth = Math.max(1.5, 0.06 * s);
-		ctx.setLineDash([Math.max(2, 0.12 * s), Math.max(2, 0.1 * s)]);
+		ctx.globalAlpha = 0.5;
+		ctx.lineWidth = Math.max(1, 0.04 * s);
 		ctx.beginPath();
 		ctx.arc(cx, cy, ro + Math.max(2, 0.08 * s), 0, TAU);
 		ctx.stroke();
@@ -1106,10 +1105,10 @@ function drawJump(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, s: number, color:
 	const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - Math.max(2 * s, 0.25 * Math.hypot(b.x - a.x, b.y - a.y));
 	const pt = (u: number) => ({ x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * my + u * u * b.y });
 	ctx.save();
-	ctx.setLineDash([Math.max(3, 0.18 * s), Math.max(3, 0.14 * s)]);
 	ctx.strokeStyle = color;
-	ctx.globalAlpha = 0.75;
-	ctx.lineWidth = Math.max(1.5, 0.06 * s);
+	ctx.globalAlpha = 0.55;
+	ctx.lineWidth = Math.max(1.25, 0.05 * s);
+	ctx.lineCap = 'round';
 	ctx.beginPath();
 	ctx.moveTo(a.x, a.y);
 	for (let u = 0.02; u <= t + 1e-6; u += 0.02) {
@@ -1328,7 +1327,6 @@ function drawNeedle(ctx: CanvasRenderingContext2D, pts: (Pt | null)[], k: number
 			else path.moveTo(pt.x, pt.y);
 		}
 		ctx.save();
-		ctx.setLineDash([]);
 		ctx.strokeStyle = color;
 		ctx.lineWidth = width;
 		ctx.lineCap = 'round';
