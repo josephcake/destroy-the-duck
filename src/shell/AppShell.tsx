@@ -183,7 +183,8 @@ export default function AppShell() {
 	const classicRun = useRef(false);
 	const classicAlgo = useRef<ClassicAlgo | null>(null);
 	// the story line in the pill after a run (story.ts): one per finished run, round-robin
-	const [classicStory, setClassicStory] = useState<string | null>(null);
+	// The story and its outcome are frozen together at the end of the run, so a later board edit can't recolour the line.
+	const [classicStory, setClassicStory] = useState<{ line: string; outcome: 'found' | 'escaped' } | null>(null);
 	const storyOf = useRef<{ key: object | null; line: string | null }>({ key: null, line: null });
 	// ms stat for classic runs: wall-clock time of the animated run (Go to the
 	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
@@ -196,7 +197,10 @@ export default function AppShell() {
 		if (ctx.isToastVisible) return;
 		const found = classicBestPath(ctx.starting, ctx.ending);
 		setBestPath(found);
-		if (classicAlgo.current) setClassicStory(storyLine(classicAlgo.current, found && found.length > 1 ? 'found' : 'escaped'));
+		if (classicAlgo.current) {
+			const outcome = found && found.length > 1 ? 'found' : 'escaped';
+			setClassicStory({ line: storyLine(classicAlgo.current, outcome), outcome });
+		}
 	}, [ctx.running, ctx.isToastVisible, ctx.starting, ctx.ending]);
 	useEffect(() => stage.current?.invalidate(), [bestPath]);
 
@@ -892,11 +896,11 @@ export default function AppShell() {
 
 				{!tr && tab === 'sandbox' && classic && mirror.visitedCount > 0 && (
 					// classic runs get the same quiet pill (the stats live in the panel, closed on phones)
-					<div className="float pill" aria-live="polite" data-testid="classic-pill" data-outcome={!ctx.running && classicStory ? (bestPath && bestPath.length > 1 ? 'found' : 'escaped') : undefined} style={{ ['--fail' as string]: palette.fail }}>
+					<div className="float pill" aria-live="polite" data-testid="classic-pill" data-outcome={!ctx.running && classicStory ? classicStory.outcome : undefined} style={{ ['--fail' as string]: palette.fail }}>
 						<span>{algoLabel(algo)}</span>
 						<span>visited {mirror.visitedCount}</span>
 						{bestPath && bestPath.length > 1 && <span>cost {bestPath.length - 1}</span>}
-						{!ctx.running && classicStory && <span className="pill__story" data-testid="story-line">{classicStory}</span>}
+						{!ctx.running && classicStory && <span className="pill__story" data-testid="story-line">{classicStory.line}</span>}
 					</div>
 				)}
 
