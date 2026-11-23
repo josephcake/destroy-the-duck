@@ -194,7 +194,12 @@ export default function AppShell() {
 		if (ctx.running || !classicRun.current) return;
 		classicRun.current = false;
 		setClassicMs(performance.now() - classicStart.current);
-		if (ctx.isToastVisible) return;
+		if (ctx.isToastVisible) {
+			// no path: the table fell back to a spread and says "Cannot find Quack!"; the pill tells it in red
+			setBestPath(null);
+			if (classicAlgo.current) setClassicStory({ line: storyLine(classicAlgo.current, 'escaped'), outcome: 'escaped' });
+			return;
+		}
 		const found = classicBestPath(ctx.starting, ctx.ending);
 		setBestPath(found);
 		if (classicAlgo.current) {
