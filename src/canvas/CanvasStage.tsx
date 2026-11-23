@@ -615,7 +615,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// painted the pressed cell on the first mousemove inside it, so a
 			// plain click paints one wall.
 			flushSync(() => legacy.down(id));
-			if (!endpoint && tool === 'wall') legacy.move(id);
+			if (!endpoint && tool === 'wall') legacy.paintWall(id);
 			const undo = !endpoint && tool === 'wall' && k !== K.Wall && e.pointerType !== 'mouse' ? () => legacy.eraseWall(id) : undefined;
 			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint, undo };
 			return;
@@ -660,7 +660,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 				const m = live.current.scene.current.mirror;
 				for (const q of line(g.last, cell)) {
 					const act = legacyDragAction(!!g.endpoint, live.current.tool, m.inWindow(q.r, q.c));
-					if (act === 'legacy') legacy.move(m.idAt(q.r, q.c));
+					if (act === 'legacy' && g.endpoint) legacy.move(m.idAt(q.r, q.c));
+					else if (act === 'legacy') legacy.paintWall(m.idAt(q.r, q.c));
 					else if (act === 'paint') paintCell(q.r, q.c);
 				}
 				// past the window the table can't follow: show a ghost, place it on drop

@@ -175,6 +175,17 @@ export const legacy = {
 	up() {
 		window.dispatchEvent(new MouseEvent('mouseup'));
 	},
+	/**
+	 * A Wall-tool stroke over one cell. The table's painter only turns *unvisited* cells
+	 * into walls, so a stroke across the last classic run's visited or path cells left
+	 * holes (a ring around Quack with a gap where the old path ran). Such a cell goes
+	 * back to unvisited first, then the table paints it as always.
+	 */
+	paintWall(id: string) {
+		const td = document.getElementById(id);
+		if (td && /_visited\b/.test(td.className)) td.className = td.className.replace(/_visited\b/, '_unvisited').replace(/\s*\bpreview\b/, '');
+		this.move(id);
+	},
 	/** Single-cell erase, the same class swap Clear Wall does per cell. */
 	eraseWall(id: string) {
 		const td = document.getElementById(id);
