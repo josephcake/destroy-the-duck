@@ -24,3 +24,8 @@ test('§6: buttons press by the kit depth (3 px, Go! 4 px); no Bricolage / Instr
 	expect(rule('.go:active:not(:disabled)')).toMatch(/translateY\(var\(--pk-press-action\)\)/);
 	expect(css).not.toMatch(/Bricolage|Instrument Sans/);
 });
+
+test('gold-path spec: red only for no path, in the pill, with a ✕ so it does not rely on colour alone', () => {
+	expect(rule(".pill[data-outcome='escaped'] .pill__story")).toMatch(/color: var\(--fail\)/);
+	expect(rule(".pill[data-outcome='escaped'] .pill__story::before")).toMatch(/content: '✕ '/);
+});

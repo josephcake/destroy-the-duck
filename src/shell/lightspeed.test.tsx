@@ -43,6 +43,7 @@ test('Light speed: a traced A* run ends with settled cells in the motion layer',
 	expect(most).toBeGreaterThan(40); // Arrow and Duck are 49 columns apart: the visited cells are in the layer
 	// the story: the pill tells how A* found Quack (story.ts), without blocking play
 	expect(linesFor('astar', 'found')).toContain(screen.getByTestId('story-line').textContent);
+	expect(screen.getByTestId('story-line').closest('.pill')!.getAttribute('data-outcome')).toBe('found'); // not red
 	expect((screen.getByTestId('go') as HTMLButtonElement).disabled).toBe(false);
 	localStorage.clear();
 });

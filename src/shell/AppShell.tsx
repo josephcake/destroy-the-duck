@@ -882,7 +882,7 @@ export default function AppShell() {
 				)}
 
 				{tr && tab === 'sandbox' && (
-					<div className="float pill" aria-live="polite">
+					<div className="float pill" aria-live="polite" data-outcome={tr.done ? (tr.trace.result.found ? 'found' : 'escaped') : undefined} style={{ ['--fail' as string]: palette.fail }}>
 						<span>{algoLabel(tr.trace.algo)}</span>
 						<span>visited {tr.visited.size}</span>
 						{tr.done && tr.trace.result.found && <span>cost {tr.trace.result.pathCost}</span>}
@@ -892,7 +892,7 @@ export default function AppShell() {
 
 				{!tr && tab === 'sandbox' && classic && mirror.visitedCount > 0 && (
 					// classic runs get the same quiet pill (the stats live in the panel, closed on phones)
-					<div className="float pill" aria-live="polite" data-testid="classic-pill">
+					<div className="float pill" aria-live="polite" data-testid="classic-pill" data-outcome={!ctx.running && classicStory ? (bestPath && bestPath.length > 1 ? 'found' : 'escaped') : undefined} style={{ ['--fail' as string]: palette.fail }}>
 						<span>{algoLabel(algo)}</span>
 						<span>visited {mirror.visitedCount}</span>
 						{bestPath && bestPath.length > 1 && <span>cost {bestPath.length - 1}</span>}

@@ -149,6 +149,9 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .pill { right: 16px; top: 16px; padding: 6px 12px; font: var(--pk-type-data); display: flex; flex-wrap: wrap; gap: 2px 12px; max-width: min(360px, calc(100% - 32px)); }
 /* the story line after a run (story.ts): its own row, body type, never wider than the pill */
 .pill__story { flex-basis: 100%; font: 500 13px/18px var(--pk-font-ui); color: var(--ink-2); }
+/* no path: red lives only here (never on the board), with a ✕ so it doesn't rely on colour alone (Prism gold-path spec) */
+.pill[data-outcome='escaped'] .pill__story { color: var(--fail); }
+.pill[data-outcome='escaped'] .pill__story::before { content: '✕ '; font-weight: 700; }
 /* gate (1280): the card sits over the board's top rows; only its buttons take the pointer,
    so a click anywhere else on it lands on the canvas, paints, and dismisses it */
 .landing { left: 50%; top: 24px; transform: translateX(-50%); width: min(400px, calc(100% - 32px)); padding: var(--s-5); pointer-events: none; }
