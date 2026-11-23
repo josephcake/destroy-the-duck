@@ -37,6 +37,27 @@ test('portrait phone: no rotate prompt, and the bar has Go and Wall, Checkpoint,
 	expect(bar.querySelector('[data-testid="go"]')).toBeTruthy();
 });
 
+test('phones start on Pan (same order, Pan pressed); desktop keeps Wall', () => {
+	const { unmount } = render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const pressed = (root) => [...root.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.getAttribute('aria-label') ?? b.title);
+	expect(pressed(document.querySelector('.mini'))).toEqual(['Pan']);
+	unmount();
+	window.matchMedia = orig;
+	window.innerWidth = 1280;
+	render(
+		<TableContextProvider>
+			<AppShell />
+		</TableContextProvider>,
+	);
+	const tools = [...document.querySelectorAll('button.tool, .mini .icon-btn')];
+	expect(tools.length).toBeGreaterThan(0);
+	expect(tools.filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => (b.getAttribute('aria-label') ?? b.title).replace(/ \(.*$/, ''))).toEqual(['Wall']);
+});
+
 test('shell.css: portrait puts the bar at the bottom, clear of the home bar, and keeps 44 px taps', () => {
 	const css = fs.readFileSync(path.join(__dirname, 'shell.css'), 'utf8');
 	const phone = css.slice(css.indexOf('/* Safe areas'));

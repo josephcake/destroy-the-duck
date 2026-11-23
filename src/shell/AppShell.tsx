@@ -132,7 +132,9 @@ export default function AppShell() {
 	const [algo, setAlgo] = useState<AlgoId | null>(null);
 	const [learnAlgo, setLearnAlgo] = useState<TracedAlgo>('astar');
 	const [pickerOpen, setPickerOpen] = useState(false);
-	const [tool, setTool] = useState<Tool>('wall');
+	// phones (the portrait layout's rule, PHONE) start on Pan so a one-finger drag moves the board;
+	// desktop and landscape keep Wall (Joseph, 2026-11-22: "Start phones on Pan")
+	const [tool, setTool] = useState<Tool>(() => (typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches ? 'pan' : 'wall'));
 	const weight: Weight = 5; // weights are checkpoints: the cost is kept on the tile but unused
 	const [dir, setDir] = useState<Dir>(1);
 	const [findMode, setFindMode] = useState<FindMode>('all');
