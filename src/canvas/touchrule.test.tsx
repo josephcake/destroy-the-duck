@@ -67,3 +67,16 @@ test('one finger draws checkpoints; the Pan tool makes one finger pan', () => {
 	expect(count(pan.board)).toBe(0);
 	expect(count(board)).toBe(3); // and the first stage got nothing more
 });
+
+test('a palm (a third contact) never starts a stroke', () => {
+	const { board, canvas } = stage('weight');
+	act(() => void fireEvent.pointerDown(canvas, touch(1, 3, 2)));
+	act(() => void fireEvent.pointerDown(canvas, touch(2, 6, 9))); // pinch
+	now += 400;
+	act(() => void fireEvent.pointerDown(canvas, touch(3, 8, 8))); // the palm lands
+	act(() => void fireEvent.pointerMove(canvas, touch(3, 8, 12)));
+	act(() => void fireEvent.pointerUp(canvas, touch(3, 8, 12)));
+	act(() => void fireEvent.pointerUp(canvas, touch(2, 6, 9)));
+	act(() => void fireEvent.pointerUp(canvas, touch(1, 3, 2)));
+	expect(count(board)).toBe(0);
+});

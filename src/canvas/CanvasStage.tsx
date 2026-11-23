@@ -574,6 +574,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		pointers.current.set(e.pointerId, p);
 		canvasRef.current!.setPointerCapture?.(e.pointerId);
 		live.current.onInteract();
+		if (pointers.current.size > 2) return; // a palm (3+ contacts) never starts a stroke; the pinch carries on
 		if (pointers.current.size === 2) {
 			// a second finger turns any one-finger gesture into pinch-zoom + two-finger pan;
 			// end a table drag first, or the table stays in its building/dragging state
