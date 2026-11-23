@@ -65,10 +65,13 @@ test.each([
 	expect(screen.getByTestId('story-line').closest('.pill').getAttribute('data-outcome')).toBe('found');
 });
 
-test('a walled-off checkpoint: red no-path with a checkpoint line', async () => {
+test.each([
+	['A*', /^A\*/],
+	['classic Breadth First Search', /^Breadth First Search/],
+])('%s, a walled-off checkpoint: red no-path naming the checkpoint, no second toast', async (_, name) => {
 	const { ref } = mountLegacy(Shell);
 	drain(ref);
-	pick(/^A\*/);
+	pick(name);
 	const canvas = place([[5, 30]]);
 	act(() => fireEvent.click(screen.getByTitle('Wall (W)')));
 	for (const [r, c] of [[4, 30], [6, 30], [5, 29], [5, 31]]) {
@@ -83,4 +86,16 @@ test('a walled-off checkpoint: red no-path with a checkpoint line', async () => 
 	expect(screen.getByTestId('checkpoint-count').textContent).toBe('checkpoints 0/1');
 	expect(CHECKPOINT.blocked.map((l) => l.replace('{n}', '1'))).toContain(screen.getByTestId('story-line').textContent);
 	expect(screen.getByTestId('story-line').closest('.pill').getAttribute('data-outcome')).toBe('escaped');
+	await act(async () => void T.advanceTimersByTime(500));
+	expect(screen.queryByText('Cannot find Quack!')).toBeNull(); // the pill already says it (gate nit)
+});
+
+test('first run: one yellow button at a time — Go is a plain tab until an algorithm is picked', () => {
+	const { ref } = mountLegacy(Shell);
+	drain(ref);
+	expect(screen.getByTestId('landing')).toBeTruthy();
+	const yellow = () => [...document.querySelectorAll('button.go')].filter((b) => !b.classList.contains('go--quiet'));
+	expect(yellow().map((b) => b.textContent)).toEqual(['Pick an algorithm']);
+	pick(/^A\*/);
+	expect(screen.getByTestId('go').classList.contains('go--quiet')).toBe(false);
 });

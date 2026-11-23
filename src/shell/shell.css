@@ -88,6 +88,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 	box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 calc(var(--pk-press-action) - 1px) 0 var(--pk-accent-ply), 0 var(--pk-press-action) 0 var(--pk-accent-d), 0 calc(var(--pk-press-action) + 3px) 8px -4px var(--pk-sh);
 	transition: transform var(--pk-dur-press) var(--pk-ease-press), box-shadow var(--pk-dur-press) var(--pk-ease-press); }
 .go:active:not(:disabled) { transform: translateY(var(--pk-press-action)); box-shadow: 0 0 0 var(--pk-accent-d), inset 0 1px 3px rgba(0,0,0,.25); }
+/* no algorithm yet: Go is a plain paper tab, so the first-run card's CTA is the only yellow button (gate nit) */
+.go.go--quiet { background-color: var(--pk-card-ui); background-image: var(--pk-fibre); background-size: 256px; border-color: var(--pk-edge-d); color: var(--pk-ink); margin-bottom: 0;
+	box-shadow: inset 0 1px 0 var(--pk-face-hi), 0 1px 0 var(--pk-edge-d), 0 calc(var(--pk-press) - 1px) 0 var(--pk-ply), 0 var(--pk-press) 0 var(--pk-edge-d), 0 calc(var(--pk-press) + 2px) 5px -2px var(--pk-sh); }
+.go.go--quiet:active:not(:disabled) { transform: translateY(var(--pk-press)); box-shadow: inset 0 1px 3px var(--pk-sh), 0 0 0 var(--pk-edge-d); }
 .square { width: 44px; height: 46px; display: inline-grid; place-items: center; }
 .square svg { width: 18px; height: 18px; }
 .btn { padding: 6px 10px; min-height: 34px; }
@@ -213,22 +217,24 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	/* portrait is a real layout (2026-11-22, no rotate prompt): reading on top, thumbs at the bottom.
 	   bottom row: the quick bar (menu, Go, Wall, Checkpoint, Erase, Pan); above it the zoom row,
 	   and in Learn the step bar above that. Pill, first-run card and inspector sit on top. */
-	.mini { left: 8px; right: 8px; top: auto; bottom: 8px; justify-content: space-between; }
-	.mini__algo { display: none; }
+	.mini { left: 8px; right: 8px; top: auto; bottom: 8px; justify-content: space-between; flex-wrap: wrap; row-gap: 2px; }
+	/* the algorithm's name gets its own row over the thumb bar, readable at 360 (gate nit) */
+	.mini__algo { order: -1; flex: 0 0 100%; max-width: none; padding: 2px 8px 0; text-align: center; font-size: 13px; line-height: 16px; }
 	.pill { top: 8px; left: 8px; right: 8px; max-width: none; }
 	.pill__story { font-size: 14px; line-height: 20px; }
 	.inspector { left: 8px; right: 8px; width: auto; top: 8px; bottom: auto; max-height: min(34vh, calc(100% - 8px - 200px)); }
 	.narration { min-height: 0; }
-	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 136px; padding: 4px; gap: 0; }
+	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 156px; padding: 4px; gap: 0; }
 	.stepbar input[type='range'] { min-width: 40px; height: 44px; }
 	.stepbar__count { min-width: 0; font-size: 12px; }
 	/* the 75% start view puts board rows right under the quick bar: keep the first-run card to the strip above them (Prism re-gate nit) */
 	.landing { top: 8px; padding: 10px 14px; }
 	.landing__duck, .landing p { display: none; }
+	.landing__dismiss { display: none; }
 	.landing .landing__story-short { display: block; margin: 0 0 8px; font-size: 14px; line-height: 20px; color: var(--ink); }
 	.landing h1 { font-size: 22px; line-height: 28px; margin: 0 0 6px; }
-	.zoom { bottom: 68px; right: 8px; }
-	.toast { bottom: 136px; max-width: calc(100% - 16px); }
+	.zoom { bottom: 88px; right: 8px; }
+	.toast { bottom: 156px; max-width: calc(100% - 16px); }
 	.legend-pin { display: none; }
 	/* tap targets >= 44px (WCAG 2.5.5 / design §6) */
 	.icon-btn, .mini .go { min-width: 44px; height: 44px; }
@@ -245,9 +251,9 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .panel__scroll, .panel__head { padding-left: max(var(--s-3), env(safe-area-inset-left)); }
 @media (max-width: 599px) {
 	.mini { left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
-	.zoom { right: calc(8px + env(safe-area-inset-right)); bottom: calc(68px + env(safe-area-inset-bottom)); }
-	.stepbar { bottom: calc(136px + env(safe-area-inset-bottom)); }
-	.toast { bottom: calc(136px + env(safe-area-inset-bottom)); }
+	.zoom { right: calc(8px + env(safe-area-inset-right)); bottom: calc(88px + env(safe-area-inset-bottom)); }
+	.stepbar { bottom: calc(156px + env(safe-area-inset-bottom)); }
+	.toast { bottom: calc(156px + env(safe-area-inset-bottom)); }
 	.pill, .inspector, .landing { top: calc(8px + env(safe-area-inset-top)); }
 	.pill { left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); }
 	.panel { padding-bottom: env(safe-area-inset-bottom); }

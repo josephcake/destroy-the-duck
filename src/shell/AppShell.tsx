@@ -256,7 +256,9 @@ export default function AppShell() {
 			setApplied(st.applied);
 			if (st.done) {
 				setPlaying(false);
-				if (!st.trace.result.found && tab === 'sandbox' && st.applied > before) setNewToast(true);
+				const cp = st.trace.result.checkpoints;
+				// a walled-off checkpoint already says so in the pill: no second "Cannot find Quack!" (gate nit)
+				if (!st.trace.result.found && tab === 'sandbox' && st.applied > before && !(cp && cp.reached < cp.order.length)) setNewToast(true);
 			}
 		},
 		[traceState, tab],
@@ -480,7 +482,7 @@ export default function AppShell() {
 		? { top: 64, right: 12 + safe, bottom: 64, left: 12 + safe }
 		: phone
 		? // portrait: pill / card / inspector on top, the thumb bar and zoom row at the bottom (shell.css)
-		  { top: learnFloats ? 16 + Math.round(0.34 * window.innerHeight) : 64, right: 12, bottom: learnFloats ? 196 : 136, left: 12 }
+		  { top: learnFloats ? 16 + Math.round(0.34 * window.innerHeight) : 64, right: 12, bottom: learnFloats ? 216 : 156, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	// Fit (F) frames the whole board. Start view (H) does too, unless that fit would be
 	// under 50% (phones): then it opens at 75% around the Arrow (Prism qa gate, must-fix 2).
@@ -542,7 +544,8 @@ export default function AppShell() {
 				</button>
 			);
 		return (
-			<button className="go" onClick={go} data-testid="go" disabled={ctx.running || !!why} title={why ?? (algo ? undefined : 'Pick an algorithm first')}>
+			// first run: one yellow button at a time, so Go stays a plain tab until an algorithm is picked (gate nit)
+			<button className={algo ? 'go' : 'go go--quiet'} onClick={go} data-testid="go" disabled={ctx.running || !!why} title={why ?? (algo ? undefined : 'Pick an algorithm first')}>
 				{!compact && <Icon.foot />} Go!
 			</button>
 		);
