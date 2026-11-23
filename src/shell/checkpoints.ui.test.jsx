@@ -81,6 +81,6 @@ test('a walled-off checkpoint: red no-path with a checkpoint line', async () => 
 	act(() => fireEvent.click(screen.getByTestId('go')));
 	await flush(ref);
 	expect(screen.getByTestId('checkpoint-count').textContent).toBe('checkpoints 0/1');
-	expect(CHECKPOINT.blocked).toContain(screen.getByTestId('story-line').textContent);
+	expect(CHECKPOINT.blocked.map((l) => l.replace('{n}', '1'))).toContain(screen.getByTestId('story-line').textContent);
 	expect(screen.getByTestId('story-line').closest('.pill').getAttribute('data-outcome')).toBe('escaped');
 });

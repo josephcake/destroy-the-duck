@@ -89,15 +89,16 @@ export const SHARED: Lines = {
 	escaped: ['Quack waddled off with the bread. Fewer walls?'],
 };
 
-/** Runs through checkpoints: all ticked off and Quack found, or a checkpoint (or Quack after them) out of reach. */
+/** Runs through checkpoints: all ticked off and Quack found, or a checkpoint (or Quack after them) out of reach.
+ *  Blocked lines name the first checkpoint out of reach: {n} is its tour number. */
 export const CHECKPOINT: Record<'found' | 'blocked', string[]> = {
 	found: ['Every checkpoint ticked off, then Quack. Found!', 'All checkpoints visited. Crumbs for everyone!'],
-	blocked: ['A checkpoint is walled off. No way round it.', "Can't reach every checkpoint. Quack keeps the loaf."],
+	blocked: ['Checkpoint {n} is walled off. No way round it.', "Can't reach checkpoint {n}. Quack keeps the loaf."],
 };
 const cpTurns = { found: 0, blocked: 0 };
-/** The next checkpoint line, round-robin. */
-export function checkpointLine(kind: 'found' | 'blocked'): string {
-	return CHECKPOINT[kind][cpTurns[kind]++ % CHECKPOINT[kind].length];
+/** The next checkpoint line, round-robin; `n` fills a blocked line's {n}. */
+export function checkpointLine(kind: 'found' | 'blocked', n = 1): string {
+	return CHECKPOINT[kind][cpTurns[kind]++ % CHECKPOINT[kind].length].replace('{n}', String(n));
 }
 
 /** All the lines for an algorithm and outcome, in round-robin order. */
@@ -116,7 +117,7 @@ export function storyLine(algo: AlgoId, outcome: Outcome): string {
 /** The line for a finished run: checkpoint lines when the board has checkpoints (Quack out of reach after them: the usual escape). */
 export function traceLine(t: Trace): string {
 	const cp = t.result.checkpoints;
-	if (cp && cp.reached < cp.order.length) return checkpointLine('blocked');
+	if (cp && cp.reached < cp.order.length) return checkpointLine('blocked', cp.reached + 1);
 	if (cp && t.result.found) return checkpointLine('found');
 	return storyLine(t.algo, t.result.found ? 'found' : 'escaped');
 }
