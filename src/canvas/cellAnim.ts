@@ -8,8 +8,8 @@ export const St = {
 	None: 0,
 	Enter: 1, // phase A: frontier tick grows in
 	Hold: 2, // phase B: still frontier tick
-	Settle: 3, // phase C: tick turns into the dash
-	Done: 4, // phase D: settled dash (in `settled`)
+	Settle: 3, // phase C: the tick fades as the cell fill comes in
+	Done: 4, // phase D: settled, a soft flat fill (in `settled`)
 } as const;
 
 /** Per-speed timings in ms (spec §1). */

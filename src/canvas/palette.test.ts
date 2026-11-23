@@ -1,7 +1,7 @@
 // Paper v2.1 (style.md §2.1, §7): every contrast figure the spec gives, computed
 // with the WCAG formula. Non-text (1.4.11) >= 3:1, text (1.4.3) >= 4.5:1.
 import { PALETTES, migrateCellSet, weightColor, weightEdge, weightUnder } from './palette';
-import { FLOW_WAVE_ALPHA, PATH_DOT, VISITED_ALPHA, settleRamp, visitedAlphaOf } from './render';
+import { FLOW_WAVE_ALPHA, PATH_DOT, RECEDE_FILL_ALPHA, VISITED_FILL_ALPHA } from './render';
 
 const lum = (h: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -82,13 +82,15 @@ describe.each(Object.entries(PALETTES))('%s', (_name, p) => {
 		expect(contrast(p.grid, p.home)).toBeLessThan(1.35);
 		expect(contrast(p.grid, p.home)).toBeGreaterThan(1.05);
 	});
-	test('minimal: the visited dash (blended at VISITED_ALPHA) reads (>= 3:1, WCAG 1.4.11) but stays quieter than walls and the path', () => {
-		const dash = contrast(blend(p.visited, p.home, visitedAlphaOf(p)), p.home);
-		// every palette >= 3:1 (Mochi, qa batch): Classic Light keeps its pinned colour and
-		// draws the dash at .85 (3.23; was 2.98 at .8), still quieter than its path (3.58)
-		expect(dash).toBeGreaterThanOrEqual(3);
-		expect(dash).toBeLessThan(contrast(p.wall, p.home));
-		expect(dash).toBeLessThan(contrast(p.pathEdge ?? p.path, p.home));
+	test('no dashes (Joseph 2026-11-22): the visited fill is soft, quieter than walls, the path and the frontier, which all read over it', () => {
+		const fill = blend(p.visited, p.home, VISITED_FILL_ALPHA);
+		const soft = contrast(fill, p.home);
+		expect(soft).toBeGreaterThan(1.3); // the explored region still shows
+		expect(soft).toBeLessThan(1.6); // but it is a wash, not a mark
+		expect(soft).toBeLessThan(contrast(p.wall, p.home));
+		expect(contrast(p.frontEdge, fill)).toBeGreaterThanOrEqual(3); // a frontier tick over explored ground
+		expect(contrast(p.pathEdge ?? p.path, p.pathEdge ? fill : p.home)).toBeGreaterThanOrEqual(3); // rim on the fill; dark themes: the board-coloured halo
+		expect(RECEDE_FILL_ALPHA).toBeLessThan(VISITED_FILL_ALPHA);
 	});
 	test('minimal: the frontier tick (frontEdge) is non-text readable, >= 3:1', () => {
 		expect(contrast(p.frontEdge, p.home)).toBeGreaterThanOrEqual(3);
@@ -111,19 +113,36 @@ test('Prism review must-fix 3 (spec v2.2): the Night Paper duck edge carries 3:1
 	expect(contrast(PALETTES['paper-dark'].duckEdge, PALETTES['paper-dark'].home)).toBeGreaterThanOrEqual(3);
 });
 
-// Prism search-motion spec §2: cost bands and the settle ramp, blended over home
+// Prism search-motion spec §2: cost bands, now as soft fills
 describe.each([['Paper', P], ['Night Paper', NP]] as const)('search motion: %s', (_n, p) => {
-	test('both band tints read at .8 (>= 3:1), at the spec figures', () => {
-		expect(contrast(blend(p.visited, p.home, VISITED_ALPHA), p.home)).toBeGreaterThanOrEqual(3);
-		expect(contrast(blend(p.visitedBand, p.home, VISITED_ALPHA), p.home)).toBeGreaterThanOrEqual(3);
-		expect(contrast(blend(p.visitedBand, p.home, VISITED_ALPHA), p.home)).toBeCloseTo(p === P ? 3.85 : 4.35, 1);
+	test('both band tints show at the fill alpha, and differ from each other', () => {
+		expect(contrast(blend(p.visited, p.home, VISITED_FILL_ALPHA), p.home)).toBeGreaterThan(1.3);
+		expect(contrast(blend(p.visitedBand, p.home, VISITED_FILL_ALPHA), p.home)).toBeGreaterThan(1.3);
+		expect(p.visitedBand).not.toBe(p.visited);
 	});
-	test('every step of the settle ramp (frontEdge -> visited, alpha 1 -> .8) is >= 3:1', () => {
-		const ramp = settleRamp(p);
-		expect(ramp).toHaveLength(8);
-		const min = Math.min(...ramp.map((c, b) => contrast(blend(c, p.home, 1 - (1 - VISITED_ALPHA) * ((b + 0.5) / 8)), p.home)));
-		expect(min).toBeGreaterThanOrEqual(3);
-	});
+});
+
+// Classic Light under deuteranopia: visited (purple) and frontier (blue) both read blue, and the
+// dash-vs-tick shape no longer helps, so lightness carries it (Prism: >= .156 OKLab).
+const lin1 = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const rgbLin = (h: string) => [1, 3, 5].map((i) => lin1(parseInt(h.slice(i, i + 2), 16) / 255));
+const DEU = [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.01182, 0.04294, 0.968881]]; // Machado 2009, severity 1
+const mul = (M: number[][], v: number[]) => M.map((row) => Math.min(1, Math.max(0, row[0] * v[0] + row[1] * v[1] + row[2] * v[2])));
+const oklab = (l: number[]) => {
+	const [a, b, c] = mul([[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566], [0.0883024619, 0.2817188376, 0.6299787005]], l).map(Math.cbrt);
+	return [0.2104542553 * a + 0.793617785 * b - 0.0040720468 * c, 1.9779984951 * a - 2.428592205 * b + 0.4505937099 * c, 0.0259040371 * a + 0.7827717662 * b - 0.808675766 * c];
+};
+const deuGap = (p: typeof CL) => {
+	const fill = blend(p.visited, p.home, VISITED_FILL_ALPHA);
+	const toHex = (c: string) => (c.startsWith('#') ? c : '#' + (c.match(/\d+/g) ?? []).slice(0, 3).map((x) => (+x).toString(16).padStart(2, '0')).join(''));
+	const A = oklab(mul(DEU, rgbLin(toHex(fill)))), B = oklab(mul(DEU, rgbLin(p.frontEdge)));
+	return { dL: Math.abs(A[0] - B[0]), dE: Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]) };
+};
+test('Classic Light: under deuteranopia the visited fill and the frontier tick stay apart by lightness (>= .156)', () => {
+	const g = deuGap(CL);
+	expect(g.dL).toBeGreaterThanOrEqual(0.156);
+	expect(g.dE).toBeGreaterThanOrEqual(0.156);
+	for (const q of [P, NP, CD]) expect(deuGap(q).dL).toBeGreaterThanOrEqual(0.156);
 });
 
 // Prism one-way spec §2: the chevrons carry the cue on the board and on the .45 tile

@@ -1,6 +1,6 @@
 // Cell palettes: Prism "Paper Cutout" v2.1 colours (style.md §2.1), drawn
 // minimal since 2026-11-22 (Joseph: "turn the dots to dashes … more minimal"):
-// flat board, hairline grid, flat walls, one thin dash per visited cell.
+// flat board, hairline grid, flat walls, a soft flat fill per visited cell.
 // Classic Light/Dark keep the classic colours.
 export type Chrome = 'light' | 'dark';
 export type CellSet = 'paper' | 'classic';
@@ -30,8 +30,6 @@ export type Palette = {
 	stamp: string;
 	vis: [string, string, string]; // visited confetti tints
 	visited: string; // = vis[1], for legends and contrast checks
-	/** alpha of the settled dash (default .8); Classic Light draws at .85 so its pinned colour reaches 3:1 (3.23) and stays under the path (boundary 6.48, the rim) */
-	visitedAlpha?: number;
 	visitedBand: string; // cost band 1 (motion spec §2): every other 8 cost units, >= 3:1 at .8
 	flow: string; // one-way chevrons (one-way spec §2): >= 3:1 on home and on the .45 tile
 	front: string;
@@ -102,7 +100,7 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 		wall: '#04042C', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.28)', contact: 'rgba(0,0,0,0.30)',
 		w: ['#e8dcc0', '#d4b483', '#c08a4a'], wUnder: ['#cfc2a4', '#b8955f', '#9c6c34'], wEdge: '#8e6a2e', stamp: '#3a1a08',
-		vis: ['#7C4DA2', '#7C4DA2', '#7C4DA2'], visited: '#7C4DA2', visitedAlpha: 0.85, visitedBand: '#7C4DA2', flow: '#3b4a66',
+		vis: ['#7C4DA2', '#7C4DA2', '#7C4DA2'], visited: '#7C4DA2', visitedBand: '#7C4DA2', flow: '#3b4a66',
 		front: '#1f3fcc', frontEdge: '#1f3fcc', path: '#dda00a', pathEdge: '#5c3f00', fail: '#c23a1e',
 		pulse: { hi: '#ffffff', core: 0.8, grow: 0.5, glowA: 0, glowR: 0.27 },
 		start: '#e94c0e', arrowBack: '#f6a07e', startOutline: '#7a2406',

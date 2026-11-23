@@ -37,41 +37,42 @@ const fakeTrace = { done: false, paths: [], visited: new Map(), frontier: new Ma
 const strokesOf = (s: Scene) => {
 	const r = recorder();
 	const animating = render(r.ctx, s);
-	return { ...r.count(), animating };
+	const c = r.count();
+	return { ...c, draws: c.strokes + c.fills, animating }; // visited cells are fills now (no dashes)
 };
 
-test('every cell live (half entering, half settling) costs at most 16 strokes, and the run idles once settled', () => {
+test('every cell live (half entering, half settling) costs at most 16 draws, and the run idles once settled', () => {
 	const anim = new CellAnim();
 	anim.reset(T0);
 	const N = BOARD_ROWS * BOARD_COLS;
 	for (let i = 0; i < N; i++) anim.frontierAt(i, 0, i % 50);
 	for (let i = 0; i < N; i += 2) anim.visitAt(i, 50);
-	const base = strokesOf(scene({ trace: fakeTrace, anim: new CellAnim() })).strokes;
+	const base = strokesOf(scene({ trace: fakeTrace, anim: new CellAnim() })).draws;
 	const mid = strokesOf(scene({ trace: fakeTrace, anim, now: T0 + 100 }));
 	expect(anim.liveCount).toBeGreaterThan(1000);
-	expect(mid.strokes - base).toBeLessThanOrEqual(16 + 1); // + the frontier-hold stroke
+	expect(mid.draws - base).toBeLessThanOrEqual(16 + 1); // + the frontier-hold stroke
 	expect(mid.animating).toBe(true);
-	// all settled: the layer draws in 2 strokes, nothing is live, the frame loop may sleep
+	// all settled: the layer draws in 2 fills, nothing is live, the frame loop may sleep
 	for (let i = 1; i < N; i += 2) anim.visitAt(i, 60);
 	const done = strokesOf(scene({ trace: { ...fakeTrace!, done: true } as Scene['trace'], anim, now: T0 + 60 + MOTION.fast.settle + 1 }));
 	expect(anim.liveCount).toBe(0);
 	expect(anim.settledCount).toBe(N);
-	expect(done.strokes - base).toBeLessThanOrEqual(2);
+	expect(done.draws - base).toBeLessThanOrEqual(2);
 	expect(done.animating).toBe(false);
 });
 
-test('Prism gate ruling 1: half the board settled, half live, still costs at most 16 live + 1 frontier + 2 settled strokes', () => {
+test('Prism gate ruling 1: half the board settled, half live, still costs at most 16 live + 1 frontier + 2 settled draws', () => {
 	const anim = new CellAnim();
 	anim.reset(T0);
 	const N = BOARD_ROWS * BOARD_COLS;
 	for (let i = 0; i < N; i++) anim.frontierAt(i, 0, i % 50);
 	for (let i = 0; i < N / 2; i++) anim.visitAt(i, 0); // settled by T0 + settle
 	for (let i = N / 2; i < N; i += 2) anim.visitAt(i, MOTION.fast.settle); // settling now
-	const base = strokesOf(scene({ trace: fakeTrace, anim: new CellAnim() })).strokes;
+	const base = strokesOf(scene({ trace: fakeTrace, anim: new CellAnim() })).draws;
 	const mixed = strokesOf(scene({ trace: fakeTrace, anim, now: T0 + MOTION.fast.settle + 100 }));
 	expect(anim.settledCount).toBeGreaterThan(1000);
 	expect(anim.liveCount).toBeGreaterThan(500);
-	expect(mixed.strokes - base).toBeLessThanOrEqual(16 + 1 + 2);
+	expect(mixed.draws - base).toBeLessThanOrEqual(16 + 1 + 2);
 });
 
 test('reduced motion: cells land in their final state at once (no live strokes, no frames)', () => {
@@ -97,7 +98,7 @@ test('scrubbing more than 200 steps lands cells settled (phase D) with no animat
 test('lanes: at most 8 chevron strokes however many lanes; drifting only while the tool is active, idle when none are in view', () => {
 	const board = new Board();
 	for (let c = 0; c < 80; c++) for (const [r, d] of [[3, 1], [5, 3], [7, 0], [9, 2]] as [number, Dir][]) board.set(r, c, { kind: 'oneway', dir: d });
-	const base = strokesOf(scene({ activeAt: -1e9 })).strokes;
+	const base = strokesOf(scene({ activeAt: -1e9 })).draws;
 	const on = strokesOf(scene({ board, tool: 'oneway', activeAt: -1e9 }));
 	expect(on.strokes - base).toBeLessThanOrEqual(8);
 	expect(on.animating).toBe(true);

@@ -127,7 +127,7 @@ export function drawMarch(ctx: CanvasRenderingContext2D, items: MarchItem[], now
  * Path dots (Joseph 2026-11-22): the found path is a row of dots. They are laid in
  * Arrow -> Duck with the trace (traceMs, same easing) as light rings, fill in solid
  * when the trace lands, then a soft pulse keeps travelling Arrow -> Duck over them so
- * the direction reads. Visited cells stay dashes. The pulse is cheap: at most ~30 fps
+ * the direction reads. Visited cells are a soft flat fill. The pulse is cheap: at most ~30 fps
  * (frameHint.minGap), only the path box redrawn (overlay), none while hidden.
  */
 export const PATH_DOT = {
@@ -313,7 +313,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	}
 	const legs = motion ? scheduleLegs(legsIn, t0) : [];
 	const traceEnd = legs.length ? Math.max(...legs.map((l) => l.start + l.dur)) + NEEDLE_RETRACT + DURATION.tug : -Infinity;
-	const VA = visitedAlphaOf(p), RA = VA * (RECEDE_ALPHA / VISITED_ALPHA);
+	const VA = VISITED_FILL_ALPHA, RA = RECEDE_FILL_ALPHA;
 	let visA = VA;
 	if (legs.length) {
 		const el = scene.now - t0;
@@ -325,8 +325,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 		}
 	}
 
-	// search motion (motion spec §1, §6): settled dashes from a cached layer, then
-	// only the live cells (tick enters, tick turns into the dash), then the still frontier
+	// search motion (motion spec §1, §6): settled cells (a soft flat fill) from a cached layer,
+	// then only the live cells (tick enters, then fades as the cell's fill comes in), then the still frontier
 	const anims: CellAnim[] = [];
 	if (m.visitedCount > 0 && !m.free) anims.push(m.anim);
 	if (tr) anims.push(scene.anim);
@@ -639,27 +639,22 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 }
 
 // ------------------------------------------------------------------ search motion (Prism motion spec §1, §2, §6)
-/** The settled dash is drawn at this alpha over the board (palette.test checks its blended contrast). */
-export const VISITED_ALPHA = 0.8;
-/** While a path traces, settled dashes recede to this alpha so the thread is the subject (§3). */
-export const RECEDE_ALPHA = 0.6;
-/** The palette's settled-dash alpha: .8, or the palette's own (Classic Light .85: its pinned colour reaches 3:1). */
-export const visitedAlphaOf = (p: Palette) => p.visitedAlpha ?? VISITED_ALPHA;
-const EASE_SETTLE = bezier(0.4, 0, 0.2, 1);
+/**
+ * Visited cells are a soft flat fill in the palette's visited colour, no stroke (Joseph 2026-11-22:
+ * "get rid of all dashes"). Soft on purpose: about 1.4:1 on the board, so the gold path and the blue
+ * frontier ticks stay the subjects. Classic Light keeps its visited/frontier lightness gap well over
+ * Prism's .156 (palette.test).
+ */
+export const VISITED_FILL_ALPHA = 0.26;
+/** While a path traces, the visited fill recedes to this alpha so the path is the subject (§3). */
+export const RECEDE_FILL_ALPHA = 0.2;
 const ENTER_BUCKETS = 4;
-const SETTLE_BUCKETS = 8;
+const FILL_BUCKETS = 4;
 /** Cost bands: fixed 8-unit iso-cost contours (§2). */
 export const bandOf = (g: number) => (Number.isFinite(g) && Math.floor(g / 8) % 2 === 1 ? 1 : 0);
 const lineW = (s: number) => Math.max(1.5, 0.1 * s);
-/** The settle ramp: SETTLE_BUCKETS steps from frontEdge to visited (§2 table). */
-export function settleRamp(p: Palette): string[] {
-	const x = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
-	const mixHex = (a: string, b: string, k: number) => '#' + [0, 1, 2].map((i) => Math.round(x(a, i) + (x(b, i) - x(a, i)) * k).toString(16).padStart(2, '0')).join('');
-	return Array.from({ length: SETTLE_BUCKETS }, (_, b) => mixHex(p.frontEdge, p.visited, (b + 0.5) / SETTLE_BUCKETS));
-}
-const rampCache = new WeakMap<Palette, string[]>();
 
-/** Settled dashes as two appendable paths in cell units (band 0, band 1); one per CellAnim. */
+/** Settled cells as two appendable paths of unit squares in cell units (band 0, band 1); one per CellAnim. */
 const settledCache = new WeakMap<CellAnim, { epoch: number; n: number; p: [Path2D, Path2D] }>();
 function settledPaths(anim: CellAnim, board: Board) {
 	let c = settledCache.get(anim);
@@ -668,19 +663,15 @@ function settledPaths(anim: CellAnim, board: Board) {
 		const i = anim.settled[c.n];
 		if (board.laneDir[i] >= 0) continue; // a lane shows "explored" with its tile tint (one-way spec §4)
 		const r = (i / anim.cols) | 0, col = i - r * anim.cols;
-		const path = c.p[bandOf(anim.g[i])];
-		path.moveTo(col + 0.3, r + 0.5);
-		path.lineTo(col + 0.7, r + 0.5);
+		c.p[bandOf(anim.g[i])].rect(col, r, 1, 1);
 	}
 	return c.p;
 }
 
 /**
- * Phase D: every settled dash, two strokes, no per-frame walk. The dashes are
- * appended to a cached path in cell units as cells settle and stroked through
- * the view transform. This stands in for the spec's per-chunk bitmaps: the
- * board is bounded at 35 x 80 (2,800 cells), and the measured stroke cost is
- * well under the 4 ms budget (PLAN.md §12).
+ * Phase D: every settled cell, two fills, no per-frame walk. The squares are appended to a
+ * cached path in cell units as cells settle and filled through the view transform (the board
+ * is bounded at 35 x 80, 2,800 cells).
  */
 function drawVisitedLayer(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, s: number, alpha: number, bands: boolean) {
 	if (!anim.settledCount) return;
@@ -688,27 +679,26 @@ function drawVisitedLayer(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: 
 	const [b0, b1] = settledPaths(anim, scene.board);
 	ctx.save();
 	ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * view.panX, dpr * view.panY);
-	ctx.lineCap = 'round';
-	ctx.lineWidth = lineW(s) / s;
 	ctx.globalAlpha = alpha;
-	ctx.strokeStyle = p.visited;
-	ctx.stroke(b0);
-	ctx.strokeStyle = bands ? p.visitedBand : p.visited;
-	ctx.stroke(b1);
+	ctx.fillStyle = p.visited;
+	ctx.fill(b0);
+	ctx.fillStyle = bands ? p.visitedBand : p.visited;
+	ctx.fill(b1);
 	ctx.restore();
 }
 
 /**
- * Phases A and C: walk only the live cells, into at most 4 enter buckets (+4
- * glow) and 8 settle buckets, so at most 16 strokes. Lane cells are skipped
- * (the lane renderer draws them). Returns true while any cell is live.
+ * Phases A and C: walk only the live cells, into at most 4 enter buckets (+4 glow) and
+ * 4 settle buckets (the tick fading out, the fill fading in), so at most 16 draws. Lane
+ * cells are skipped (the lane renderer draws them). Returns true while any cell is live.
  */
 export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, scene: Scene, vb: Bounds, s: number, t: number, T: Timing) {
 	if (!anim.liveCount) return false;
 	const { view, palette: p, board } = scene;
 	const enter: (Path2D | null)[] = Array(ENTER_BUCKETS).fill(null);
 	const glow: (Path2D | null)[] = Array(ENTER_BUCKETS).fill(null);
-	const settle: (Path2D | null)[] = Array(SETTLE_BUCKETS).fill(null);
+	const fade: (Path2D | null)[] = Array(FILL_BUCKETS).fill(null);
+	const fill: (Path2D | null)[] = Array(FILL_BUCKETS).fill(null);
 	const L = 0.4 * s;
 	for (let k = 0; k < anim.liveCount; k++) {
 		const i = anim.live[k];
@@ -726,16 +716,13 @@ export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, sce
 			g.moveTo(cx, cy - h);
 			g.lineTo(cx, cy + h);
 		} else {
-			const b = Math.min(SETTLE_BUCKETS - 1, Math.floor(EASE_SETTLE(u) * SETTLE_BUCKETS));
-			const th = (1 - (b + 0.5) / SETTLE_BUCKETS) * (Math.PI / 2); // vertical tick -> horizontal dash
-			const dx = (L / 2) * Math.cos(th), dy = (L / 2) * Math.sin(th);
-			const m = (settle[b] ??= new Path2D());
-			m.moveTo(cx - dx, cy - dy);
-			m.lineTo(cx + dx, cy + dy);
+			const b = Math.min(FILL_BUCKETS - 1, Math.floor(EASE.out(u) * FILL_BUCKETS));
+			const m = (fade[b] ??= new Path2D());
+			m.moveTo(cx, cy - L / 2);
+			m.lineTo(cx, cy + L / 2);
+			(fill[b] ??= new Path2D()).rect(view.panX + c * s, view.panY + r * s, s, s);
 		}
 	}
-	let ramp = rampCache.get(p);
-	if (!ramp) rampCache.set(p, (ramp = settleRamp(p)));
 	ctx.save();
 	ctx.lineCap = 'round';
 	const w = lineW(s);
@@ -755,12 +742,18 @@ export function drawLiveCells(ctx: CanvasRenderingContext2D, anim: CellAnim, sce
 		}
 	}
 	ctx.lineWidth = w;
-	for (let b = 0; b < SETTLE_BUCKETS; b++) {
-		if (!settle[b]) continue;
-		const k = (b + 0.5) / SETTLE_BUCKETS;
-		ctx.globalAlpha = 1 - (1 - visitedAlphaOf(p)) * k;
-		ctx.strokeStyle = ramp[b];
-		ctx.stroke(settle[b]!);
+	ctx.strokeStyle = p.frontEdge;
+	ctx.fillStyle = p.visited;
+	for (let b = 0; b < FILL_BUCKETS; b++) {
+		const k = (b + 0.5) / FILL_BUCKETS;
+		if (fill[b]) {
+			ctx.globalAlpha = VISITED_FILL_ALPHA * k;
+			ctx.fill(fill[b]!);
+		}
+		if (fade[b]) {
+			ctx.globalAlpha = 1 - k;
+			ctx.stroke(fade[b]!);
+		}
 	}
 	ctx.restore();
 	return true;
@@ -1398,14 +1391,10 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, kind: SwatchKind, p: P
 			return;
 		}
 		case 'visited':
-			ctx.strokeStyle = p.visited;
-			ctx.globalAlpha = visitedAlphaOf(p);
-			ctx.lineWidth = 1.6;
-			ctx.lineCap = 'round';
-			ctx.beginPath();
-			ctx.moveTo(Z / 2 - 4, Z / 2);
-			ctx.lineTo(Z / 2 + 4, Z / 2);
-			ctx.stroke();
+			// a soft flat square, as on the board (no dash)
+			ctx.fillStyle = p.visited;
+			ctx.globalAlpha = VISITED_FILL_ALPHA;
+			ctx.fillRect(Z / 2 - 6, Z / 2 - 6, 12, 12);
 			ctx.globalAlpha = 1;
 			return;
 		case 'frontier':
