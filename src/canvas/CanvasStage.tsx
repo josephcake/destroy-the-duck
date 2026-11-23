@@ -216,7 +216,11 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		} else return;
 		const { w, h } = size.current;
 		const ins = live.current.insets;
-		if (!w || ends.every((d) => cellInView(view.current, w, h, ins, d.r, d.c))) return;
+		if (!w) return;
+		// phone portrait: the whole board is a thin strip, so a finished run also
+		// zooms in to its route (+2 cells) when that gains real size (Prism gate nit)
+		const portrait = w < 600 && h > w;
+		if (!portrait && ends.every((d) => cellInView(view.current, w, h, ins, d.r, d.c))) return;
 		let r0 = Infinity, c0 = Infinity, r1 = -Infinity, c1 = -Infinity;
 		for (const q of cells) {
 			r0 = Math.min(r0, q.r);
@@ -225,7 +229,13 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			c1 = Math.max(c1, q.c);
 		}
 		const fz = fitZoom(BOARD, w, h, ins);
-		const to = frame({ r0: r0 - 2, c0: c0 - 2, r1: r1 + 2, c1: c1 + 2 }, w, h, ins, Math.max(fz, view.current.zoom), fz);
+		const box = { r0: r0 - 2, c0: c0 - 2, r1: r1 + 2, c1: c1 + 2 };
+		let to = frame(box, w, h, ins, Math.max(fz, view.current.zoom), fz);
+		if (portrait) {
+			const near = frame(box, w, h, ins, Math.max(1, view.current.zoom), fz);
+			if (near.zoom > view.current.zoom * 1.15) to = near;
+			else if (ends.every((d) => cellInView(view.current, w, h, ins, d.r, d.c))) return;
+		}
 		const rm = s.reducedMotion;
 		hold(rm ? 0 : DURATION.flight);
 		autoFrame.current = null;
