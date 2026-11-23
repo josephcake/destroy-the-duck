@@ -12,10 +12,8 @@ export type Palette = {
 	home: string; // the Home sheet (board)
 	grid: string; // crisp grid (Classic) / table grid
 	outerGrid: string; // grid lines outside Home
-	/** grid dash pattern in cells ([on, off]), or null for solid hairlines */
-	gridDash: number[] | null;
 	sheetShadow: string;
-	homeLine: string; // dashed Home outline (Classic only)
+	homeLine: string; // Home outline (Classic only)
 	label: string; // HOME label
 	ink: string;
 	wall: string; // top ply
@@ -61,7 +59,6 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'paper-light': {
 		name: 'Paper', classic: false,
 		paper: '#e6dbc4', home: '#f8f3e6', grid: '#e4d9c3', outerGrid: '#ddd0b4',
-		gridDash: null,
 		sheetShadow: 'rgba(92,66,28,0.22)', homeLine: '#7d6f57', label: '#4f4536', ink: '#2b2620',
 		wall: '#2f3b5e', cut: '#8c9bc4', cutTL: '#b3c0e2',
 		shadow: 'rgba(84,58,22,0.30)', contact: 'rgba(84,58,22,0.38)',
@@ -78,7 +75,6 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'paper-dark': {
 		name: 'Night Paper', classic: false,
 		paper: '#10172d', home: '#1c2648', grid: '#2b3866', outerGrid: '#1a2240',
-		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.45)', homeLine: '#8b94b8', label: '#c9cfe6', ink: '#f3ecdc',
 		wall: '#dccaa2', cut: '#fff4d8', cutTL: '#fffaf0',
 		shadow: 'rgba(2,5,16,0.55)', contact: 'rgba(2,5,16,0.60)',
@@ -95,7 +91,6 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'classic-light': {
 		name: 'Classic Light', classic: true,
 		paper: '#f6f4ee', home: '#D3D3D3', grid: '#bdbdbd', outerGrid: '#ebe7dc',
-		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.18)', homeLine: '#5e5a50', label: '#3a4152', ink: '#1c2230',
 		wall: '#04042C', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.28)', contact: 'rgba(0,0,0,0.30)',
@@ -112,7 +107,6 @@ export const PALETTES: Record<`${CellSet}-${Chrome}`, Palette> = {
 	'classic-dark': {
 		name: 'Classic Dark', classic: true,
 		paper: '#141418', home: '#24242a', grid: '#34343c', outerGrid: '#1c1c22',
-		gridDash: null,
 		sheetShadow: 'rgba(0,0,0,0.5)', homeLine: '#9a9cb4', label: '#c9cbe3', ink: '#eef1f6',
 		wall: '#c9cbe3', cut: '#ffffff', cutTL: '#ffffff',
 		shadow: 'rgba(0,0,0,0.55)', contact: 'rgba(0,0,0,0.60)',

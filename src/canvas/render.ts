@@ -569,13 +569,12 @@ function drawDots(ctx: CanvasRenderingContext2D, dots: { x: number; y: number; u
 
 // ------------------------------------------------------------------ grid
 type Pt = { x: number; y: number };
-/** One quiet grid everywhere: hairlines (1 device px) in the grid colour, dashed when the palette says so. */
+/** One quiet grid everywhere: solid hairlines (1 device px) in the grid colour. */
 function drawGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<typeof visibleBounds>, s: number, p: Palette, dpr: number, ga: number) {
 	ctx.save();
 	ctx.lineWidth = 1 / dpr;
 	ctx.globalAlpha = ga;
 	ctx.strokeStyle = p.grid;
-	if (p.gridDash) ctx.setLineDash(p.gridDash.map((d) => d * s));
 	ctx.beginPath();
 	for (let c = vb.c0; c <= vb.c1 + 1; c++) {
 		const x = Math.round((view.panX + c * s) * dpr) / dpr + 0.5 / dpr;
