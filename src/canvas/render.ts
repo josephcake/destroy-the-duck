@@ -284,7 +284,7 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 	ctx.strokeRect(Math.round(bx * dpr) / dpr - 0.5, Math.round(by * dpr) / dpr - 0.5, Math.round(bw * dpr) / dpr + 1, Math.round(bh * dpr) / dpr + 1);
 	ctx.restore();
 
-	// §4.2 weights: piles of sheets (Paper), merged flat sheets (Classic)
+	// §4.2 weights, now checkpoints (engine/checkpoints.ts): one sheet colour for all, numbered once a run plans the order
 	drawWeights(ctx, scene, vb, s, dpr);
 
 	// §4.1 walls: 2-ply card from per-chunk cached bitmaps (walls.ts)
@@ -451,6 +451,8 @@ export function render(ctx: CanvasRenderingContext2D, scene: Scene): boolean {
 
 	// Pair letters sit above paths (a jump starts and ends on a pad)
 	for (const t of padLabels) drawPadLetter(ctx, t.x, t.y, t.s, t.label, t.color, p, dpr);
+	// checkpoint visit numbers too
+	drawCheckpointBadges(ctx, scene, vb, s);
 
 	// Learn: ring the node the current event is about
 	if (tr && scene.learnCurrent && tr.current) {
@@ -589,7 +591,40 @@ function drawGrid(ctx: CanvasRenderingContext2D, view: View, vb: ReturnType<type
 	ctx.restore();
 }
 
-// ------------------------------------------------------------------ weights
+// ------------------------------------------------------------------ weights (checkpoints)
+/** The cost tier whose sheet colours every checkpoint uses. */
+const CHECKPOINT_LOOK = 5;
+
+/** Visit numbers on the checkpoints, from the run's planned order: a round ink badge, centred, above the path. */
+function drawCheckpointBadges(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType<typeof visibleBounds>, s: number) {
+	const order = scene.trace?.trace.result.checkpoints?.order;
+	if (!order?.length) return;
+	const { view, palette: p } = scene;
+	const r = Math.max(6.5, Math.min(14, 0.36 * s));
+	ctx.save();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	order.forEach((id, i) => {
+		const q = parseId(id);
+		if (q.r < vb.r0 || q.r > vb.r1 || q.c < vb.c0 || q.c > vb.c1) return;
+		if (scene.board.get(q.r, q.c)?.kind !== 'weight') return; // erased since the run
+		const { x, y } = cellToScreen(view, q.r, q.c);
+		const label = String(i + 1);
+		const w = label.length > 1 ? r * 1.35 : r;
+		ctx.beginPath();
+		ctx.roundRect(x + s / 2 - w, y + s / 2 - r, 2 * w, 2 * r, r);
+		ctx.fillStyle = p.ink;
+		ctx.fill();
+		ctx.lineWidth = 1.25;
+		ctx.strokeStyle = p.home;
+		ctx.stroke();
+		ctx.fillStyle = p.home;
+		ctx.font = `800 ${Math.round(r * 1.2)}px Figtree, system-ui, sans-serif`;
+		ctx.fillText(label, x + s / 2, y + s / 2 + 0.5);
+	});
+	ctx.restore();
+}
+
 function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType<typeof visibleBounds>, s: number, dpr: number) {
 	const { view, palette: p } = scene;
 	const byChunk = new Map<string, { cr: number; cc: number; cells: [number, number, Weight][] }>();
@@ -599,19 +634,17 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 		(byChunk.get(k) ?? byChunk.set(k, { cr, cc, cells: [] }).get(k)!).cells.push([r, c, t.cost]);
 	}
 	if (!byChunk.size) return;
-	const same = (cost: number) => (r: number, c: number) => {
+	// every weight tile is a checkpoint, whatever cost an old board gave it: one look (the cost-5 sheet)
+	const same = () => (r: number, c: number) => {
 		const t = scene.board.get(r, c);
-		return !!t && t.kind === 'weight' && t.cost === cost && !isWallAt(scene, r, c);
+		return !!t && t.kind === 'weight' && !isWallAt(scene, r, c);
 	};
 	// paint one chunk's weights with (ox, oy) = screen position of cell (cr*16, cc*16)
 	const paint = (c2: Ctx2D, cr: number, cc: number, cells: [number, number, Weight][], ox: number, oy: number) => {
 		const at = (r: number, c: number) => ({ x: ox + (c - cc * CHUNK) * s, y: oy + (r - cr * CHUNK) * s });
-		// flat merged sheets (66c97df's same-cost union), cost on each cell
-		for (const cost of [2, 5, 10] as Weight[]) {
-			const refs: CellRef[] = cells.filter(([, , w]) => w === cost).map(([r, c]) => ({ ...at(r, c), r, c, mask: maskAt(same(cost), r, c) }));
-			if (!refs.length) continue;
-			paperStack(c2 as CanvasRenderingContext2D, refs, s, { layers: 1, top: weightColor(p, cost), under: weightUnder(p, cost), edge: p.wEdge, radius: s < 6 ? 0 : 0.1 * s, inset: 0.06 * s, dpr, label: { text: String(cost), color: p.stamp, font: `700 ${Math.round(0.34 * s)}px "DM Mono", monospace` } });
-		}
+		// flat merged sheets (66c97df's union); no cost label: the visit number is a badge (drawCheckpointBadges)
+		const refs: CellRef[] = cells.map(([r, c]) => ({ ...at(r, c), r, c, mask: maskAt(same(), r, c) }));
+		paperStack(c2 as CanvasRenderingContext2D, refs, s, { layers: 1, top: weightColor(p, CHECKPOINT_LOOK), under: weightUnder(p, CHECKPOINT_LOOK), edge: p.wEdge, radius: s < 6 ? 0 : 0.1 * s, inset: 0.06 * s, dpr });
 	};
 	const tile = CHUNK * s, pad = Math.ceil(0.3 * s) + 8;
 	for (const { cr, cc, cells } of byChunk.values()) {
@@ -621,9 +654,9 @@ function drawWeights(ctx: CanvasRenderingContext2D, scene: Scene, vb: ReturnType
 			continue;
 		}
 		let sig = 2166136261;
-		for (const [r, c, w] of cells) sig = Math.imul(sig ^ (r * 4099 + c * 7 + w), 16777619);
+		for (const [r, c] of cells) sig = Math.imul(sig ^ (r * 4099 + c * 7), 16777619);
 		// sheets merge across chunk edges, so the signature includes the neighbour masks
-		for (const [r, c, w] of cells) sig = Math.imul(sig ^ maskAt(same(w), r, c), 16777619);
+		for (const [r, c] of cells) sig = Math.imul(sig ^ maskAt(same(), r, c), 16777619);
 		const img = cached(`w|${p.name}|${s}|${dpr}|${cr},${cc}|${sig}|${cells.length}`, () => {
 			const L = mkLayer((tile + 2 * pad) * dpr, (tile + 2 * pad) * dpr);
 			if (!L) return null;
