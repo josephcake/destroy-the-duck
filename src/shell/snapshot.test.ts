@@ -14,28 +14,31 @@ function mirrorWith(walls: number[]) {
 	return { kind, start, end };
 }
 
-test('table walls come from the classic grid, weights from the Board', () => {
+test('table walls come from the classic grid, checkpoints (weight tiles) from the Board', () => {
 	const board = new Board();
+	board.set(20, 3, { kind: 'weight', cost: 10 });
 	board.set(17, 16, { kind: 'weight', cost: 5 });
 	board.set(17, 17, { kind: 'weight', cost: 5 }); // under a classic wall: dropped
 	const snap = buildSnapshot(board, mirrorWith([17 * 80 + 17]));
 	expect(snap.walls).toContain(keyOf(17, 17));
-	expect(snap.weights).toEqual([[keyOf(17, 16), 5]]);
+	// weights are checkpoints: no step costs, keys in reading order
+	expect(snap.weights).toEqual([]);
+	expect(snap.checkpoints).toEqual([keyOf(17, 16), keyOf(20, 3)]);
+	expect(buildSnapshot(new Board(), mirrorWith([])).checkpoints).toBeUndefined();
 	expect(snap.start).toEqual({ r: 17, c: 15 });
 	expect(snap.goals).toEqual([{ r: 17, c: 64 }]);
 	// the search box is the whole bounded board (model/bounds.ts)
 	expect(snap.bounds).toEqual({ r0: 0, c0: 0, r1: 34, c1: 79 });
 });
 
-test('weighted runs on the default board: detour vs wading (hand-computed)', () => {
-	// Straight line 17-15 -> 17-64 costs 49. Wading one water cell costs +9.
-	const short = new Board(); // water rows 14-20: around = 4 up + 4 down = +8
-	for (let r = 14; r <= 20; r++) short.set(r, 40, { kind: 'weight', cost: 10 });
-	const tall = new Board(); // water rows 10-24: around = +16, so wade (+9)
-	for (let r = 10; r <= 24; r++) tall.set(r, 40, { kind: 'weight', cost: 10 });
-	for (const algo of ['astar', 'dijkstraW'] as const) {
-		expect(runSearch(algo, buildSnapshot(short, mirrorWith([]))).result.pathCost).toBe(57);
-		expect(runSearch(algo, buildSnapshot(tall, mirrorWith([]))).result.pathCost).toBe(58);
+test('a checkpoint run on the default board (hand-computed)', () => {
+	// 17-15 -> 5-40 is 12 + 25 = 37; 5-40 -> 17-64 is 12 + 24 = 36; whatever the tile's old cost
+	const board = new Board();
+	board.set(5, 40, { kind: 'weight', cost: 10 });
+	for (const algo of ['astar', 'dijkstraW', 'jps4'] as const) {
+		const t = runSearch(algo, buildSnapshot(board, mirrorWith([])));
+		expect(t.result.pathCost).toBe(73);
+		expect(t.result.checkpoints).toEqual({ order: ['5-40'], method: 'exact', reached: 1 });
 	}
 });
 

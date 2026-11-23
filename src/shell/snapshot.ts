@@ -61,7 +61,7 @@ export function buildSnapshot(board: Board, mirror: MirrorView, opts: BuildOpts 
 			const q = windowCell(o, i);
 			walls.push(keyOf(q.r, q.c));
 		}
-	const weights: [number, number][] = [];
+	const checkpoints: number[] = [];
 	const oneWay: [number, Dir][] = [];
 	const padsBy = new Map<number, number[]>();
 	const ducks: { n: number; cell: Cell }[] = [];
@@ -78,7 +78,7 @@ export function buildSnapshot(board: Board, mirror: MirrorView, opts: BuildOpts 
 			continue;
 		}
 		if (tableWall(r, c) || isEndpoint(r, c)) continue;
-		if (t.kind === 'weight') weights.push([keyOf(r, c), t.cost]);
+		if (t.kind === 'weight') checkpoints.push(keyOf(r, c));
 		else if (t.kind === 'oneway') oneWay.push([keyOf(r, c), t.dir]);
 		else if (t.kind === 'pad') padsBy.set(t.pair, [...(padsBy.get(t.pair) ?? []), keyOf(r, c)]);
 		else if (t.kind === 'duck') ducks.push({ n: t.n, cell: { r, c } });
@@ -89,7 +89,10 @@ export function buildSnapshot(board: Board, mirror: MirrorView, opts: BuildOpts 
 	return {
 		bounds: searchBounds(board, mirror),
 		walls,
-		weights,
+		// Weights are checkpoints (Joseph, 2026-11-22): every step costs 1 and the route visits each
+		// weight tile before Quack (engine/checkpoints.ts). The tile's old cost is kept but unused.
+		weights: [],
+		...(checkpoints.length ? { checkpoints: checkpoints.sort((a, b) => a - b) } : {}),
 		...(oneWay.length ? { oneWay } : {}),
 		...(pads.length ? { pads } : {}),
 		start: ends.start ?? windowCell(o, -1),
