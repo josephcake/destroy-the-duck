@@ -18,6 +18,19 @@ import { CellAnim, Speed } from './cellAnim';
 import { LaneDrag, laneEnd, laneMove, laneStart, turn } from './laneDrag';
 import { CELL } from './view';
 
+/**
+ * Touch rule (Joseph, 2026-11-22: drawing must not fight pan or zoom):
+ * - one finger draws with a draw tool (Wall, Checkpoint, Erase, …);
+ * - two fingers pan and pinch-zoom, whatever the tool;
+ * - the Pan tool makes one finger pan;
+ * - if the second finger lands within TOUCH_GRACE_MS of the first, the first finger's
+ *   stroke is taken back (it was the start of a pinch, not a drawing); later than that,
+ *   the stroke stays and the two fingers pan/zoom from there;
+ * - lifting one finger of a pinch doesn't start drawing: the gesture ends until all lift.
+ */
+export const TOUCH_GRACE_MS = 250;
+const graceOn = (t0?: number) => t0 !== undefined && performance.now() - t0 < TOUCH_GRACE_MS;
+
 export type Tool = 'wall' | 'weight' | 'oneway' | 'pad' | 'duck' | 'erase' | 'pan';
 /** Tools that place one node per click (no drag painting). */
 const CLICK_TOOLS = new Set<Tool>(['pad', 'duck']);
@@ -80,8 +93,8 @@ type Props = {
 type Gesture =
 	| { mode: 'none' }
 	| { mode: 'pan'; x: number; y: number }
-	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: 'start' | 'end' | null; ghost?: { r: number; c: number } | null; undo?: () => void }
-	| { mode: 'paint'; last: { r: number; c: number }; undo?: () => void }
+	| { mode: 'legacy'; pointerType: string; last: { r: number; c: number }; endpoint: 'start' | 'end' | null; ghost?: { r: number; c: number } | null; undo?: (() => void)[]; t0?: number }
+	| { mode: 'paint'; last: { r: number; c: number }; undo?: (() => void)[]; t0?: number }
 	| { mode: 'lane'; drag: LaneDrag; touched: Map<string, Tile | undefined>; shift: boolean }
 	| { mode: 'pinch'; dist: number; mx: number; my: number };
 
@@ -566,7 +579,7 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// end a table drag first, or the table stays in its building/dragging state
 			const g0 = gesture.current;
 			// a second finger within the first cell means "pan/zoom", not "draw": take the first cell back
-			if ((g0.mode === 'legacy' || g0.mode === 'paint') && g0.undo) g0.undo();
+			if ((g0.mode === 'legacy' || g0.mode === 'paint') && g0.undo && graceOn(g0.t0)) for (const u of [...g0.undo].reverse()) u();
 			if (g0.mode === 'lane') restoreLane(g0);
 			if (g0.mode === 'legacy') legacy.up();
 			clearGhost();
@@ -616,8 +629,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// plain click paints one wall.
 			flushSync(() => legacy.down(id));
 			if (!endpoint && tool === 'wall') legacy.paintWall(id);
-			const undo = !endpoint && tool === 'wall' && k !== K.Wall && e.pointerType !== 'mouse' ? () => legacy.eraseWall(id) : undefined;
-			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint, undo };
+			const undo = !endpoint && tool === 'wall' && e.pointerType !== 'mouse' ? (k !== K.Wall ? [() => legacy.eraseWall(id)] : []) : undefined;
+			gesture.current = { mode: 'legacy', pointerType: e.pointerType, last: cell, endpoint, undo, t0: performance.now() };
 			return;
 		}
 		if (tool === 'oneway') {
@@ -628,8 +641,8 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 		}
 		const prev = scene.current.board.get(cell.r, cell.c);
 		paintCell(cell.r, cell.c);
-		const undo = e.pointerType !== 'mouse' ? () => void scene.current.board.set(cell.r, cell.c, prev) : undefined;
-		gesture.current = { mode: 'paint', last: cell, undo };
+		const undo = e.pointerType !== 'mouse' ? [() => void scene.current.board.set(cell.r, cell.c, prev)] : undefined;
+		gesture.current = { mode: 'paint', last: cell, undo, t0: performance.now() };
 	};
 
 	const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -658,17 +671,26 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			// mouseover per cell, so replay every cell along the line.
 			if (cell.r !== g.last.r || cell.c !== g.last.c) {
 				const m = live.current.scene.current.mirror;
+				const board = live.current.scene.current.board;
+				const keep = g.undo && graceOn(g.t0) ? g.undo : undefined; // touch: still undoable if a second finger comes soon
 				for (const q of line(g.last, cell)) {
 					const act = legacyDragAction(!!g.endpoint, live.current.tool, m.inWindow(q.r, q.c));
 					if (act === 'legacy' && g.endpoint) legacy.move(m.idAt(q.r, q.c));
-					else if (act === 'legacy') legacy.paintWall(m.idAt(q.r, q.c));
-					else if (act === 'paint') paintCell(q.r, q.c);
+					else if (act === 'legacy') {
+						const id = m.idAt(q.r, q.c);
+						if (keep && m.at(q.r, q.c) !== K.Wall) keep.push(() => legacy.eraseWall(id));
+						legacy.paintWall(id);
+					} else if (act === 'paint') {
+						const prev = board.get(q.r, q.c);
+						keep?.push(() => void board.set(q.r, q.c, prev));
+						paintCell(q.r, q.c);
+					}
 				}
 				// past the window the table can't follow: show a ghost, place it on drop
 				const ghost = g.endpoint && !m.inWindow(cell.r, cell.c) ? cell : null;
 				live.current.scene.current.ghost = ghost && g.endpoint ? { kind: g.endpoint, ...ghost } : null;
 				dirty.current = true;
-				gesture.current = { ...g, last: cell, ghost, undo: undefined };
+				gesture.current = { ...g, last: cell, ghost, undo: keep };
 			}
 		} else if (g.mode === 'lane') {
 			const w = world(p);
@@ -682,8 +704,14 @@ export const CanvasStage = forwardRef<StageApi, Props>(function CanvasStage(prop
 			}
 		} else if (g.mode === 'paint') {
 			if ((cell.r !== g.last.r || cell.c !== g.last.c) && !CLICK_TOOLS.has(live.current.tool)) {
-				for (const q of line(g.last, cell)) paintCell(q.r, q.c);
-				gesture.current = { mode: 'paint', last: cell, undo: undefined };
+				const board = live.current.scene.current.board;
+				const keep = g.undo && graceOn(g.t0) ? g.undo : undefined; // touch: still undoable if a second finger comes soon
+				for (const q of line(g.last, cell)) {
+					const prev = board.get(q.r, q.c);
+					keep?.push(() => void board.set(q.r, q.c, prev));
+					paintCell(q.r, q.c);
+				}
+				gesture.current = { mode: 'paint', last: cell, undo: keep, t0: g.t0 };
 			}
 		}
 	};
