@@ -22,7 +22,7 @@ const P = PALETTES['paper-light'], NP = PALETTES['paper-dark'], CL = PALETTES['c
 // [what, fg, bg, the spec's figure]
 const SPEC: [string, string, string, number][] = [
 	['Paper wall', P.wall, P.home, 9.93], ['Night wall', NP.wall, NP.home, 9.16], ['Classic Light wall', CL.wall, CL.home, 13.25], ['Classic Dark wall', CD.wall, CD.home, 9.65],
-	['Paper wEdge', P.wEdge, P.home, 4.23], ['Night wEdge', NP.wEdge, NP.home, 5.85], ['Classic Light wEdge', CL.wEdge, CL.home, 3.3], ['Classic Dark wEdge', CD.wEdge, CD.home, 11.89],
+	['Paper wEdge', P.wEdge, P.home, 5.2], ['Night wEdge', NP.wEdge, NP.home, 5.85], ['Classic Light wEdge', CL.wEdge, CL.home, 5.01], ['Classic Dark wEdge', CD.wEdge, CD.home, 11.89], // wEdge darkened per the checkpoints gate (was 4.23 / 3.3)
 	['Paper stamp on w10', P.stamp, P.w[2], 5.6], ['Paper stamp on w2', P.stamp, P.w[0], 9.0], ['Paper stamp on w>=20', P.stamp, P.w[3], 4.9],
 	['Night stamp on w10', NP.stamp, NP.w[2], 5.1], ['Night stamp on w2', NP.stamp, NP.w[0], 7.9], ['Night stamp on w>=20', NP.stamp, NP.w[3], 5.81],
 	['Classic Light stamp on w10', CL.stamp, CL.w[2], 5.2], ['Classic Light stamp on w2', CL.stamp, CL.w[0], 11.6],
