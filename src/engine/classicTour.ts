@@ -16,7 +16,8 @@ export type TourJob = WideJob & { checkpoints: string[] };
 
 const UNVISITED = 'light_unvisited';
 
-export function runClassicTour(job: TourJob): WideResult {
+/** `leg` runs one segment: runWide in a worker or Node, runWideOnPage on the main thread (classicPage.ts). */
+export function runClassicTour(job: TourJob, leg: (job: WideJob) => WideResult = runWide): WideResult {
 	const rows = job.classes.length / job.cols;
 	const local = (id: string) => parseId(id);
 	const world = (q: Cell) => idOf(q.r + job.origin.r, q.c + job.origin.c);
@@ -43,7 +44,7 @@ export function runClassicTour(job: TourJob): WideResult {
 		const classes = base.slice();
 		classes[from.r * job.cols + from.c] = 'light_starting';
 		classes[to.r * job.cols + to.c] = 'light_ending';
-		const res = runWide({ ...job, classes, starting: idOf(from.r, from.c), ending: idOf(to.r, to.c) });
+		const res = leg({ ...job, classes, starting: idOf(from.r, from.c), ending: idOf(to.r, to.c) });
 		if (!res.ok) return res;
 		const t = res.trace;
 		last = t;

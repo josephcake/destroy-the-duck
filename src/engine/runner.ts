@@ -4,6 +4,7 @@ import { Snapshot } from './graph';
 import { Trace, TracedAlgo } from './trace';
 import { WideJob, WideResult, runWide } from '../classic/wide';
 import { TourJob, runClassicTour } from './classicTour';
+import { runWideOnPage } from './classicPage';
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -44,8 +45,25 @@ export function wideAsync(job: WideJob): Promise<WideResult> {
 	});
 }
 
+/** Classic helpers that take one nested call per step (classic/wide.ts). */
+const RECURSIVE = new Set(['linearSearch', 'randomSearch']);
+/**
+ * Where a classic checkpoint tour runs. Linear and Random Search recurse once per
+ * step, and one leg of a 35 × 80 tour can walk ~2,750 cells. Chrome gives a worker
+ * well under half the main thread's stack (measured: ~4,100 vs ~10,400 frames of a
+ * small function), so long legs threw RangeError in the worker ("ran out of stack")
+ * and the run never finished. The classic table runs these helpers on the main
+ * thread; so does a tour that fits the table (classicPage.ts; worst case ~0.5 s
+ * for Random Search).
+ */
+export function tourOnMainThread(job: TourJob): boolean {
+	return RECURSIVE.has(job.algo) && job.classes.length / job.cols <= 35 && job.cols <= 80;
+}
+
 /** A classic algorithm through checkpoints (classicTour.ts), off the main thread when it can be. */
 export function tourAsync(job: TourJob): Promise<WideResult> {
+	// a macrotask first, so Go's "Pause" paints before the walk runs
+	if (tourOnMainThread(job) && typeof document !== 'undefined') return new Promise((resolve) => setTimeout(() => resolve(runClassicTour(job, runWideOnPage)), 0));
 	const w = getWorker();
 	if (!w) return Promise.resolve(runClassicTour(job));
 	const id = nextId++;
