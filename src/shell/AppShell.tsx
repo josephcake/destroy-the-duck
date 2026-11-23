@@ -933,7 +933,7 @@ export default function AppShell() {
 				)}
 				{(ctx.isToastVisible || newToast) && (
 					<button className="float toast" role="status" onClick={() => (ctx.isToastVisible ? ctx.resetToast('click') : setNewToast(false))}>
-						Cannot find Duck!
+						Cannot find Quack!
 					</button>
 				)}
 			</main>
