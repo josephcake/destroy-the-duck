@@ -27,6 +27,12 @@ afterEach(() => {
 	HTMLCanvasElement.prototype.getContext = getCtx;
 	localStorage.clear();
 });
+const ring = (r, c) => {
+	for (const [a, b] of [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
+		const td = document.getElementById(`${r + a}-${c + b}`);
+		td.className = td.className.replace('unvisited', 'wall');
+	}
+};
 const wait = (ms) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 test('classic Dijkstra with Quack walled in: red no-path story in the pill', async () => {
@@ -39,10 +45,7 @@ test('classic Dijkstra with Quack walled in: red no-path story in the pill', asy
 	await wait(50);
 	const end = document.querySelector('.legacy-mirror td[class*="_ending"]');
 	const [r, c] = end.id.split('-').map(Number);
-	for (const [a, b] of [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
-		const td = document.getElementById(`${r + a}-${c + b}`);
-		td.className = td.className.replace('unvisited', 'wall');
-	}
+	ring(r, c);
 	await wait(20);
 	fireEvent.click(screen.getByTestId('algo-picker'));
 	fireEvent.click(screen.getAllByRole('option', { name: /^Dijkstra/ })[0]);
@@ -59,10 +62,23 @@ test('classic Dijkstra with Quack walled in: red no-path story in the pill', asy
 	await wait(20);
 	expect(screen.getByText('Cannot find Quack!')).toBeTruthy(); // the 6 s toast from the first run
 	fireEvent.click(screen.getByTestId('go'));
+	await wait(10);
+	expect(screen.queryByText('Cannot find Quack!')).toBeNull(); // hidden at Go
 	for (let i = 0; i < 600 && !document.querySelector('.legacy-mirror td[class*="_visited"]'); i++) await wait(10);
 	for (let i = 0; i < 1500 && /Pause|Resume/.test(screen.getByTestId('go').textContent); i++) await wait(20);
 	await wait(100);
 	const again = screen.getByTestId('story-line');
 	expect(linesFor('dijkstra', 'found')).toContain(again.textContent);
 	expect(again.closest('.pill').getAttribute('data-outcome')).toBe('found');
+	expect(screen.queryByText('Cannot find Quack!')).toBeNull(); // the old toast went away at Go
+	// wall Quack in again: this run's own no-path brings the toast back
+	for (const td of document.querySelectorAll('.legacy-mirror td')) td.className = td.className.replace(/_visited\b/, '_unvisited');
+	ring(r, c);
+	await wait(20);
+	fireEvent.click(screen.getByTestId('go'));
+	for (let i = 0; i < 600 && !document.querySelector('.legacy-mirror td[class*="_visited"]'); i++) await wait(10);
+	for (let i = 0; i < 1500 && /Pause|Resume/.test(screen.getByTestId('go').textContent); i++) await wait(20);
+	await wait(100);
+	expect(screen.getByText('Cannot find Quack!')).toBeTruthy();
+	expect(screen.getByTestId('story-line').closest('.pill').getAttribute('data-outcome')).toBe('escaped');
 }, 60000);

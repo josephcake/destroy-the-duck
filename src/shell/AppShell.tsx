@@ -189,7 +189,9 @@ export default function AppShell() {
 	// ms stat for classic runs: wall-clock time of the animated run (Go to the
 	// last cell), so the speed tiers can be compared. New algorithms show engine ms.
 	const classicStart = useRef(0);
-	const toastAtGo = useRef(false);
+	// a "Cannot find Quack!" toast still up from the previous run when Go is pressed: hidden, and not this run's result
+	const [staleToast, setStaleToast] = useState(false);
+	useEffect(() => { if (!ctx.isToastVisible) setStaleToast(false); }, [ctx.isToastVisible]);
 	const [classicMs, setClassicMs] = useState<number | null>(null);
 	useEffect(() => {
 		if (ctx.running || !classicRun.current) return;
@@ -198,8 +200,9 @@ export default function AppShell() {
 		// No path when this run raised "Cannot find Quack!" (a toast left from an earlier run
 		// doesn't count: it was up at Go) or when Quack can't be reached at all.
 		const found = classicBestPath(ctx.starting, ctx.ending);
-		const failed = (ctx.isToastVisible && !toastAtGo.current) || !(found && found.length > 1);
+		const failed = (ctx.isToastVisible && !staleToast) || !(found && found.length > 1);
 		setBestPath(failed ? null : found);
+		if (failed) setStaleToast(false); // this run can't find Quack either: show the toast again
 		if (classicAlgo.current) {
 			const outcome = failed ? 'escaped' : 'found';
 			setClassicStory({ line: storyLine(classicAlgo.current, outcome), outcome });
@@ -382,7 +385,7 @@ export default function AppShell() {
 		classicAlgo.current = algo;
 		setClassicStory(null);
 		classicStart.current = performance.now();
-		toastAtGo.current = ctx.isToastVisible;
+		setStaleToast(ctx.isToastVisible);
 		setClassicMs(null);
 		ctx.go();
 	};
@@ -939,7 +942,7 @@ export default function AppShell() {
 						Drawing is locked while the search runs. Wait, or press Reset.
 					</button>
 				)}
-				{(ctx.isToastVisible || newToast) && (
+				{((ctx.isToastVisible && !staleToast) || newToast) && (
 					<button className="float toast" role="status" onClick={() => (ctx.isToastVisible ? ctx.resetToast('click') : setNewToast(false))}>
 						Cannot find Quack!
 					</button>
