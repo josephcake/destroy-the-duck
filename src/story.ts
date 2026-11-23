@@ -1,7 +1,7 @@
 // Quack Hunt's story (Joseph 2026-11-22). All the copy lives here so it is easy to edit.
 // The tone is playful and warm: "hunt" as in find, never hurt. Keep every line short
 // (60 characters or fewer) so it reads in the status pill on a phone. No 'pond' (Paper v2.1 copy rule).
-import type { AlgoId } from './engine/trace';
+import type { AlgoId, Trace } from './engine/trace';
 
 /** The premise, for the record (and anywhere a longer telling fits). */
 export const PREMISE =
@@ -89,6 +89,17 @@ export const SHARED: Lines = {
 	escaped: ['Quack waddled off with the bread. Fewer walls?'],
 };
 
+/** Runs through checkpoints: all ticked off and Quack found, or a checkpoint (or Quack after them) out of reach. */
+export const CHECKPOINT: Record<'found' | 'blocked', string[]> = {
+	found: ['Every checkpoint ticked off, then Quack. Found!', 'All checkpoints visited. Crumbs for everyone!'],
+	blocked: ['A checkpoint is walled off. No way round it.', "Can't reach every checkpoint. Quack keeps the loaf."],
+};
+const cpTurns = { found: 0, blocked: 0 };
+/** The next checkpoint line, round-robin. */
+export function checkpointLine(kind: 'found' | 'blocked'): string {
+	return CHECKPOINT[kind][cpTurns[kind]++ % CHECKPOINT[kind].length];
+}
+
 /** All the lines for an algorithm and outcome, in round-robin order. */
 export const linesFor = (algo: AlgoId, outcome: Outcome) => [...LINES[algo][outcome], ...SHARED[outcome]];
 
@@ -100,4 +111,12 @@ export function storyLine(algo: AlgoId, outcome: Outcome): string {
 	const i = turns.get(key) ?? 0;
 	turns.set(key, i + 1);
 	return all[i % all.length];
+}
+
+/** The line for a finished run: checkpoint lines when the board has checkpoints (Quack out of reach after them: the usual escape). */
+export function traceLine(t: Trace): string {
+	const cp = t.result.checkpoints;
+	if (cp && cp.reached < cp.order.length) return checkpointLine('blocked');
+	if (cp && t.result.found) return checkpointLine('found');
+	return storyLine(t.algo, t.result.found ? 'found' : 'escaped');
 }

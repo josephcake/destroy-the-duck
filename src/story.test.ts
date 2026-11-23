@@ -1,7 +1,7 @@
 // Quack Hunt's story: every algorithm has found and escape lines, all short and warm.
 import { TRACED } from './engine/trace';
 import { CLASSIC } from './shell/legacy';
-import { INTRO, INTRO_SHORT, LINES, PREMISE, SHARED, linesFor, storyLine } from './story';
+import { CHECKPOINT, INTRO, INTRO_SHORT, LINES, PREMISE, SHARED, checkpointLine, linesFor, storyLine } from './story';
 
 const ALL = [...CLASSIC.map((a) => a.id), ...TRACED];
 
@@ -16,7 +16,7 @@ test('every algorithm (classic six and the new nine) has found and escape lines,
 });
 
 test('every pill line is 60 characters or fewer, distinct, and never violent', () => {
-	const lines = [...Object.values(LINES).flatMap((l) => [...l.found, ...l.escaped]), ...SHARED.found, ...SHARED.escaped, INTRO_SHORT];
+	const lines = [...Object.values(LINES).flatMap((l) => [...l.found, ...l.escaped]), ...SHARED.found, ...SHARED.escaped, ...CHECKPOINT.found, ...CHECKPOINT.blocked, INTRO_SHORT];
 	for (const l of lines) expect(l.length, l).toBeLessThanOrEqual(60);
 	for (const a of ALL) {
 		expect(new Set(linesFor(a, 'found')).size).toBe(linesFor(a, 'found').length);
@@ -32,4 +32,14 @@ test('storyLine goes round-robin through the set, per algorithm and outcome', ()
 	expect(new Set(got).size).toBe(set.length);
 	expect(storyLine('astar', 'found')).toBe(got[0]);
 	expect(linesFor('astar', 'escaped')).toContain(storyLine('astar', 'escaped'));
+});
+
+test('checkpoint lines: short, warm, no pond, round-robin', () => {
+	for (const l of [...CHECKPOINT.found, ...CHECKPOINT.blocked]) {
+		expect(l.length, l).toBeLessThanOrEqual(60);
+		expect(l).not.toMatch(/pond/i);
+		expect(l).toMatch(/checkpoint/i);
+	}
+	const got = CHECKPOINT.blocked.map(() => checkpointLine('blocked'));
+	expect(new Set(got).size).toBe(CHECKPOINT.blocked.length);
 });
