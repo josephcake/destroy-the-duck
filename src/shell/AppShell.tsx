@@ -29,7 +29,6 @@ import { AlgoId, AlgoPicker, algoLabel, isTraced } from './AlgoPicker';
 import { Inspector, StepBar } from './Learn';
 import { Icon } from './icons';
 import { applyGenerator } from './generate';
-import { PORTRAIT_PHONE, RotatePrompt } from './RotatePrompt';
 import { GENERATORS, GenId } from '../model/generators';
 import { INTRO, INTRO_SHORT, storyLine, traceLine } from '../story';
 import { FEATURES, dropParkedTiles } from '../features';
@@ -307,7 +306,6 @@ export default function AppShell() {
 
 	const phone = useMedia(PHONE);
 	const landscapePhone = useMedia(LANDSCAPE_PHONE);
-	const portraitPhone = useMedia(PORTRAIT_PHONE);
 	const small = phone || landscapePhone;
 
 	// Phone: the panel is a bottom sheet; get it out of the way once a search starts.
@@ -481,7 +479,8 @@ export default function AppShell() {
 	const insets = landscapePhone
 		? { top: 64, right: 12 + safe, bottom: 64, left: 12 + safe }
 		: phone
-		? { top: learnFloats ? 76 + Math.round(0.34 * window.innerHeight) : 68, right: 12, bottom: learnFloats ? 136 : 68, left: 12 }
+		? // portrait: pill / card / inspector on top, the thumb bar and zoom row at the bottom (shell.css)
+		  { top: learnFloats ? 16 + Math.round(0.34 * window.innerHeight) : 64, right: 12, bottom: learnFloats ? 196 : 136, left: 12 }
 		: { top: 56, right: learnFloats ? (window.innerWidth <= 1023 ? 260 : 300) + 32 : 24, bottom: legendPinned ? legendH + 32 : 72, left: 24 };
 	// Fit (F) frames the whole board. Start view (H) does too, unless that fit would be
 	// under 50% (phones): then it opens at 75% around the Arrow (Prism qa gate, must-fix 2).
@@ -567,7 +566,6 @@ export default function AppShell() {
 
 	return (
 		<div className="app" data-chrome={prefs.chrome} data-cells={prefs.cells} data-pk-theme={prefs.chrome === 'dark' ? 'night-paper' : 'paper'} data-pk-flat="" data-panel={panelOpen ? 'open' : 'closed'}>
-			<RotatePrompt portraitPhone={portraitPhone} />
 			{/* Phase A legacy mirror: the classic table, hidden but live. */}
 			<div className="legacy-mirror" aria-hidden="true">
 				<Main rows={HOME_ROWS} cols={HOME_COLS} />
@@ -863,7 +861,7 @@ export default function AppShell() {
 						) : (
 							goButton(true)
 						)}
-						{TOOLS.filter((t) => !small || ['wall', 'erase', 'pan'].includes(t.id) || t.id === tool).map((t) => (
+						{TOOLS.filter((t) => !small || ['wall', 'weight', 'erase', 'pan'].includes(t.id) || t.id === tool).map((t) => (
 							<button key={t.id} className="icon-btn" aria-pressed={tool === t.id} aria-label={t.label} title={t.label} onClick={() => setTool(t.id)} style={tool === t.id ? { background: 'var(--raised)' } : undefined}>
 								<t.icon />
 							</button>

@@ -210,21 +210,25 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.panel[data-open='false'] { transform: translateY(100%); visibility: hidden; transition: transform var(--d-3) var(--ease-out), visibility 0s linear var(--d-3); }
 	.sheet-scrim { display: block; position: fixed; inset: 0; z-index: 25; border: 0; padding: 0; background: rgb(0 0 0/.28); cursor: default; }
 	.app[data-panel='open'] .stage .float, .app[data-panel='open'] .stage .duck-chip { display: none; }
-	.mini { left: 8px; right: 8px; top: 8px; justify-content: space-between; }
+	/* portrait is a real layout (2026-11-22, no rotate prompt): reading on top, thumbs at the bottom.
+	   bottom row: the quick bar (menu, Go, Wall, Checkpoint, Erase, Pan); above it the zoom row,
+	   and in Learn the step bar above that. Pill, first-run card and inspector sit on top. */
+	.mini { left: 8px; right: 8px; top: auto; bottom: 8px; justify-content: space-between; }
 	.mini__algo { display: none; }
-	.pill { top: 68px; right: 8px; max-width: calc(100% - 16px); }
-	.inspector { left: 8px; right: 8px; width: auto; top: 68px; bottom: auto; max-height: min(34vh, calc(100% - 68px - 140px)); }
+	.pill { top: 8px; left: 8px; right: 8px; max-width: none; }
+	.pill__story { font-size: 14px; line-height: 20px; }
+	.inspector { left: 8px; right: 8px; width: auto; top: 8px; bottom: auto; max-height: min(34vh, calc(100% - 8px - 200px)); }
 	.narration { min-height: 0; }
-	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 70px; padding: 4px; gap: 0; }
+	.stepbar { left: 8px; right: 8px; width: auto; transform: none; bottom: 136px; padding: 4px; gap: 0; }
 	.stepbar input[type='range'] { min-width: 40px; height: 44px; }
 	.stepbar__count { min-width: 0; font-size: 12px; }
 	/* the 75% start view puts board rows right under the quick bar: keep the first-run card to the strip above them (Prism re-gate nit) */
-	.landing { top: 64px; padding: 10px 14px; }
+	.landing { top: 8px; padding: 10px 14px; }
 	.landing__duck, .landing p { display: none; }
 	.landing .landing__story-short { display: block; margin: 0 0 8px; font-size: 14px; line-height: 20px; color: var(--ink); }
 	.landing h1 { font-size: 22px; line-height: 28px; margin: 0 0 6px; }
-	.zoom { bottom: 8px; right: 8px; }
-	.toast { bottom: 120px; }
+	.zoom { bottom: 68px; right: 8px; }
+	.toast { bottom: 136px; max-width: calc(100% - 16px); }
 	.legend-pin { display: none; }
 	/* tap targets >= 44px (WCAG 2.5.5 / design §6) */
 	.icon-btn, .mini .go { min-width: 44px; height: 44px; }
@@ -240,8 +244,12 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 .zoom { right: calc(16px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); }
 .panel__scroll, .panel__head { padding-left: max(var(--s-3), env(safe-area-inset-left)); }
 @media (max-width: 599px) {
-	.mini { left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); }
-	.zoom { right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom)); }
+	.mini { left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
+	.zoom { right: calc(8px + env(safe-area-inset-right)); bottom: calc(68px + env(safe-area-inset-bottom)); }
+	.stepbar { bottom: calc(136px + env(safe-area-inset-bottom)); }
+	.toast { bottom: calc(136px + env(safe-area-inset-bottom)); }
+	.pill, .inspector, .landing { top: calc(8px + env(safe-area-inset-top)); }
+	.pill { left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); }
 	.panel { padding-bottom: env(safe-area-inset-bottom); }
 }
 
@@ -272,15 +280,3 @@ kbd { font: var(--pk-type-data); font-size: 11px; border: 1px solid var(--pk-edg
 	.btn, .select, .tool { min-height: 44px; }
 	.panel__foot a { padding: 12px 4px; min-width: 44px; text-align: center; }
 }
-
-/* "Turn your phone sideways": a paper card over a soft scrim (portrait touch phones only) */
-.rotate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: rgb(43 38 32/.32); }
-.rotate__card { position: relative; width: min(320px, 100%); padding: 28px 24px 22px; text-align: center; background-color: var(--pk-card-ui); background-image: var(--pk-fibre); background-size: 256px; border-radius: var(--pk-radius-md); box-shadow: 0 1px 0 var(--pk-edge-d), 0 14px 30px -12px var(--pk-sh); color: var(--ink); }
-.rotate__icon { color: var(--ink); margin: 4px auto 8px; display: block; }
-.rotate__ghost { color: var(--ink-3); opacity: .7; transform-origin: 48px 48px; }
-@media (prefers-reduced-motion: no-preference) { .rotate__ghost { animation: rotate-hint 2.4s var(--ease-out, ease-out) 2; } }
-@keyframes rotate-hint { 0%, 30% { transform: rotate(-90deg); opacity: 0; } 70%, 100% { transform: rotate(0); opacity: .7; } }
-.rotate h2 { font: var(--pk-type-display-m); font-variation-settings: var(--pk-type-display-m-axes); margin: 0 0 8px; }
-.rotate p { margin: 0 0 18px; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
-.rotate .go { width: 100%; min-height: 48px; font-size: 16px; }
-
